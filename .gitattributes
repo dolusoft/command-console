@@ -1,0 +1,3 @@
+# Every text file is stored and checked out with LF; the shadcn-vue CLI on
+# Windows writes CRLF, which mixed line endings into generated parts.
+* text=auto eol=lf

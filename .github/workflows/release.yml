@@ -1,0 +1,189 @@
+name: Release
+
+# Publishes a version of the three packages together: push a tag
+# `v<version>` that equals the `version` of the root and of every
+# packages/*/package.json (see CONTRIBUTING.md, "Releasing").
+#
+#   version  the tag equals every package.json version, and is the next
+#            minor or patch of the latest release, or the first release
+#            1.0.0 (ADR 0009).
+#   ci       read-only token: every check of CI (ci.yml, called as is).
+#   pack     read-only token: builds, packs one tarball per package and
+#            uploads them as a workflow artifact.
+#   npm      no install and no repository code: publishes the same tarballs
+#            to npm, protocol, then core, then vue, with trusted publishing
+#            (OIDC: no token, no OTP) and provenance. Each package on
+#            npmjs.com lists this repository and `release.yml` as its trusted
+#            publisher (ADR 0008).
+#   publish  write token, no install and no repository code: creates one
+#            GitHub Release with generated notes and no asset, after npm.
+#   npm and publish both run in the release environment, which waits for
+#   one of its reviewers.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # The three packages are released together under one version: fails in
+  # seconds, before any check runs, when the tag and a package.json differ.
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ github.ref_name }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Tag matches every package.json
+        id: version
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::Tag $TAG does not match package.json version $version (expected v$version)."
+            exit 1
+          fi
+          for dir in packages/*/; do
+            own="$(node -p "require('./${dir}package.json').version")"
+            if [ "$own" != "$version" ]; then
+              echo "::error::${dir}package.json is $own, the release is $version."
+              exit 1
+            fi
+          done
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # Only the next minor or the next patch of the latest release, or
+      # 1.0.0 when nothing was released (ADR 0009). The tag being released
+      # is left out, so a re-run passes.
+      - name: Version is a legal release
+        run: node scripts/check-release-version.mjs --release
+
+  # Every check of CI, from the same workflow file.
+  ci:
+    needs: version
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  pack:
+    needs: [version, ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # The pnpm version is the `packageManager` field of package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # One tarball per package; pnpm writes the version in place of
+      # `workspace:*`. The npm job publishes these files.
+      - name: Pack
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          mkdir -p release
+          for dir in packages/command-protocol packages/command-console-core packages/command-console; do
+            (cd "$dir" && pnpm pack --pack-destination "$GITHUB_WORKSPACE/release")
+          done
+          count="$(find release -maxdepth 1 -name '*.tgz' | wc -l)"
+          if [ "$count" -ne 3 ]; then
+            echo "::error::Expected three tarballs in release/, found $count."
+            exit 1
+          fi
+          for pkg in command-protocol command-console-core command-console; do
+            test -f "release/dolusoft-$pkg-$VERSION.tgz"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarballs
+          path: release/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  npm:
+    needs: [version, pack]
+    # Waits for a reviewer of the `release` environment; the npm trusted
+    # publisher accepts this environment only.
+    environment: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: release
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install --global npm@latest
+
+      # Dependencies first: protocol, core, vue. A version already on npm is
+      # skipped, so a re-run is safe.
+      - name: Publish
+        run: |
+          for pkg in command-protocol command-console-core command-console; do
+            if npm view "@dolusoft/$pkg@$VERSION" version > /dev/null 2>&1; then
+              echo "@dolusoft/$pkg@$VERSION is already published: skipped."
+              continue
+            fi
+            npm publish "./release/dolusoft-$pkg-$VERSION.tgz" --provenance --access public
+          done
+
+  publish:
+    needs: [version, npm]
+    environment: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      # Notes generated from the merged pull requests; no asset, the packages
+      # are on npm (ADR 0008).
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG already exists: nothing to do."
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag
+          fi

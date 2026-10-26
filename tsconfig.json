@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "strict": true,
+    "useDefineForClassFields": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "paths": {
+      "@dolusoft/command-protocol": [
+        "./packages/command-protocol/src/index.ts"
+      ],
+      "@dolusoft/command-console-core": [
+        "./packages/command-console-core/src/index.ts"
+      ],
+      "@dolusoft/command-console": ["./packages/command-console/src/index.ts"]
+    }
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/src/**/*.vue",
+    "packages/*/tests/**/*.ts",
+    "packages/*/*.config.ts",
+    "contract/**/*.ts",
+    "tests/**/*.ts",
+    "tests/**/*.vue",
+    "*.config.ts"
+  ]
+}

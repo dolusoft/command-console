@@ -1,0 +1,37 @@
+name: Feature request
+description: Something the console cannot do yet.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Command Console is headless and stays small on purpose. Before asking, a look at [PRINCIPLES.md](https://github.com/dolusoft/command-console/blob/main/PRINCIPLES.md) helps: the console ships no CSS (P5), owns no page layout (P13), and the consumer owns the commands, their data and every product text (P1, P7). A request that fits these is the easiest to accept.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to build, and where the console gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+      description: |
+        The smallest change that solves it. The console grows in this order (P10): a slot when you draw something, an event when you react, a prop when the console needs data, and a method only for an action that is not state.
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What you do today
+      description: Your current workaround, if any.
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Where it belongs, if you know
+      options:
+        - '@dolusoft/command-console (Vue)'
+        - '@dolusoft/command-console-core (engine and features)'
+        - '@dolusoft/command-protocol (entries, blocks, line syntax)'
+        - Not sure

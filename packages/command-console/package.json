@@ -1,0 +1,55 @@
+{
+  "name": "@dolusoft/command-console",
+  "version": "0.0.0",
+  "description": "A headless command console for Vue 3: a scrollback above one input line, with recall, Tab completion, a context stack and redaction of sensitive lines. Ships no CSS.",
+  "private": false,
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "sideEffects": false,
+  "main": "./dist/command-console.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/command-console.js"
+    }
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dolusoft/command-console.git",
+    "directory": "packages/command-console"
+  },
+  "bugs": {
+    "url": "https://github.com/dolusoft/command-console/issues"
+  },
+  "homepage": "https://github.com/dolusoft/command-console#readme",
+  "keywords": [
+    "vue",
+    "vue3",
+    "console",
+    "terminal",
+    "command-line",
+    "headless"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "build": "vite build && vue-tsc -p tsconfig.build.json && node ../../scripts/emit-type-extensions.mjs dist/types"
+  },
+  "dependencies": {
+    "@dolusoft/command-console-core": "workspace:*",
+    "@dolusoft/command-protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "vue": "^3.5.43"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.0"
+  }
+}

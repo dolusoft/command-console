@@ -1,0 +1,19 @@
+{
+  "env": {
+    "CLAUDE_CODE_PLUGIN_KEEP_MARKETPLACE_ON_FAILURE": "1"
+  },
+  "enabledPlugins": {
+    "dolusoft-core@dolusoft": true,
+    "superpowers@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "dolusoft": {
+      "source": {
+        "source": "github",
+        "repo": "dolusoft/claude-plugins",
+        "ref": "stable"
+      },
+      "autoUpdate": true
+    }
+  }
+}

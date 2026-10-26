@@ -1,0 +1,24 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["contract/dom.ts", "scripts/*.mjs", "tests/fixtures/**/*.ts"],
+      "project": ["contract/**/*.ts", "scripts/*.mjs", "tests/**/*.ts"]
+    },
+    "packages/command-protocol": {
+      "project": ["src/**/*.ts", "tests/**/*.ts"]
+    },
+    "packages/command-console-core": {
+      "project": ["src/**/*.ts", "tests/**/*.ts"],
+      "ignoreDependencies": ["@dolusoft/command-protocol"]
+    },
+    "packages/command-console": {
+      "project": ["src/**/*.{ts,vue}", "tests/**/*.ts"],
+      "ignoreDependencies": [
+        "@dolusoft/command-protocol",
+        "@dolusoft/command-console-core",
+        "vue"
+      ]
+    }
+  }
+}

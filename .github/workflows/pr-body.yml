@@ -1,0 +1,34 @@
+name: PR body
+
+# The pull request template asks for an `İlkeler:` and a `Katman:` line; this
+# job fails when either is missing (scripts/check-pr-body.mjs).
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-body:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/check-pr-body.mjs
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+      # GitHub lists every co-author trailer as a contributor; an AI one fails
+      # the job (scripts/check-commit-trailers.mjs).
+      - run: git log --format=%B "$BASE..$HEAD" | node scripts/check-commit-trailers.mjs
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}

@@ -1,0 +1,113 @@
+name: CI
+
+# release.yml calls this workflow on a tag, so a release runs the same checks.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  # On a workflow_call the caller's workflow name keeps the group apart from
+  # the CI run of the same ref.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+# GitHub-hosted runners, one OS (ADR 0010). `checks` and `browser` run side
+# by side; `verify` is the required status check: it passes only when both
+# pass.
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # A version set in package.json is the next minor or patch of the latest
+      # release tag, or the first release (ADR 0009); release.yml runs the
+      # same script.
+      - run: node scripts/check-release-version.mjs
+
+      # The pnpm version is the `packageManager` field of package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      # Unit, package and repository specs with coverage; the repository
+      # specs include the rule traceability (P12).
+      - run: pnpm test:coverage
+      # One build of the dist/ of the three packages serves every check below.
+      - run: pnpm build
+      # One API report per published entry (etc/*.api.md, P9).
+      - run: pnpm api:check
+      - run: pnpm contract:check
+      - run: pnpm check:deps
+      - run: pnpm knip
+      # Linted as packages (publint, attw), no .css in dist/ or the tarballs,
+      # and no stylesheet or scripted animation in any form (P5).
+      - run: pnpm check:package
+      - run: pnpm check:no-css-leak
+      # Size (P8): the Vue fixtures against scripts/consumer-size-budget.json,
+      # the protocol and core fixtures against scripts/package-size-budget.json.
+      - run: pnpm check:size
+      - run: pnpm check:package-size
+      # The three tarballs installed into an app outside the workspace, the
+      # way an npm install resolves them, then typechecked and built (C-49).
+      - run: pnpm pack-install
+        timeout-minutes: 5
+
+  browser:
+    runs-on: ubuntu-latest
+    # A hung browser run must not hold a runner for the 6-hour default; room
+    # for the Chromium install retries (up to about 8 minutes).
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: ./.github/actions/chromium
+      - run: pnpm test:browser
+        timeout-minutes: 5
+
+  verify:
+    needs: [checks, browser]
+    # Runs even when a job before it failed or the run was cancelled, so the
+    # required check reports a failure: branch protection counts a skipped
+    # required check as passed.
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Every job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "checks, browser: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              exit 1
+            fi
+          done

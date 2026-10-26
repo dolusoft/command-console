@@ -1,0 +1,37 @@
+{
+  "name": "@dolusoft/command-protocol",
+  "version": "0.0.0",
+  "description": "The JSON of a command console: entries, output blocks, command specs, responses, effects, context frames, and the line tokenizer. No dependencies.",
+  "private": false,
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "sideEffects": false,
+  "main": "./dist/command-protocol.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/command-protocol.js"
+    }
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dolusoft/command-console.git",
+    "directory": "packages/command-protocol"
+  },
+  "bugs": {
+    "url": "https://github.com/dolusoft/command-console/issues"
+  },
+  "homepage": "https://github.com/dolusoft/command-console#readme",
+  "license": "MIT",
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json && node ../../scripts/emit-type-extensions.mjs dist/types"
+  }
+}
