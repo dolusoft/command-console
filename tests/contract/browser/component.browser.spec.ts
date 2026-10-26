@@ -235,6 +235,25 @@ describe('C-51 focus', () => {
     expect(document.activeElement).toBe(view.input())
   })
 
+  test('C-51 a click on the prompt or the empty space below the input line focuses the input', async () => {
+    const view = mountConsole()
+    await view.api.run('echo short')
+    await settle()
+    // A console taller than its content, as a consumer lays it out: most of
+    // it is empty space outside the log.
+    view.root.style.height = '400px'
+    await userEvent.click(view.root.querySelector('.cc-input-line .cc-prompt')!)
+    expect(document.activeElement).toBe(view.input())
+    view.input().blur()
+    const box = view.root.getBoundingClientRect()
+    const line = view.root.querySelector('.cc-input-line')!
+    expect(line.getBoundingClientRect().bottom).toBeLessThan(box.bottom - 50)
+    await userEvent.click(view.root, {
+      position: { x: 10, y: box.height - 10 }
+    })
+    expect(document.activeElement).toBe(view.input())
+  })
+
   test('C-51 a click with text selected or on something interactive does not', async () => {
     const view = mountConsole({
       slots: {

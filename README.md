@@ -17,7 +17,7 @@ It is not a terminal emulator: no PTY, no ANSI escape handling, no cursor addres
 The three packages are released together on npm. Add the Vue package; the protocol and the core come with it as dependencies.
 
 ```bash
-pnpm add @dolusoft/command-console@1.0.0
+pnpm add @dolusoft/command-console@1.0.1
 ```
 
 Peer dependency: `vue` 3.5+. The packages are ESM only and need Node 22.18 or newer (`engines`). A consumer that builds its own markup with optional features imports them from the core, so it adds `@dolusoft/command-console-core` too. A consumer without Vue installs only the core (and the protocol, if it uses the protocol's functions).
@@ -353,7 +353,7 @@ The library writes no `style` attribute, sets no size and no `overflow`. Give `.
 
 **Scroll.** The log stays at the bottom while the user is within 2 px of it, and always after the user's own submit; when the user has scrolled up, new output does not move the view. `scrollTop` of `.cc-log` is the only style-related write the library makes.
 
-**Focus.** `autofocus` focuses the input on mount; after a submit the input keeps focus. A click in the log focuses the input, unless text is selected (so it can be copied) or the click was on something interactive (a link, a button, a form field, an element with `tabindex` or `contenteditable`). When the input element is replaced, the new one gets focus only if the old one had it.
+**Focus.** `autofocus` focuses the input on mount; after a submit the input keeps focus. A click anywhere in the console (the log, the status line, the completion list, the prompt or the empty space around them) focuses the input, unless text is selected (so it can be copied) or the click was on something interactive (a link, a button, a form field, an element with `tabindex` or `contenteditable`). When the input element is replaced, the new one gets focus only if the old one had it.
 
 **Ids** come from Vue's `useId()`, so two consoles on one page never collide and server rendering matches. All text is escaped; nothing is rendered as HTML.
 

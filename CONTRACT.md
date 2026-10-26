@@ -1085,8 +1085,8 @@ No package reads or writes storage or the network.
 
 #### C-51 Focus (Vue)
 
-`autofocus` focuses on mount; a click in the log focuses the input unless text is selected or the target is
-interactive.
+`autofocus` focuses on mount; a click anywhere in the console (the log, the status, the completion list, the input
+line and the empty space around them) focuses the input unless text is selected or the target is interactive.
 
 #### C-52 Keys scoped (Vue)
 
