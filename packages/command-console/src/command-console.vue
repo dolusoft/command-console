@@ -190,10 +190,10 @@ onMounted(() => {
   }
 })
 
-// C-51: a click in the log focuses the input, unless text is selected or
-// the click was on something interactive.
-const onLogClick = (event: MouseEvent) => {
-  if (logElement.value && clickFocusesInput(event.target, logElement.value)) {
+// C-51: a click anywhere in the console focuses the input, unless text is
+// selected or the click was on something interactive.
+const onRootClick = (event: MouseEvent) => {
+  if (rootElement.value && clickFocusesInput(event.target, rootElement.value)) {
     focusInput()
   }
 }
@@ -358,13 +358,13 @@ defineExpose(exposed)
     class="cc-console"
     :data-busy="running ? '' : undefined"
     :data-context-depth="state.context.length"
+    @click="onRootClick"
   >
     <div
       ref="log"
       class="cc-log"
       role="log"
       :aria-label="labels.log"
-      @click="onLogClick"
       @scroll="scroll.onScroll"
     >
       <div ref="entries" class="cc-entries">

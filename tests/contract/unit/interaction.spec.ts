@@ -135,34 +135,53 @@ describe('C-51 focus (synthetic)', () => {
     expect(document.activeElement).toBe(view.input())
   })
 
-  it('C-51 a click in the log focuses the input, not on a button or with a selection', async () => {
+  it('C-51 a click anywhere in the console focuses the input, not on a button or with a selection', async () => {
     const view = mountConsole({
       slots: { 'block-text': () => h('button', { type: 'button' }, 'act') }
     })
     await view.api.run('echo a')
     await view.api.run('blocks')
     await settle()
-    const log = view.log()
-    log.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    expect(document.activeElement).toBe(view.input())
+    const root = view.root
+    for (const target of [
+      view.log(),
+      view.status(),
+      root.querySelector('.cc-input-line')!,
+      root.querySelector('.cc-input-line .cc-prompt')!,
+      root
+    ]) {
+      target.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      expect(document.activeElement).toBe(view.input())
+      view.input().blur()
+    }
+    // The completion list too.
+    type(view.input(), 'e')
+    view.input().dispatchEvent(key({ key: 'Tab' }))
+    await nextTick()
     view.input().blur()
+    root
+      .querySelector('.cc-completions [role="option"]')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(document.activeElement).toBe(view.input())
+    view.input().dispatchEvent(key({ key: 'Escape' }))
+    await nextTick()
 
-    const button = view.root.querySelector('button')!
-    expect(clickFocusesInput(button, log)).toBe(false)
-    expect(clickFocusesInput(button.firstChild, log)).toBe(false)
-    expect(clickFocusesInput(null, log)).toBe(true)
+    const button = root.querySelector('button')!
+    expect(clickFocusesInput(button, root)).toBe(false)
+    expect(clickFocusesInput(button.firstChild, root)).toBe(false)
+    // The input's own click is the browser's.
+    expect(clickFocusesInput(view.input(), root)).toBe(false)
+    expect(clickFocusesInput(null, root)).toBe(true)
     // An interactive element around the console does not count.
     const outer = document.createElement('a')
-    outer.append(view.root)
+    outer.append(root)
     document.body.append(outer)
-    expect(clickFocusesInput(log, log)).toBe(true)
+    expect(clickFocusesInput(root, root)).toBe(true)
 
     const range = document.createRange()
-    range.selectNodeContents(
-      view.root.querySelector('.cc-block[data-type="json"]')!
-    )
+    range.selectNodeContents(root.querySelector('.cc-block[data-type="json"]')!)
     document.getSelection()!.addRange(range)
-    expect(clickFocusesInput(log, log)).toBe(false)
+    expect(clickFocusesInput(root, root)).toBe(false)
     expect(selectionOf(view.input(), view.root)).toBe('document')
     expect(selectionOf(view.input(), null)).toBe('none')
     document.getSelection()!.removeAllRanges()
