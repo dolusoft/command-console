@@ -14,10 +14,10 @@ It is not a terminal emulator: no PTY, no ANSI escape handling, no cursor addres
 
 ## Install
 
-The three packages are released together on npm. Add the Vue package; the protocol and the core come with it as dependencies. 1.0 is not published yet; the release pull request puts the version into this line.
+The three packages are released together on npm. Add the Vue package; the protocol and the core come with it as dependencies.
 
 ```bash
-pnpm add @dolusoft/command-console
+pnpm add @dolusoft/command-console@1.0.0
 ```
 
 Peer dependency: `vue` 3.5+. The packages are ESM only and need Node 22.18 or newer (`engines`). A consumer that builds its own markup with optional features imports them from the core, so it adds `@dolusoft/command-console-core` too. A consumer without Vue installs only the core (and the protocol, if it uses the protocol's functions).

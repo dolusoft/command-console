@@ -1,6 +1,6 @@
 {
   "name": "@dolusoft/command-console",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "A headless command console for Vue 3: a scrollback above one input line, with recall, Tab completion, a context stack and redaction of sensitive lines. Ships no CSS.",
   "private": false,
   "type": "module",

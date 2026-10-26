@@ -1,6 +1,6 @@
 {
   "name": "@dolusoft/command-console-core",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "The engine of a headless command console: createConsole, its features (recall, completion, context) and redaction of sensitive lines. No framework.",
   "private": false,
   "type": "module",
