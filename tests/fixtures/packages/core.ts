@@ -1,6 +1,12 @@
 // A console with the core features only (`createConsole({ commands })`,
-// C-01). While the package is empty the fixture keeps every export through
-// the namespace; the core piece replaces it with a plain console (P8).
-import * as core from '@dolusoft/command-console-core'
+// C-01): what an app pays for the engine, the four core features and the
+// protocol's tokenizer.
+import { createConsole } from '@dolusoft/command-console-core'
 
-document.body.textContent = JSON.stringify(Object.keys(core))
+const console = createConsole({
+  commands: [{ name: 'echo', run: request => request.rest }]
+})
+console.subscribe(state => {
+  document.body.textContent = JSON.stringify(state.entries)
+})
+void console.run('echo hello')

@@ -9,8 +9,7 @@
       "project": ["src/**/*.ts", "tests/**/*.ts"]
     },
     "packages/command-console-core": {
-      "project": ["src/**/*.ts", "tests/**/*.ts"],
-      "ignoreDependencies": ["@dolusoft/command-protocol"]
+      "project": ["src/**/*.ts", "tests/**/*.ts"]
     },
     "packages/command-console": {
       "project": ["src/**/*.{ts,vue}", "tests/**/*.ts"],
