@@ -2,6 +2,7 @@
 // each on its element, no `style` attribute, and every hook of the contract
 // shows up in some state.
 import { afterEach, describe, expect, test } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import { h } from 'vue'
 
 import { settle } from '../../support/console-fixture'
@@ -9,17 +10,6 @@ import { createCollector, slotMarker } from '../../support/dom-collector'
 import { mountConsole, unmountAll } from '../../support/mount-console'
 
 afterEach(unmountAll)
-
-// The completion list needs the completion feature.
-// TODO(features): drop this once the feature is wired.
-const unreachable = [
-  'cc-completions',
-  'cc-completion',
-  'id',
-  'aria-selected',
-  'aria-controls',
-  'aria-activedescendant'
-]
 
 describe('C-45 DOM contract', () => {
   test('the rendered DOM matches the contract in every state', async () => {
@@ -42,6 +32,18 @@ describe('C-45 DOM contract', () => {
     view.slow.current!.resolve('done')
     await settle()
     dom.collect()
+
+    // An open completion list, first without a selection, then with one.
+    view.api.console.setInput('e')
+    await settle()
+    await userEvent.click(view.input())
+    await userEvent.keyboard('{Tab}')
+    await settle()
+    expect(view.root.querySelector('.cc-completions')).not.toBeNull()
+    dom.collect()
+    await userEvent.keyboard('{Tab}')
+    await settle()
+    dom.collect()
     view.unmount()
 
     // Slots: their content is the consumer's, the elements around it are
@@ -51,17 +53,24 @@ describe('C-45 DOM contract', () => {
         prompt: () => h('em', { [slotMarker]: '', style: 'color: red' }, '>'),
         'block-text': () =>
           h('b', { [slotMarker]: '', class: 'mine', 'data-x': '1' }, 'x'),
-        busy: () => h('i', { [slotMarker]: '' }, 'wait')
+        busy: () => h('i', { [slotMarker]: '' }, 'wait'),
+        completion: () => h('u', { [slotMarker]: '' }, 'c')
       }
     })
     await slotted.api.run('echo a')
+    slotted.api.console.setInput('e')
+    await settle()
+    await userEvent.click(slotted.input())
+    await userEvent.keyboard('{Tab}')
+    await settle()
+    dom.collect()
     void slotted.api.run('slow')
     await settle()
     dom.collect()
 
     dom.expectNothingOutsideContract()
     dom.expectNoStyle()
-    dom.expectEntriesRendered(unreachable)
+    dom.expectEntriesRendered()
   })
 
   test('the input is a text combobox with its fixed attributes', async () => {

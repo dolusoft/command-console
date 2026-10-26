@@ -15,6 +15,7 @@ import {
 } from 'vue'
 
 import {
+  completionFeature,
   consoleFeatures,
   contextFeature,
   recallFeature,
@@ -62,11 +63,11 @@ const emit = defineEmits<ConsoleEmits>()
 const slots = defineSlots<ConsoleSlots>()
 
 // The component always uses every optional feature (spec §7.2).
-// TODO(features): add `completionFeature` once it is on `main`.
-const features = consoleFeatures({
+const features: OptionalFeatures = consoleFeatures({
   recallFeature,
+  completionFeature,
   contextFeature
-}) as unknown as OptionalFeatures
+})
 
 // --- v-model (spec §3.4, C-61) ----------------------------------------------
 // An updater is resolved against the value this component last emitted for

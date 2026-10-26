@@ -89,6 +89,100 @@ describe('C-48 accessibility', () => {
     expect(view.status().getAttribute('role')).toBe('status')
   })
 
+  const openList = async (view: ReturnType<typeof mountConsole>) => {
+    await userEvent.click(view.input())
+    await userEvent.keyboard('e{Tab}')
+    await settle()
+  }
+
+  test('C-48 axe finds no violation with the list open, with and without a selection', async () => {
+    const view = mountConsole()
+    await openList(view)
+    expect(view.root.querySelector('[role="listbox"]')).not.toBeNull()
+    expect(await violations(view.root)).toEqual([])
+    await userEvent.keyboard('{Tab}')
+    await settle()
+    expect(await violations(view.root)).toEqual([])
+  })
+
+  test('C-48 aria-controls and aria-activedescendant point to the open list and its selected option', async () => {
+    const view = mountConsole()
+    await openList(view)
+    const input = view.input()
+    const list = view.root.querySelector('.cc-completions')!
+    expect(input.getAttribute('aria-expanded')).toBe('true')
+    expect(input.getAttribute('aria-controls')).toBe(list.id)
+    expect(document.getElementById(list.id)).toBe(list)
+    expect(list.getAttribute('aria-label')).toBe('Suggestions')
+    expect(input.hasAttribute('aria-activedescendant')).toBe(false)
+    expect(
+      [...list.querySelectorAll('[role="option"]')].map(
+        option => option.textContent
+      )
+    ).toEqual(['echo', 'exit'])
+
+    await userEvent.keyboard('{Tab}')
+    await settle()
+    const active = input.getAttribute('aria-activedescendant')!
+    expect(document.getElementById(active)?.textContent).toBe('echo')
+    expect(document.getElementById(active)?.getAttribute('aria-selected')).toBe(
+      'true'
+    )
+    expect(input.value).toBe('echo')
+
+    await userEvent.keyboard('{ArrowDown}')
+    await settle()
+    const next = input.getAttribute('aria-activedescendant')!
+    expect(document.getElementById(next)?.textContent).toBe('exit')
+    expect(input.value).toBe('exit')
+
+    // Enter accepts the selection: the list closes, nothing is submitted.
+    await userEvent.keyboard('{Enter}')
+    await settle()
+    expect(view.root.querySelector('.cc-completions')).toBeNull()
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+    expect(input.hasAttribute('aria-controls')).toBe(false)
+    expect(input.hasAttribute('aria-activedescendant')).toBe(false)
+    expect(input.value).toBe('exit ')
+    expect(view.root.querySelectorAll('.cc-entry')).toHaveLength(0)
+  })
+
+  test('C-48 Escape restores the typed text; typing closes the list', async () => {
+    const view = mountConsole()
+    await openList(view)
+    await userEvent.keyboard('{Tab}')
+    await settle()
+    await userEvent.keyboard('{Escape}')
+    await settle()
+    expect(view.input().value).toBe('e')
+    expect(view.root.querySelector('.cc-completions')).toBeNull()
+
+    await userEvent.keyboard('{Tab}')
+    await settle()
+    expect(view.root.querySelector('.cc-completions')).not.toBeNull()
+    await userEvent.keyboard('c')
+    await settle()
+    expect(view.root.querySelector('.cc-completions')).toBeNull()
+    expect(view.input().value).toBe('ec')
+  })
+
+  test('C-48 the completion slot renders inside the option', async () => {
+    const view = mountConsole({
+      slots: {
+        completion: (props: { candidate: string; active: boolean }) =>
+          h('b', `${props.candidate}${props.active ? '*' : ''}`)
+      }
+    })
+    await openList(view)
+    await userEvent.keyboard('{Tab}')
+    await settle()
+    const options = [...view.root.querySelectorAll('.cc-completion')]
+    expect(options.map(option => option.innerHTML)).toEqual([
+      '<b>echo*</b>',
+      '<b>exit</b>'
+    ])
+  })
+
   test('C-48 a recalled line is written to the status element', async () => {
     const view = mountConsole({
       props: { initialState: { recall: ['echo one', 'echo two'] } }

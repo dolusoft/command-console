@@ -8,6 +8,7 @@ import { commands, userEvent } from 'vitest/browser'
 
 import type { ConsoleEntry, ContextFrame } from '@dolusoft/command-console'
 
+import { completionLeakPaths } from '../../../packages/command-console-core/tests/support/completion-leak-paths'
 import { contextLeakPaths } from '../../../packages/command-console-core/tests/support/context-leak-paths'
 import {
   coreLeakPaths,
@@ -155,7 +156,12 @@ const typedPaths: LeakPath[] = [
 
 describe('C-36 leak matrix (Vue)', () => {
   const paths = [
-    ...[...coreLeakPaths, ...recallLeakPaths, ...contextLeakPaths].map(vuePath),
+    ...[
+      ...coreLeakPaths,
+      ...recallLeakPaths,
+      ...completionLeakPaths,
+      ...contextLeakPaths
+    ].map(vuePath),
     ...typedPaths
   ]
   test.each(paths.map(path => [path.name, path] as const))(
