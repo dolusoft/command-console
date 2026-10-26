@@ -6,7 +6,839 @@ This is the public contract of `@dolusoft/command-console`: the component surfac
 
 ## Component
 
-`<CommandConsole>` is not written yet. This part is generated from `packages/command-console/src/command-console.vue` and `packages/command-console/src/contract.ts` once both exist.
+### Props
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `commands` | `CommandDefinition[]` | yes |  | The commands; validated on every change (C-56). |
+| `prompt` | `string` |  | `undefined` | The root prompt. Default `'>'`. |
+| `initialState` | `Partial<ControllableState>` |  | `undefined` | The first value of each uncontrolled slice; read once. |
+| `createId` | `(() => string)` |  | `undefined` | Makes entry and run ids. Default: a per-console counter. |
+| `maxEntries` | `number` |  | `undefined` | Drops the oldest entries beyond this. Default unbounded. |
+| `beforeRun` | `((info: RunInfo, signal: AbortSignal) => BeforeRunResult \| Promise<BeforeRunResult>)` |  | `undefined` | Called when a command is about to run (permission checks, C-14). |
+| `onError` | `((error: unknown, info: RunInfo \| null) => void)` |  | `undefined` | A command threw (`info` set) or a callback threw (`info` null). Receives the error exactly as it was thrown. |
+| `formatError` | `((error: unknown, info: RunInfo) => CommandResponse)` |  | `undefined` | Turns a command's error into its output. Default `command-failed`. |
+| `isSensitive` | `((line: string) => boolean)` |  | `undefined` | Marks more lines sensitive, OR-ed with the commands' `sensitive`. |
+| `recallLimit` | `number` |  | `undefined` | The most lines recall keeps. Default 100. |
+| `shouldRecord` | `((line: string) => boolean)` |  | `undefined` | Whether a submitted line is recorded for recall. Default every line. |
+| `labels` | `ConsoleLabelsInput` |  | `undefined` | Texts over the English defaults (C-47). |
+| `autofocus` | `boolean` |  | `false` | Focuses the input on mount (C-51). Default `false`. |
+| `entries` | `ConsoleEntry[]` |  | `undefined` | The entries, for `v-model:entries`; controlled when bound (C-04). |
+| `recall` | `string[]` |  | `undefined` | The recall list, for `v-model:recall`; controlled when bound. |
+| `context` | `ContextFrame[]` |  | `undefined` | The context frames, for `v-model:context`; controlled when bound. |
+
+### Events
+
+| Name | Arguments | Description |
+| --- | --- | --- |
+| `update:entries` | `[entries: ConsoleEntry[]]` | The new entries of a bound `v-model:entries`, resolved against the last emitted value (C-61). |
+| `update:recall` | `[recall: string[]]` | The new recall list of a bound `v-model:recall`. |
+| `update:context` | `[context: ContextFrame[]]` | The new context frames of a bound `v-model:context`. |
+| `close` | `[]` | A command returned the `close` effect (C-25). |
+| `submit` | `[submit: ConsoleSubmit]` | A line was submitted with Enter or the exposed `run` (C-64). |
+
+### Slots
+
+| Name | Props | Description |
+| --- | --- | --- |
+| `block-text` | `BlockSlotProps<TextBlock>` | Replaces the rendering of a text block. |
+| `block-json` | `BlockSlotProps<JsonBlock>` | Replaces the rendering of a JSON block (for example to highlight it). |
+| `block-table` | `BlockSlotProps<TableBlock>` | Replaces the rendering of a table block. |
+| `block-list` | `BlockSlotProps<ListBlock>` | Replaces the rendering of a list block. |
+| `block-message` | `BlockSlotProps<MessageBlock>` | Replaces the rendering of a message block. |
+| `block-custom` | `BlockSlotProps<CustomBlock>` | Renders a custom block; without it the block shows as JSON. |
+| `prompt` | `{ prompt: string }` | Inside each `span.cc-prompt`. |
+| `busy` | `{ running: RunningCommand }` | Inside `.cc-status` while a command runs. |
+| `completion` | `CompletionSlotProps` | Inside each `li.cc-completion`. |
+
+### Exposed
+
+| Name | Signature | Description |
+| --- | --- | --- |
+| `focus` | `() => void` | Focuses the input. |
+| `run` | `(line: string) => Promise<boolean>` | Replaces the input with `line` and submits it, as the user would (C-63); keeps the log at the bottom. |
+| `cancel` | `() => void` | Interrupts the running command, else cancels the line. |
+| `reset` | `() => void` | Ends the run and returns every slice to its initial value. |
+| `clear` | `() => void` | Removes every entry. |
+| `console` | `Console<OptionalFeatures>` | The console, with every optional feature. |
+| `state` | `ConsoleState` | The console's state (for example `running`, to key an overlay on). A template ref unwraps it: reading it in a computed or a template tracks it. |
+
+### Functions
+
+Exported from the package entry point next to the component.
+
+| Name | Signature | Description |
+| --- | --- | --- |
+| `useCommandConsole` | `(options: UseCommandConsoleOptions<T>) => UseCommandConsoleReturn<T>` | Creates a console from `options` and keeps it in step with them. A value option (`commands`, `prompt`, `state`, `maxEntries`, `recallLimit`) may be a plain value, a ref or a getter. A function option (`beforeRun`, `onError`, …) may be the function or a ref that holds it: a bare function is the option itself, never a getter. `features` and `initialState` are read once. |
+
+## Types
+
+Exported from the package entry point (`packages/command-console/src/contract.ts`).
+
+```ts
+// The public surface of `<CommandConsole>` and `useCommandConsole`: props,
+// events, slots, the exposed API and the types they use (P9, P10). CONTRACT.md
+// is generated from this file and the component (`pnpm contract:gen`).
+import type { MaybeRef, MaybeRefOrGetter, ShallowRef } from 'vue'
+
+import type {
+  BeforeRunResult,
+  CommandDefinition,
+  Console,
+  ConsoleOptions,
+  ConsoleState,
+  ControllableState,
+  OptionalFeatures,
+  RunInfo,
+  RunningCommand
+} from '@dolusoft/command-console-core'
+import type {
+  CommandResponse,
+  ConsoleEntry,
+  ContextFrame,
+  CustomBlock,
+  JsonBlock,
+  ListBlock,
+  MessageBlock,
+  MessageCode,
+  MessageParams,
+  OutputBlock,
+  OutputEntry,
+  TableBlock,
+  TextBlock
+} from '@dolusoft/command-protocol'
+
+export type {
+  BeforeRunResult,
+  CommandDefinition,
+  CommandRequest,
+  CommandReturn,
+  CompletionRequest,
+  CompletionResult,
+  CompletionSession,
+  Console,
+  ConsoleOptions,
+  ConsoleState,
+  ControllableState,
+  InputState,
+  KeyInput,
+  OptionalFeatures,
+  RunContext,
+  RunInfo,
+  RunningCommand,
+  Updater
+} from '@dolusoft/command-console-core'
+export type {
+  CommandResponse,
+  CommandSpec,
+  ConsoleEffect,
+  ConsoleEntry,
+  ContextFrame,
+  CustomBlock,
+  InputEntry,
+  JsonBlock,
+  JsonPrimitive,
+  JsonValue,
+  ListBlock,
+  MessageBlock,
+  MessageCode,
+  MessageParams,
+  OutputBlock,
+  OutputEntry,
+  TableBlock,
+  TableColumn,
+  TextBlock
+} from '@dolusoft/command-protocol'
+
+// ---------------------------------------------------------------------------
+// Labels (spec §7.5, P7)
+
+/** The text of one message code: a string, or a function of its parameters. */
+export type MessageLabels = {
+  [C in MessageCode]: string | ((params: MessageParams[C]) => string)
+}
+
+/** Every text the component renders (C-47). */
+export interface ConsoleLabels {
+  /** The input's accessible name. Default `'Command'`. */
+  input: string
+  /**
+   * The input's description (`aria-description`): how Enter and Tab behave,
+   * and that Tab on an empty line leaves the console (C-59).
+   */
+  inputDescription: string
+  /** The log's accessible name. Default `'Console output'`. */
+  log: string
+  /** Shown instead of a sensitive line. Default `'(input hidden)'`. */
+  redacted: string
+  /** Shown after a line ended with Ctrl+C. Default `'^C'`. */
+  cancelledMarker: string
+  /** The completion list's accessible name. Default `'Suggestions'`. */
+  completions: string
+  /** The status text while a command runs. Default `'Running…'`. */
+  busy: string
+  /** The text of each library-made message block. */
+  messages: MessageLabels
+}
+
+/**
+ * The `labels` prop: any part of `ConsoleLabels`. `messages` is merged one
+ * level deep, so overriding one message keeps the others.
+ */
+export type ConsoleLabelsInput = Partial<Omit<ConsoleLabels, 'messages'>> & {
+  messages?: Partial<MessageLabels>
+}
+
+// ---------------------------------------------------------------------------
+// The component
+
+/** The props of `<CommandConsole>`. */
+export interface ConsoleProps {
+  /** The commands; validated on every change (C-56). */
+  commands: CommandDefinition[]
+  /** The root prompt. Default `'>'`. */
+  prompt?: string
+  /** The first value of each uncontrolled slice; read once. */
+  initialState?: Partial<ControllableState>
+  /** Makes entry and run ids. Default: a per-console counter. */
+  createId?: () => string
+  /** Drops the oldest entries beyond this. Default unbounded. */
+  maxEntries?: number
+  /** Called when a command is about to run (permission checks, C-14). */
+  beforeRun?: (
+    info: RunInfo,
+    signal: AbortSignal
+  ) => BeforeRunResult | Promise<BeforeRunResult>
+  /**
+   * A command threw (`info` set) or a callback threw (`info` null). Receives
+   * the error exactly as it was thrown.
+   */
+  onError?: (error: unknown, info: RunInfo | null) => void
+  /** Turns a command's error into its output. Default `command-failed`. */
+  formatError?: (error: unknown, info: RunInfo) => CommandResponse
+  /** Marks more lines sensitive, OR-ed with the commands' `sensitive`. */
+  isSensitive?: (line: string) => boolean
+  /** The most lines recall keeps. Default 100. */
+  recallLimit?: number
+  /** Whether a submitted line is recorded for recall. Default every line. */
+  shouldRecord?: (line: string) => boolean
+  /** Texts over the English defaults (C-47). */
+  labels?: ConsoleLabelsInput
+  /** Focuses the input on mount (C-51). Default `false`. */
+  autofocus?: boolean
+  /** The entries, for `v-model:entries`; controlled when bound (C-04). */
+  entries?: ConsoleEntry[]
+  /** The recall list, for `v-model:recall`; controlled when bound. */
+  recall?: string[]
+  /** The context frames, for `v-model:context`; controlled when bound. */
+  context?: ContextFrame[]
+}
+
+/** What the `submit` event carries: never the line (C-64). */
+export interface ConsoleSubmit {
+  /** The id of the input entry the line ended as. */
+  inputId: string
+  /** Whether the line was sensitive and its entry redacted. */
+  sensitive: boolean
+}
+
+/** The events of `<CommandConsole>`. */
+export interface ConsoleEmits {
+  /**
+   * The new entries of a bound `v-model:entries`, resolved against the last
+   * emitted value (C-61).
+   */
+  'update:entries': [entries: ConsoleEntry[]]
+  /** The new recall list of a bound `v-model:recall`. */
+  'update:recall': [recall: string[]]
+  /** The new context frames of a bound `v-model:context`. */
+  'update:context': [context: ContextFrame[]]
+  /** A command returned the `close` effect (C-25). */
+  close: []
+  /** A line was submitted with Enter or the exposed `run` (C-64). */
+  submit: [submit: ConsoleSubmit]
+}
+
+/** What a `block-<type>` slot receives. */
+export interface BlockSlotProps<B extends OutputBlock = OutputBlock> {
+  block: B
+  entry: OutputEntry
+}
+
+/** What the `completion` slot receives. */
+export interface CompletionSlotProps {
+  candidate: string
+  index: number
+  /** Whether this candidate is the selected one. */
+  active: boolean
+}
+
+/** The slots of `<CommandConsole>` (C-67). */
+export interface ConsoleSlots {
+  /** Replaces the rendering of a text block. */
+  'block-text'?(props: BlockSlotProps<TextBlock>): unknown
+  /** Replaces the rendering of a JSON block (for example to highlight it). */
+  'block-json'?(props: BlockSlotProps<JsonBlock>): unknown
+  /** Replaces the rendering of a table block. */
+  'block-table'?(props: BlockSlotProps<TableBlock>): unknown
+  /** Replaces the rendering of a list block. */
+  'block-list'?(props: BlockSlotProps<ListBlock>): unknown
+  /** Replaces the rendering of a message block. */
+  'block-message'?(props: BlockSlotProps<MessageBlock>): unknown
+  /** Renders a custom block; without it the block shows as JSON. */
+  'block-custom'?(props: BlockSlotProps<CustomBlock>): unknown
+  /** Inside each `span.cc-prompt`. */
+  prompt?(props: { prompt: string }): unknown
+  /** Inside `.cc-status` while a command runs. */
+  busy?(props: { running: RunningCommand }): unknown
+  /** Inside each `li.cc-completion`. */
+  completion?(props: CompletionSlotProps): unknown
+}
+
+/** What a template ref to `<CommandConsole>` reaches. */
+export interface ConsoleExpose {
+  /** Focuses the input. */
+  focus(): void
+  /**
+   * Replaces the input with `line` and submits it, as the user would
+   * (C-63); keeps the log at the bottom.
+   */
+  run(line: string): Promise<boolean>
+  /** Interrupts the running command, else cancels the line. */
+  cancel(): void
+  /** Ends the run and returns every slice to its initial value. */
+  reset(): void
+  /** Removes every entry. */
+  clear(): void
+  /** The console, with every optional feature. */
+  console: Console<OptionalFeatures>
+  /**
+   * The console's state (for example `running`, to key an overlay on). A
+   * template ref unwraps it: reading it in a computed or a template tracks
+   * it.
+   */
+  state: ConsoleState
+}
+
+// ---------------------------------------------------------------------------
+// The composable
+
+/** The value options of `useCommandConsole`: a value, a ref or a getter. */
+type ValueOptions<T extends Partial<OptionalFeatures>> = {
+  [K in 'prompt' | 'state' | 'maxEntries' | 'recallLimit']?: MaybeRefOrGetter<
+    ConsoleOptions<T>[K]
+  >
+}
+
+/** The function options of `useCommandConsole`: a function or a ref to one. */
+type FunctionOptions<T extends Partial<OptionalFeatures>> = {
+  [
+    K in
+      | 'onEntriesChange'
+      | 'onRecallChange'
+      | 'onContextChange'
+      | 'createId'
+      | 'beforeRun'
+      | 'onError'
+      | 'formatError'
+      | 'onClose'
+      | 'isSensitive'
+      | 'shouldRecord'
+  ]?: MaybeRef<ConsoleOptions<T>[K]>
+}
+
+/** The options of `useCommandConsole`: the core options, reactive. */
+export type UseCommandConsoleOptions<
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  T extends Partial<OptionalFeatures> = {}
+> = ValueOptions<T> &
+  FunctionOptions<T> & {
+    /** The optional features; fixed for the life of the console. */
+    features?: T
+    commands: MaybeRefOrGetter<CommandDefinition[]>
+    /** Read once, when the console is created. */
+    initialState?: MaybeRefOrGetter<Partial<ControllableState> | undefined>
+  }
+
+/** What `useCommandConsole` returns. */
+export interface UseCommandConsoleReturn<
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  T extends Partial<OptionalFeatures> = {}
+> {
+  /** The console; disposed with the effect scope. */
+  console: Console<T>
+  /** The state after every action (C-68). */
+  state: Readonly<ShallowRef<ConsoleState>>
+}
+```
+
+`contract.ts` exports the types below again; they are declared by the protocol or the core.
+
+```ts
+// packages/command-protocol/src/block.ts
+/** Plain text, rendered preformatted. */
+export interface TextBlock {
+  type: 'text'
+  text: string
+}
+
+// packages/command-protocol/src/block.ts
+/** A JSON value, rendered as `JSON.stringify(value, null, 2)`. */
+export interface JsonBlock {
+  type: 'json'
+  value: JsonValue
+}
+
+// packages/command-protocol/src/block.ts
+/** One column of a table block: the row key it reads and its header text. */
+export interface TableColumn {
+  key: string
+  label: string
+}
+
+// packages/command-protocol/src/block.ts
+/** A table: a header row from `columns`, then one row per `rows` item. */
+export interface TableBlock {
+  type: 'table'
+  columns: TableColumn[]
+  rows: Record<string, JsonPrimitive>[]
+}
+
+// packages/command-protocol/src/block.ts
+/** A list of text items. */
+export interface ListBlock {
+  type: 'list'
+  items: string[]
+}
+
+// packages/command-protocol/src/block.ts
+/**
+ * A message the library makes. It carries a code, never text: the Vue package
+ * renders it from its labels (P7).
+ */
+export interface MessageBlock {
+  type: 'message'
+  code: MessageCode
+  params?: Record<string, JsonPrimitive>
+}
+
+// packages/command-protocol/src/block.ts
+/** A block the consumer renders itself, told apart by `kind`. */
+export interface CustomBlock {
+  type: 'custom'
+  kind: string
+  data?: JsonValue
+}
+
+// packages/command-protocol/src/block.ts
+/** One piece of an output entry. Output is never HTML (ADR 0005). */
+export type OutputBlock =
+  TextBlock | JsonBlock | TableBlock | ListBlock | MessageBlock | CustomBlock
+
+// packages/command-protocol/src/block.ts
+/**
+ * The messages the library makes:
+ *
+ * - `command-not-found`: the first token names no command.
+ * - `command-failed`: the command threw or rejected; the error's text is never
+ *   shown (S-06).
+ * - `unterminated-quote`: the line has a quote that is not closed.
+ * - `interrupted`: a running command was cancelled.
+ */
+export type MessageCode =
+  'command-not-found' | 'command-failed' | 'unterminated-quote' | 'interrupted'
+
+// packages/command-protocol/src/block.ts
+/**
+ * The parameters of each message code. For a sensitive line `name` and
+ * `index` are `null`. A code without parameters has an empty record; its
+ * block carries no `params`.
+ */
+export interface MessageParams {
+  'command-not-found': { name: string | null }
+  'command-failed': Record<string, never>
+  'unterminated-quote': { index: number | null }
+  interrupted: Record<string, never>
+}
+
+// packages/command-protocol/src/command.ts
+/**
+ * The JSON part of a command: its names and how it is listed and redacted.
+ * The core adds the functions (`run`, `complete`) to it.
+ */
+export interface CommandSpec {
+  /** Non-empty, no whitespace, no quote characters; unique with the aliases. */
+  name: string
+  /** Other names that run the same command; the same rules as `name`. */
+  aliases?: string[]
+  /** One line on what the command does, for the consumer's help. */
+  summary?: string
+  /** How the command is called, for the consumer's help. */
+  usage?: string
+  /** Not listed by `getCommands` and not completed by name. */
+  hidden?: boolean
+  /**
+   * Arguments at and after `fromArg` are secret, so the line is redacted and
+   * those positions are never completed. `true` is `{ fromArg: 0 }`.
+   */
+  sensitive?: boolean | { fromArg: number }
+}
+
+// packages/command-protocol/src/command.ts
+/** What a command returns, as JSON. */
+export interface CommandResponse {
+  /** A string is one text block. */
+  output?: string | OutputBlock[]
+  /** Default `'default'`. */
+  tone?: OutputEntry['tone']
+  /** Copied to the output entry. */
+  quiet?: true
+  /** Applied in order, before the output is appended. */
+  effects?: ConsoleEffect[]
+}
+
+// packages/command-protocol/src/command.ts
+/**
+ * A change a command asks the console to make:
+ *
+ * - `clear`: empty the entries.
+ * - `close`: ask the consumer to close the console.
+ * - `push-context`: push a frame on the context stack.
+ * - `pop-context`: pop `count` frames (default 1); stops at the root.
+ * - `reset-context`: return to the root.
+ * - `clear-recall`: empty the recall list.
+ */
+export type ConsoleEffect =
+  | { type: 'clear' }
+  | { type: 'close' }
+  | { type: 'push-context'; frame: ContextFrame }
+  | { type: 'pop-context'; count?: number }
+  | { type: 'reset-context' }
+  | { type: 'clear-recall' }
+
+// packages/command-protocol/src/context.ts
+/**
+ * One level of the context stack. The stack runs bottom → top; the root is
+ * implicit and has no frame. The prompt of a new input entry is the top
+ * frame's `prompt`. What a frame means is the consumer's (`data`).
+ */
+export interface ContextFrame {
+  /** Identifies the frame; a change of the id sequence is a context change. */
+  id: string
+  /** The prompt shown while this frame is on top. */
+  prompt: string
+  /** The consumer's data for this frame. */
+  data?: JsonValue
+}
+
+// packages/command-protocol/src/entry.ts
+/** One entry of the scrollback: a line the user ended, or output. */
+export type ConsoleEntry = InputEntry | OutputEntry
+
+// packages/command-protocol/src/entry.ts
+/** A line the user ended, with the prompt it was ended with. */
+export interface InputEntry {
+  id: string
+  kind: 'input'
+  /** The prompt when the line ended. */
+  prompt: string
+  /** The trimmed line; `null` when the line was sensitive. */
+  text: string | null
+  /** True when the line was sensitive and its text is not kept. */
+  redacted: boolean
+  /** `cancelled` when the line was ended with Ctrl+C. */
+  status: 'submitted' | 'cancelled'
+}
+
+// packages/command-protocol/src/entry.ts
+/** What a command or the library wrote. */
+export interface OutputEntry {
+  id: string
+  kind: 'output'
+  tone: 'default' | 'error' | 'notice'
+  blocks: OutputBlock[]
+  /** The input entry this output answers. */
+  inputId?: string
+  /** Not announced by the live region (long output such as a whole config). */
+  quiet?: true
+}
+
+// packages/command-protocol/src/json.ts
+/** A JSON leaf. Numbers are finite: `NaN` and the infinities are not JSON. */
+export type JsonPrimitive = string | number | boolean | null
+
+// packages/command-protocol/src/json.ts
+/**
+ * A JSON value: a primitive, an array of values or a plain object of values.
+ * Every protocol type is made of these (P4).
+ */
+export type JsonValue =
+  JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
+
+// packages/command-console-core/src/core/console/console.types.ts
+// ---------------------------------------------------------------------------
+// State (spec §5.2)
+
+/** The live input line. */
+export interface InputState {
+  value: string
+  /** UTF-16 offset of the caret in `value`. */
+  caret: number
+  /**
+   * Changes when the input element must be replaced: after a sensitive line
+   * ends, on `reset()` and on a programmatic clear of a non-empty input.
+   */
+  revision: number
+}
+
+// packages/command-console-core/src/core/console/console.types.ts
+/** The command that runs now. */
+export interface RunningCommand {
+  runId: string
+  /** The canonical name of the command. */
+  command: string
+  inputId: string
+  /** `authorizing` while `beforeRun` has not answered. */
+  phase: 'authorizing' | 'running'
+}
+
+// packages/command-console-core/src/core/console/console.types.ts
+/** An open completion (completion feature, spec §6.5). */
+export interface CompletionSession {
+  status: 'open' | 'none'
+  /** Filtered, deduplicated, in the provider's order. */
+  candidates: string[]
+  final: boolean
+  /** The selected candidate; -1 when none is. */
+  active: number
+  /** The token's raw span in `input.value`, updated after each write. */
+  span: { start: number; end: number }
+  /** The token's raw text before the session. */
+  original: string
+}
+
+// packages/command-console-core/src/core/console/console.types.ts
+/** Everything the console holds. */
+export interface ConsoleState {
+  entries: ConsoleEntry[]
+  input: InputState
+  running: RunningCommand | null
+  /** Oldest → newest (recall feature). */
+  recall: string[]
+  recallCursor: number | null
+  recallDraft: string | null
+  completion: CompletionSession | null
+  /** Bottom → top; the root is implicit (context feature). */
+  context: ContextFrame[]
+}
+
+// packages/command-console-core/src/core/console/console.types.ts
+/** The slices a consumer may control (spec §3.4). */
+export interface ControllableState {
+  entries: ConsoleEntry[]
+  recall: string[]
+  context: ContextFrame[]
+}
+
+// packages/command-console-core/src/core/console/console.types.ts
+/**
+ * The optional features, by the key `options.features` takes. A console has
+ * the methods of the features it was created with, in its type and at run
+ * time.
+ */
+export interface OptionalFeatures {
+  recallFeature: RecallFeature
+  completionFeature: CompletionFeature
+  contextFeature: ContextFeature
+}
+
+// packages/command-console-core/src/core/console/console.types.ts
+// ---------------------------------------------------------------------------
+// Options (spec §5.1)
+
+/** What a console is created with. */
+export interface ConsoleOptions<
+  // `{}` and not its constraint, so a console created without `features` has
+  // no optional method (spec §3.2).
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  TFeatures extends Partial<OptionalFeatures> = {}
+> {
+  /** The optional features; fixed for the life of the console. */
+  features?: TFeatures
+  commands: CommandDefinition[]
+  /** The root prompt; default `'>'`. */
+  prompt?: string
+  /** The first value of each slice; ignored for a controlled slice. */
+  initialState?: Partial<ControllableState>
+  /** A slice given here is controlled (spec §3.4). */
+  state?: Partial<ControllableState>
+  onEntriesChange?: (updater: Updater<ConsoleEntry[]>) => void
+  onRecallChange?: (updater: Updater<string[]>) => void
+  onContextChange?: (updater: Updater<ContextFrame[]>) => void
+  /**
+   * Makes the id of an entry or a run. Default: a per-console counter
+   * (`c1`, `c2`, …) that skips ids already in `entries`.
+   */
+  createId?: () => string
+  /** Drops the oldest entries beyond this; default unbounded. */
+  maxEntries?: number
+  /** Called when a command is about to run, with the run's signal. */
+  beforeRun?: (
+    info: RunInfo,
+    signal: AbortSignal
+  ) => BeforeRunResult | Promise<BeforeRunResult>
+  /**
+   * A command threw or rejected (`info` set), or a callback threw (`info`
+   * null). Receives the error exactly as it was thrown.
+   */
+  onError?: (error: unknown, info: RunInfo | null) => void
+  /** Turns a command's error into its output; default `command-failed`. */
+  formatError?: (error: unknown, info: RunInfo) => CommandResponse
+  /** The `close` effect. */
+  onClose?: () => void
+  /** Marks more lines sensitive; OR-ed with the commands' `sensitive`. */
+  isSensitive?: (line: string) => boolean
+  /** The most lines recall keeps (recall feature); default 100. */
+  recallLimit?: number
+  /** Whether a line is recorded (recall feature); default every line. */
+  shouldRecord?: (line: string) => boolean
+}
+
+// packages/command-console-core/src/core/console/console.types.ts
+/** A console with the core features and the optional ones in `TFeatures`. */
+export type Console<
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  TFeatures extends Partial<OptionalFeatures> = {}
+> = CoreConsoleAPI<TFeatures> & FeatureAPIsOf<TFeatures>
+
+// packages/command-console-core/src/core/dispatch/dispatch.types.ts
+/**
+ * What `beforeRun` returns: `undefined` goes on to the command's `run`;
+ * `false` ends the run silently; a response ends the run as if the command
+ * had returned it (effects, then output).
+ */
+export type BeforeRunResult = undefined | false | CommandResponse
+
+// packages/command-console-core/src/core/dispatch/dispatch.types.ts
+/**
+ * What the console tells its callbacks about a run. It never carries the line
+ * or the arguments, for any command (P16).
+ */
+export interface RunInfo {
+  runId: string
+  /** The input entry of the line that started the run. */
+  inputId: string
+  /** The name as typed; `null` when the line is sensitive. */
+  name: string | null
+  /** The canonical name of the command. */
+  command: string
+  /** Whether the line was sensitive. */
+  sensitive: boolean
+  /** The context frames when the run started, bottom → top. */
+  context: ContextFrame[]
+}
+
+// packages/command-console-core/src/core/dispatch/dispatch.types.ts
+/** What a command's `run` may return. */
+export type CommandReturn = void | string | OutputBlock[] | CommandResponse
+
+// packages/command-console-core/src/core/dispatch/dispatch.types.ts
+/** A command: its JSON spec plus the functions that run and complete it. */
+export interface CommandDefinition extends CommandSpec {
+  /**
+   * Runs the command. A promise makes the run asynchronous; the console
+   * stays locked until it settles or the run is cancelled.
+   */
+  run(
+    request: CommandRequest,
+    run: RunContext
+  ): CommandReturn | Promise<CommandReturn>
+  /**
+   * The candidates for an argument (completion feature). Synchronous in 1.0.
+   * Called only for safe positions (spec §6.5).
+   */
+  complete?(request: CompletionRequest): CompletionResult
+}
+
+// packages/command-console-core/src/core/dispatch/dispatch.types.ts
+/** The parsed line a command runs with. */
+export interface CommandRequest {
+  /** The name as typed (an alias stays an alias). */
+  name: string
+  /** The canonical name. */
+  command: string
+  /** The tokens after the name, quotes removed. */
+  args: string[]
+  /** The raw text after the name and the whitespace that follows it. */
+  rest: string
+  /** The whole line, trimmed. */
+  line: string
+  /** The context frames when the run started, bottom → top, root excluded. */
+  context: ContextFrame[]
+}
+
+// packages/command-console-core/src/core/dispatch/dispatch.types.ts
+/** The handle a running command gets. */
+export interface RunContext {
+  runId: string
+  inputId: string
+  /**
+   * Aborted on cancel, `reset()`, `dispose()` and a context change made by
+   * anything other than the run's own effects.
+   */
+  signal: AbortSignal
+  /**
+   * Appends an output entry for this run. Joins an open action, else is its
+   * own; does nothing once the run has ended.
+   */
+  write(output: string | OutputBlock[], tone?: OutputEntry['tone']): void
+}
+
+// packages/command-console-core/src/core/dispatch/dispatch.types.ts
+/** What a command's `complete` is asked (completion feature). */
+export interface CompletionRequest {
+  /** `null` while the command name is completed. */
+  command: string | null
+  /** The complete arguments before the one completed (safe positions only). */
+  args: string[]
+  /** The typed part of the token at the caret, quotes removed. */
+  prefix: string
+  /** The argument index completed, 0-based; -1 for the name. */
+  index: number
+  context: ContextFrame[]
+}
+
+// packages/command-console-core/src/core/dispatch/dispatch.types.ts
+/**
+ * The candidates of a `complete` call. The library filters them
+ * (case-insensitive `startsWith(prefix)`). `final: false` keeps the space out
+ * after a single candidate (default true).
+ */
+export type CompletionResult =
+  string[] | { candidates: string[]; final?: boolean }
+
+// packages/command-console-core/src/shared/keys.ts
+/** A key press as the adapter reports it; core never sees a DOM event. */
+export interface KeyInput {
+  key: string
+  ctrlKey: boolean
+  shiftKey: boolean
+  altKey: boolean
+  metaKey: boolean
+  /** A key during IME composition is never handled. */
+  isComposing: boolean
+  /** Whether text is selected in the input or in the console's document. */
+  selection: 'none' | 'input' | 'document'
+}
+
+// packages/command-console-core/src/store/action.ts
+// Updaters (spec §3.4). A controlled slice is reported as one updater per
+// action that replays every change of the action, in order, onto the value it
+// is given.
+
+/** A new value, or a function from the old value to the new one. */
+export type Updater<T> = T | ((old: T) => T)
+```
 
 ## Behavior rules
 

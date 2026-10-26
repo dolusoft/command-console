@@ -31,8 +31,8 @@
 //   BROWSER_TEST_PROJECT     Vitest projects to run, comma-separated, default
 //                            "browser"
 //
-// A run that finds no browser spec passes (`--passWithNoTests`): the Vue
-// package's browser specs arrive with the package.
+// A run that finds no browser spec fails: the Vue package's browser specs
+// are part of the suite.
 //
 // Without a terminal (an agent, a pipe, CI) the run is headless unless
 // HEADLESS is set: nobody watches the page, and headed takes 2.5 times as long.
@@ -83,7 +83,7 @@ const runOnce = () =>
   new Promise(resolve => {
     const child = spawn(
       process.execPath,
-      [vitestBin, 'run', '--passWithNoTests', ...projects, ...args],
+      [vitestBin, 'run', ...projects, ...args],
       {
         stdio: ['inherit', 'pipe', 'pipe'],
         detached: process.platform !== 'win32',

@@ -4,6 +4,7 @@ import { playwright } from '@vitest/browser-playwright'
 import { defineConfig, mergeConfig } from 'vitest/config'
 
 import viteConfig from './packages/command-console/vite.config.ts'
+import { ariaCommands } from './tests/support/aria-commands.ts'
 
 // `vitest --mode inspect` (the `test:browser:inspect` script) keeps a headed
 // browser and the dev server up. Nothing here reaches the library build:
@@ -118,6 +119,8 @@ export default defineConfig(({ mode }) => {
                 (process.env.CI === 'true' || process.env.HEADLESS === '1'),
               ui: false,
               screenshotDirectory: 'tests/contract/browser/__screenshots__',
+              // The accessibility tree as Playwright reads it (C-36, C-48).
+              commands: { ...ariaCommands },
               viewport: { width: 1280, height: 800 },
               instances: [{ browser: 'chromium', name: 'browser' }]
             }
