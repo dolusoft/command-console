@@ -145,6 +145,9 @@ export interface ContextFeature {
 }
 
 // @public
+export const contextFeature: ContextFeature;
+
+// @public
 export interface ControllableState {
     // (undocumented)
     context: ContextFrame[];
