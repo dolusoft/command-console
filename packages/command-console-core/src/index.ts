@@ -3,6 +3,7 @@
 // renders the state (P14).
 
 export { consoleFeatures, createConsole } from './helpers/consoleFeatures'
+export { recallFeature } from './features/recall/recallFeature'
 
 export type {
   CompletionAPI,
