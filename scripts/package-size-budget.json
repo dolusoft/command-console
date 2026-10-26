@@ -2,7 +2,8 @@
   "note": "Budget for `node scripts/package-size.mjs --check` (CI, P8): the cost, minified + gzip, of an app built from each fixture in tests/fixtures/packages minus the empty app (tests/fixtures/packages/empty.ts). `measuredGzipBytes` is the value when the budget was last set; `maxGzipBytes` is that plus 5%, rounded up, capped at `ceilingGzipBytes` when one is set. A deliberate growth raises the budget (and the ceiling when needed) in the same change, with a one-line reason in `history`.",
   "history": [
     "0.0.0 (tooling, #1, 2026-10-26): first measurement on the empty packages. Each fixture imports its package as a namespace and prints its export names, so the cost is the fixture's own code; the protocol and core pieces replace the fixtures with real use and set the budgets from their first measure.",
-    "0.0.0 (protocol, #1, 2026-10-26): the protocol fixture tokenizes a line, quotes the tokens and checks the response with isJsonValue; first measure of the real package."
+    "0.0.0 (protocol, #1, 2026-10-26): the protocol fixture tokenizes a line, quotes the tokens and checks the response with isJsonValue; first measure of the real package.",
+    "0.0.0 (core, #1, 2026-10-26): the core fixture builds a console with the core features and runs a command (engine, store, four features, tokenizer); core-all still imports the namespace until the features exist."
   ],
   "fixtures": {
     "protocol": {
@@ -10,12 +11,12 @@
       "maxGzipBytes": 891
     },
     "core": {
-      "measuredGzipBytes": 143,
-      "maxGzipBytes": 151
+      "measuredGzipBytes": 5736,
+      "maxGzipBytes": 6023
     },
     "core-all": {
-      "measuredGzipBytes": 151,
-      "maxGzipBytes": 159
+      "measuredGzipBytes": 5798,
+      "maxGzipBytes": 6088
     }
   }
 }
