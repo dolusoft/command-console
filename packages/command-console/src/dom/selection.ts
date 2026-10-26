@@ -3,7 +3,7 @@
 import type { KeyInput } from '@dolusoft/command-console-core'
 
 /** Whether the document has a non-empty selection inside `root`. */
-export const hasSelectionIn = (root: Element | null): boolean => {
+const hasSelectionIn = (root: Element | null): boolean => {
   const selection = root?.ownerDocument.getSelection()
   if (!root || !selection || selection.isCollapsed) {
     return false

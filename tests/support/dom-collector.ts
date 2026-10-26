@@ -10,7 +10,7 @@ import { domAttributes, domClasses } from '../../contract/dom'
 export const slotMarker = 'data-test-slot'
 
 /** Every element the library rendered, slot content left out. */
-export const renderedElements = (): Element[] =>
+const renderedElements = (): Element[] =>
   [...document.querySelectorAll('.cc-console, .cc-console *')].filter(
     element => !element.closest(`[${slotMarker}]`)
   )

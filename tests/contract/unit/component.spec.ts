@@ -146,7 +146,11 @@ describe('C-67 slots', () => {
     const view = mountConsole({
       slots: {
         'block-json': (props: { block: { value: unknown } }) =>
-          h('b', { 'data-test-slot': '' }, `json:${JSON.stringify(props.block.value)}`)
+          h(
+            'b',
+            { 'data-test-slot': '' },
+            `json:${JSON.stringify(props.block.value)}`
+          )
       }
     })
     await view.api.run('blocks')
@@ -186,7 +190,11 @@ describe('C-67 slots', () => {
     void view.api.run('slow')
     await settle()
     const prompts = [...view.root.querySelectorAll('.cc-prompt')]
-    expect(prompts.map(prompt => prompt.textContent)).toEqual(['[$]', '[$]', '[$]'])
+    expect(prompts.map(prompt => prompt.textContent)).toEqual([
+      '[$]',
+      '[$]',
+      '[$]'
+    ])
     expect(prompts.every(prompt => prompt.tagName === 'SPAN')).toBe(true)
     expect(view.status().getAttribute('role')).toBe('status')
     expect(view.status().textContent).toBe('busy slow')
@@ -207,12 +215,12 @@ describe('C-61 same-tick updates through v-model', () => {
     void view.api.console.submit()
     const emitted = view.emitted('update:entries')
     const last = emitted.at(-1)![0] as ConsoleEntry[]
-    expect(last.map(entry => (entry.kind === 'input' ? entry.text : 'out'))).toEqual(
-      ['echo one', 'out', 'echo two', 'out']
-    )
+    expect(
+      last.map(entry => (entry.kind === 'input' ? entry.text : 'out'))
+    ).toEqual(['echo one', 'out', 'echo two', 'out'])
     await settle()
     await nextTick()
-    expect(view.wrapper.props('entries')).toEqual(last)
+    expect((view.wrapper.props() as { entries: unknown }).entries).toEqual(last)
     expect(view.root.querySelectorAll('.cc-entry')).toHaveLength(4)
   })
 
@@ -248,6 +256,45 @@ describe('C-66 context depth', () => {
     await view.wrapper.setProps({ context: frames.slice(0, 1) })
     expect(view.root.getAttribute('data-context-depth')).toBe('1')
   })
+
+  it('follows frames a command pushes and pops, and the prompt follows the top frame', async () => {
+    const { commands } = makeCommands()
+    const view = mountConsole({
+      props: { prompt: '$' },
+      commands: [
+        ...commands,
+        {
+          name: 'enter',
+          run: request => ({
+            effects: [
+              {
+                type: 'push-context',
+                frame: { id: request.args[0], prompt: `${request.args[0]}>` }
+              }
+            ]
+          })
+        },
+        { name: 'leave', run: () => ({ effects: [{ type: 'pop-context' }] }) }
+      ]
+    })
+    const depth = () => view.root.getAttribute('data-context-depth')
+    const prompt = () =>
+      view.root.querySelector('.cc-input-line .cc-prompt')?.textContent
+    expect([depth(), prompt()]).toEqual(['0', '$'])
+    await view.api.run('enter db')
+    await nextTick()
+    expect([depth(), prompt()]).toEqual(['1', 'db>'])
+    await view.api.run('enter users')
+    await nextTick()
+    expect([depth(), prompt()]).toEqual(['2', 'users>'])
+    await view.api.run('leave')
+    await nextTick()
+    expect([depth(), prompt()]).toEqual(['1', 'db>'])
+    // The input entry keeps the prompt it was typed at.
+    expect(texts(view.root, '.cc-entry[data-kind="input"] .cc-prompt')).toEqual(
+      ['$', 'db>', 'users>']
+    )
+  })
 })
 
 describe('expose (spec §7.2)', () => {
@@ -275,7 +322,9 @@ describe('expose (spec §7.2)', () => {
     expect(api.state.entries).toEqual([])
     expect(api.state.input.value).toBe('')
     api.focus()
-    expect(document.activeElement).toBe(wrapper.element.querySelector('.cc-input'))
+    expect(document.activeElement).toBe(
+      (wrapper.element as Element).querySelector('.cc-input')
+    )
     wrapper.unmount()
   })
 })

@@ -1,9 +1,5 @@
 // Commands and mounting helpers shared by the Vue specs (unit and browser).
-import type {
-  CommandDefinition,
-  ConsoleExpose,
-  OutputBlock
-} from '@dolusoft/command-console'
+import type { CommandDefinition, OutputBlock } from '@dolusoft/command-console'
 
 /** A promise with its resolve and reject at hand. */
 export interface Deferred<T = unknown> {
@@ -12,7 +8,7 @@ export interface Deferred<T = unknown> {
   reject(error: unknown): void
 }
 
-export const deferred = <T = unknown>(): Deferred<T> => {
+const deferred = <T = unknown>(): Deferred<T> => {
   let resolve!: (value: T) => void
   let reject!: (error: unknown) => void
   const promise = new Promise<T>((yes, no) => {
@@ -23,7 +19,7 @@ export const deferred = <T = unknown>(): Deferred<T> => {
 }
 
 /** One block of every type. */
-export const everyBlock: OutputBlock[] = [
+const everyBlock: OutputBlock[] = [
   { type: 'text', text: 'plain text' },
   { type: 'json', value: { a: 1, b: [true, null] } },
   {
@@ -88,9 +84,6 @@ export const makeCommands = () => {
   ]
   return { commands, slow }
 }
-
-/** The component's exposed API, as a template ref sees it. */
-export type Exposed = ConsoleExpose
 
 /** Waits for promises and Vue's scheduler to settle. */
 export const settle = async () => {

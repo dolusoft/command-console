@@ -5,7 +5,7 @@ import type { MessageBlock, MessageParams } from '@dolusoft/command-protocol'
 import type { ConsoleLabels, ConsoleLabelsInput } from './contract'
 
 /** The English defaults (spec §7.5). */
-export const defaultLabels: ConsoleLabels = {
+const defaultLabels: ConsoleLabels = {
   input: 'Command',
   inputDescription:
     'Enter runs the command. Tab completes; on an empty line it leaves the console.',

@@ -26,7 +26,9 @@ const lines = (entries: ConsoleEntry[]) =>
   entries.map(entry =>
     entry.kind === 'input'
       ? `${entry.prompt} ${entry.text}`
-      : entry.blocks.map(block => (block.type === 'text' ? block.text : block.type)).join()
+      : entry.blocks
+          .map(block => (block.type === 'text' ? block.text : block.type))
+          .join()
   )
 
 describe('C-68 composable', () => {
@@ -126,7 +128,9 @@ describe('C-68 composable', () => {
     const { result, scope } = inScope(() =>
       useCommandConsole({ commands: [echo] })
     )
-    const warn = vi.spyOn(globalThis.console, 'warn').mockImplementation(() => undefined)
+    const warn = vi
+      .spyOn(globalThis.console, 'warn')
+      .mockImplementation(() => undefined)
     ;(result.state as { value: unknown }).value = null
     expect(result.state.value).not.toBeNull()
     warn.mockRestore()

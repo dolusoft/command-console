@@ -27,7 +27,9 @@ describe('C-45 DOM contract', () => {
 
     // Every block type, a redacted line, a cancelled line, a quiet entry, an
     // error, a running command.
-    const view = mountConsole({ model: { context: [{ id: 'a', prompt: 'a>' }] } })
+    const view = mountConsole({
+      model: { context: [{ id: 'a', prompt: 'a>' }] }
+    })
     await view.api.run('blocks')
     await view.api.run('login admin hunter2')
     await view.api.run('quiet')

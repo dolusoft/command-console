@@ -16,6 +16,8 @@ import {
 
 import {
   consoleFeatures,
+  contextFeature,
+  recallFeature,
   type OptionalFeatures,
   type Updater
 } from '@dolusoft/command-console-core'
@@ -60,9 +62,11 @@ const emit = defineEmits<ConsoleEmits>()
 const slots = defineSlots<ConsoleSlots>()
 
 // The component always uses every optional feature (spec §7.2).
-// TODO(features): `consoleFeatures({ recallFeature, completionFeature,
-// contextFeature })` once the three features are on `main`.
-const features = consoleFeatures({}) as unknown as OptionalFeatures
+// TODO(features): add `completionFeature` once it is on `main`.
+const features = consoleFeatures({
+  recallFeature,
+  contextFeature
+}) as unknown as OptionalFeatures
 
 // --- v-model (spec §3.4, C-61) ----------------------------------------------
 // An updater is resolved against the value this component last emitted for
@@ -154,9 +158,10 @@ const prompt = computed(() => {
  * The recalled line, for the status element (spec §6.3): a screen reader
  * does not announce a scripted value change in a focused field.
  */
-const recalled = computed(() =>
-  state.value.recallCursor !== null ? state.value.input.value : ''
-)
+const recalled = computed(() => {
+  const { recall, recallCursor } = state.value
+  return recallCursor !== null ? (recall[recallCursor] ?? '') : ''
+})
 
 const entriesView: FunctionalComponent = () =>
   state.value.entries.map(entry => renderEntry(entry, labels.value, slots))

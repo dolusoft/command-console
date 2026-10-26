@@ -3,7 +3,6 @@
 // slice (`model`) behaves as `v-model`: every `update:*` is written back as
 // the parent would, through `setProps`.
 import { mount, type VueWrapper } from '@vue/test-utils'
-import type { Slot } from 'vue'
 
 import {
   CommandConsole,
@@ -22,8 +21,13 @@ export interface MountOptions {
   props?: Partial<ConsoleProps>
   commands?: CommandDefinition[]
   /** Slices bound like `v-model:<slice>`, with their first value. */
-  model?: { entries?: ConsoleEntry[]; recall?: string[]; context?: ContextFrame[] }
-  slots?: Record<string, Slot>
+  model?: {
+    entries?: ConsoleEntry[]
+    recall?: string[]
+    context?: ContextFrame[]
+  }
+  /** Slot functions by name; typed loosely, the specs pass their props. */
+  slots?: Record<string, (props: never) => unknown>
   /** Event listeners (`update:entries`, `close`…), called after `model`. */
   on?: Record<string, (...args: unknown[]) => void>
 }
@@ -65,7 +69,6 @@ export const mountConsole = (options: MountOptions = {}): Mounted => {
   for (const [name, listener] of Object.entries(options.on ?? {})) {
     props[`on${name[0].toUpperCase()}${name.slice(1)}`] = listener
   }
-  let wrapper!: VueWrapper
   for (const slice of Object.keys(options.model ?? {}) as Slice[]) {
     props[slice] = options.model![slice]
     const listener = options.on?.[`update:${slice}`]
@@ -74,9 +77,9 @@ export const mountConsole = (options: MountOptions = {}): Mounted => {
       listener?.(value)
     }
   }
-  wrapper = mount(CommandConsole as never, {
-    props,
-    slots: options.slots,
+  const wrapper: VueWrapper = mount(CommandConsole as never, {
+    props: props as never,
+    slots: options.slots as never,
     attachTo: host
   })
   mounted.add(wrapper)

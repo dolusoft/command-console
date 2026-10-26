@@ -10,7 +10,9 @@ import { mountConsole, unmountAll } from '../../support/mount-console'
 
 afterEach(() => {
   unmountAll()
-  document.head.querySelectorAll('style[data-test]').forEach(style => style.remove())
+  document.head
+    .querySelectorAll('style[data-test]')
+    .forEach(style => style.remove())
   window.getSelection()?.removeAllRanges()
 })
 
@@ -87,13 +89,37 @@ describe('C-48 accessibility', () => {
     expect(view.status().getAttribute('role')).toBe('status')
   })
 
+  test('C-48 a recalled line is written to the status element', async () => {
+    const view = mountConsole({
+      props: { initialState: { recall: ['echo one', 'echo two'] } }
+    })
+    await userEvent.click(view.input())
+    await userEvent.keyboard('{ArrowUp}')
+    await settle()
+    expect(view.input().value).toBe('echo two')
+    expect(view.status().textContent).toBe('echo two')
+    await userEvent.keyboard('{ArrowUp}')
+    await settle()
+    expect(view.input().value).toBe('echo one')
+    expect(view.status().textContent).toBe('echo one')
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+    await settle()
+    expect(view.input().value).toBe('')
+    expect(view.status().textContent).toBe('')
+  })
+
   test('C-48 quiet entries are aria-live off, others inherit the log', async () => {
     const view = mountConsole()
     await view.api.run('quiet')
     await view.api.run('echo loud')
     await settle()
-    const outputs = [...view.root.querySelectorAll('.cc-entry[data-kind="output"]')]
-    expect(outputs.map(entry => entry.getAttribute('aria-live'))).toEqual(['off', null])
+    const outputs = [
+      ...view.root.querySelectorAll('.cc-entry[data-kind="output"]')
+    ]
+    expect(outputs.map(entry => entry.getAttribute('aria-live'))).toEqual([
+      'off',
+      null
+    ])
   })
 })
 
@@ -284,7 +310,9 @@ describe('C-58 scroll', () => {
     await settle()
     await frame()
     expect(setProperty).not.toHaveBeenCalled()
-    expect(setAttribute.mock.calls.filter(([name]) => name === 'style')).toEqual([])
+    expect(
+      setAttribute.mock.calls.filter(([name]) => name === 'style')
+    ).toEqual([])
     expect(view.log().scrollTop).toBeGreaterThan(0)
     setProperty.mockRestore()
     setAttribute.mockRestore()
@@ -302,7 +330,7 @@ describe('C-58 scroll', () => {
       observe() {}
       unobserve() {}
       disconnect = disconnect
-    } as unknown as typeof ResizeObserver
+    }
     try {
       const view = mountConsole()
       await view.api.run('many 40')

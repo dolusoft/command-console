@@ -12,12 +12,7 @@
       "project": ["src/**/*.ts", "tests/**/*.ts"]
     },
     "packages/command-console": {
-      "project": ["src/**/*.{ts,vue}", "tests/**/*.ts"],
-      "ignoreDependencies": [
-        "@dolusoft/command-protocol",
-        "@dolusoft/command-console-core",
-        "vue"
-      ]
+      "project": ["src/**/*.ts", "src/**/*.vue"]
     }
   }
 }

@@ -6,8 +6,9 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { commands, userEvent } from 'vitest/browser'
 
-import type { ConsoleEntry } from '@dolusoft/command-console'
+import type { ConsoleEntry, ContextFrame } from '@dolusoft/command-console'
 
+import { contextLeakPaths } from '../../../packages/command-console-core/tests/support/context-leak-paths'
 import {
   coreLeakPaths,
   leakSecret,
@@ -17,8 +18,14 @@ import {
   type LeakPath,
   type Probe
 } from '../../../packages/command-console-core/tests/support/leak-matrix'
+import { recallLeakPaths } from '../../../packages/command-console-core/tests/support/recall-leak-paths'
 import { settle } from '../../support/console-fixture'
-import { mountConsole, unmountAll, type Mounted } from '../../support/mount-console'
+import {
+  mountConsole,
+  unmountAll,
+  type Mounted,
+  type MountOptions
+} from '../../support/mount-console'
 
 afterEach(unmountAll)
 
@@ -30,19 +37,35 @@ let current: Mounted | null = null
  * the probed `onEntriesChange`.
  */
 const mountFromOptions = (options: LeakOptions): LeakConsole => {
-  const { onEntriesChange, onClose } = options
+  const { onEntriesChange, onRecallChange, onContextChange, onClose } = options
+  const state = options.state ?? {}
+  const model: MountOptions['model'] = {}
+  if (state.entries) {
+    model.entries = state.entries
+  }
+  if (state.recall) {
+    model.recall = state.recall
+  }
+  if (state.context) {
+    model.context = state.context
+  }
   current = mountConsole({
     commands: options.commands,
-    model: { entries: options.state?.entries as ConsoleEntry[] },
+    model,
     props: {
+      initialState: options.initialState,
       beforeRun: options.beforeRun,
       formatError: options.formatError,
       isSensitive: options.isSensitive,
+      shouldRecord: options.shouldRecord,
+      recallLimit: options.recallLimit,
       onError: options.onError,
       createId: options.createId
     },
     on: {
       'update:entries': value => onEntriesChange?.(value as ConsoleEntry[]),
+      'update:recall': value => onRecallChange?.(value as string[]),
+      'update:context': value => onContextChange?.(value as ContextFrame[]),
       close: () => onClose?.()
     }
   })
@@ -63,7 +86,13 @@ const scanView = async (view: Mounted, probe: Probe, where: string) => {
     await commands.ariaSnapshot('.cc-console'),
     `${where}:accessibility tree`
   )
-  for (const name of ['update:entries', 'update:recall', 'update:context', 'submit', 'close']) {
+  for (const name of [
+    'update:entries',
+    'update:recall',
+    'update:context',
+    'submit',
+    'close'
+  ]) {
     probe.scan(view.emitted(name), `${where}:emit ${name}`)
   }
 }
@@ -125,7 +154,11 @@ const typedPaths: LeakPath[] = [
 ]
 
 describe('C-36 leak matrix (Vue)', () => {
-  test.each([...coreLeakPaths.map(vuePath), ...typedPaths].map(path => [path.name, path] as const))(
+  const paths = [
+    ...[...coreLeakPaths, ...recallLeakPaths, ...contextLeakPaths].map(vuePath),
+    ...typedPaths
+  ]
+  test.each(paths.map(path => [path.name, path] as const))(
     'C-36 %s leaves no trace in the DOM, the input or the accessibility tree',
     async (_name, path) => {
       expect(await runLeakPath(path, mountFromOptions)).toEqual([])
@@ -142,9 +175,14 @@ describe('C-36 leak matrix (Vue)', () => {
       }
     }
     const found = await runLeakPath(path, mountFromOptions)
-    expect(found.some(finding => finding.where.startsWith('shown:dom.text'))).toBe(true)
-    expect(found.some(finding => finding.where.startsWith('shown:accessibility tree'))).toBe(true)
+    expect(
+      found.some(finding => finding.where.startsWith('shown:dom.text'))
+    ).toBe(true)
+    expect(
+      found.some(finding =>
+        finding.where.startsWith('shown:accessibility tree')
+      )
+    ).toBe(true)
     expect(leakSecret).not.toBe('')
   })
 })
-
