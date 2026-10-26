@@ -49,6 +49,9 @@ export interface CompletionFeature {
 }
 
 // @public
+export const completionFeature: CompletionFeature;
+
+// @public
 export interface CompletionRequest {
     args: string[];
     command: string | null;

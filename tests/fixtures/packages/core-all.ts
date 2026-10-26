@@ -1,7 +1,28 @@
-// A console with every optional feature (recall, completion, context).
-// While the package is empty the fixture keeps every export through the
-// namespace; the core piece replaces it with a console built with all
-// features (P8).
-import * as core from '@dolusoft/command-console-core'
+// A console with every optional feature (recall, completion, context): what
+// an app pays for the engine with all of them (P8). Each feature, when it
+// lands, adds itself to `features` and uses one of its methods.
+import {
+  completionFeature,
+  consoleFeatures,
+  createConsole
+} from '@dolusoft/command-console-core'
 
-document.body.textContent = JSON.stringify(['all', ...Object.keys(core)])
+const features = consoleFeatures({ completionFeature })
+
+const console = createConsole({
+  features,
+  commands: [
+    {
+      name: 'echo',
+      run: request => request.rest,
+      complete: request =>
+        ['hello', 'help'].filter(word => word !== request.prefix)
+    }
+  ]
+})
+console.subscribe(state => {
+  document.body.textContent = JSON.stringify([state.entries, state.completion])
+})
+console.setInput('echo he')
+console.complete()
+void console.run('echo hello')
