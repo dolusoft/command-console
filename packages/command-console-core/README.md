@@ -41,6 +41,10 @@ await console.submit() // or: await console.run('echo hello')
   undoes. Argument positions at or after a command's `fromArg` are never completed.
 - **Sensitive lines** (a `sensitive` command or the `isSensitive` predicate) end as a redacted input entry and never
   reach `RunInfo`, messages, recall or callbacks.
+- **Context** (`features: { contextFeature }`): a stack of frames whose top sets the prompt. `pushContext(frame)`,
+  `popContext(count?)`, `resetContext()` and the `push-context` / `pop-context` / `reset-context` effects change it. A
+  run gets the frames of its start; a context change by anything but the run's own effects aborts its signal and drops
+  its context effects.
 - **Lifecycle**: `reset()` returns to the initial state, `dispose()` ends the run and turns every method into a no-op.
 
 The behavior is specified in [`contract/rules.md`](../../contract/rules.md); the public API is in
