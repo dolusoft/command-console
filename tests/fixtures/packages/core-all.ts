@@ -1,16 +1,14 @@
 // A console with every optional feature (recall, completion, context): what
-// an app pays for the engine with all of them (P8). Each feature, when it
-// lands, adds itself to `features` and uses one of its methods.
+// an app pays for the engine with all its features. Each feature piece adds
+// its feature here and uses one of its methods (P8).
 import {
   completionFeature,
-  consoleFeatures,
-  createConsole
+  createConsole,
+  recallFeature
 } from '@dolusoft/command-console-core'
 
-const features = consoleFeatures({ completionFeature })
-
 const console = createConsole({
-  features,
+  features: { recallFeature, completionFeature },
   commands: [
     {
       name: 'echo',
@@ -21,8 +19,12 @@ const console = createConsole({
   ]
 })
 console.subscribe(state => {
-  document.body.textContent = JSON.stringify([state.entries, state.completion])
+  document.body.textContent = JSON.stringify([
+    state.entries,
+    state.recall,
+    state.completion
+  ])
 })
 console.setInput('echo he')
 console.complete()
-void console.run('echo hello')
+void console.run('echo hello').then(() => console.recallPrevious())
