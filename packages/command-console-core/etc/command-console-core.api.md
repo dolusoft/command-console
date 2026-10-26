@@ -232,6 +232,9 @@ export interface RecallFeature {
 }
 
 // @public
+export const recallFeature: RecallFeature;
+
+// @public
 export interface RunContext {
     // (undocumented)
     inputId: string;

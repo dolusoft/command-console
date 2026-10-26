@@ -4,7 +4,8 @@
     "0.0.0 (tooling, #1, 2026-10-26): first measurement on the empty packages. Each fixture imports its package as a namespace and prints its export names, so the cost is the fixture's own code; the protocol and core pieces replace the fixtures with real use and set the budgets from their first measure.",
     "0.0.0 (protocol, #1, 2026-10-26): the protocol fixture tokenizes a line, quotes the tokens and checks the response with isJsonValue; first measure of the real package.",
     "0.0.0 (core, #1, 2026-10-26): the core fixture builds a console with the core features and runs a command (engine, store, four features, tokenizer); core-all still imports the namespace until the features exist.",
-    "0.0.0 (context, #1, 2026-10-26): core-all becomes a real console with contextFeature (pushes, pops and resets frames); recall and completion add theirs."
+    "0.0.0 (recall, #1, 2026-10-26): core-all becomes a real console with recallFeature (record, browse, clear-recall); completion and context add theirs.",
+    "0.0.0 (context, #1, 2026-10-26): core-all adds contextFeature (pushes, pops and resets frames) next to recallFeature; completion adds its own."
   ],
   "fixtures": {
     "protocol": {
@@ -16,8 +17,8 @@
       "maxGzipBytes": 6023
     },
     "core-all": {
-      "measuredGzipBytes": 6203,
-      "maxGzipBytes": 6514
+      "measuredGzipBytes": 6739,
+      "maxGzipBytes": 7076
     }
   }
 }

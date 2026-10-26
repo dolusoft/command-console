@@ -1,10 +1,14 @@
 // A console with every optional feature (recall, completion, context): what
 // an app pays for the engine with all its features (P8). Each feature piece
-// adds its feature here and raises the budget.
-import { contextFeature, createConsole } from '@dolusoft/command-console-core'
+// adds its feature here, uses one of its methods and raises the budget.
+import {
+  contextFeature,
+  createConsole,
+  recallFeature
+} from '@dolusoft/command-console-core'
 
 const console = createConsole({
-  features: { contextFeature },
+  features: { contextFeature, recallFeature },
   commands: [
     { name: 'echo', run: request => request.rest },
     {
@@ -17,7 +21,14 @@ const console = createConsole({
   ]
 })
 console.subscribe(state => {
-  document.body.textContent = JSON.stringify([state.entries, state.context])
+  document.body.textContent = JSON.stringify([
+    state.entries,
+    state.context,
+    state.recall
+  ])
 })
-void console.run('db').then(() => console.run('echo hello'))
+void console
+  .run('db')
+  .then(() => console.run('echo hello'))
+  .then(() => console.recallPrevious())
 console.resetContext()
