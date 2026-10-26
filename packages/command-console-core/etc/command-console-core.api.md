@@ -145,6 +145,9 @@ export interface ContextFeature {
 }
 
 // @public
+export const contextFeature: ContextFeature;
+
+// @public
 export interface ControllableState {
     // (undocumented)
     context: ContextFrame[];
@@ -227,6 +230,9 @@ export interface RecallFeature {
     // (undocumented)
     readonly name: 'recall';
 }
+
+// @public
+export const recallFeature: RecallFeature;
 
 // @public
 export interface RunContext {
