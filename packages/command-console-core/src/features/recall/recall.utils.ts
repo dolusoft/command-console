@@ -1,4 +1,4 @@
-// Pure helpers of the recall feature (spec §6.3).
+// Pure helpers of the recall feature (README: Recall).
 
 /** The default of `options.recallLimit`. */
 export const defaultRecallLimit = 100

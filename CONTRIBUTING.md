@@ -26,11 +26,11 @@ Tests import the packages by name, never `packages/*/src/` (except the internal 
 - `pnpm build`: the `dist/` of the three packages.
 - `pnpm lint`, `pnpm typecheck`.
 - `pnpm test`: the `unit` project (happy-dom): internal specs in `packages/*/src`, package specs in `packages/*/tests`, `tests/contract/unit` and `tests/repo`. `pnpm test:coverage` adds coverage (below).
-- `pnpm test:browser`: the `browser` project (Vitest Browser Mode, Playwright Chromium), `*.browser.spec.ts` in `tests/contract/browser` and `packages/*/tests`. Headed by default; `pnpm test:browser:headless` (or `HEADLESS=1`, or `CI=true`) runs without a window. First run: `pnpm exec playwright install chromium`. The script runs Vitest under a time limit and retries once on an infrastructure failure; with no browser spec yet it passes (`--passWithNoTests`). The server listens on `127.0.0.1:51325`; `VITEST_BROWSER_PORT` moves it so two clones can run at once. `pnpm test:browser:inspect` keeps the browser and the dev server up (CDP on `127.0.0.1:9333`).
-- `pnpm contract:gen` writes `CONTRACT.md`; `pnpm contract:check` fails when it is stale. Until `packages/command-console/src/command-console.vue` and `src/contract.ts` both exist, the component part of `CONTRACT.md` is a placeholder.
+- `pnpm test:browser`: the `browser` project (Vitest Browser Mode, Playwright Chromium), `*.browser.spec.ts` in `tests/contract/browser` and `packages/*/tests`. Headed by default; `pnpm test:browser:headless` (or `HEADLESS=1`, or `CI=true`) runs without a window. First run: `pnpm exec playwright install chromium`. The script runs Vitest under a time limit and retries once on an infrastructure failure. The server listens on `127.0.0.1:51325`; `VITEST_BROWSER_PORT` moves it so two clones can run at once. `pnpm test:browser:inspect` keeps the browser and the dev server up (CDP on `127.0.0.1:9333`).
+- `pnpm contract:gen` writes `CONTRACT.md`; `pnpm contract:check` fails when it is stale. It is generated from `contract/rules.md`, `contract/dom.ts`, `packages/command-console/src/contract.ts` and the component.
 - `pnpm api:update` writes the API reports (`packages/*/etc/*.api.md`) from the built declarations; `pnpm api:check` fails when one differs. A changed report is reviewed like code (P9).
 - `pnpm check:deps`: the dependency allow-list of every package (`scripts/check-deps.mjs`, P11).
-- `pnpm knip`: unused files, exports and dependencies. While the core and the Vue package are empty, `knip.json` ignores their `@dolusoft/*` dependencies and the Vue package's `vue`; the piece that first imports one removes it from `ignoreDependencies`.
+- `pnpm knip`: unused files, exports and dependencies.
 - `pnpm check:package`: publint and Are the Types Wrong on each package, and no `.css` in `dist/` or the tarball. `pnpm check:no-css-leak`: no stylesheet or scripted animation in any form in `dist/` or the tarball (P5).
 - `pnpm pack-install`: packs the three packages, installs the tarballs into a new Vite app outside the workspace with no alias and no `optimizeDeps`, checks that each installed package holds its README and license, typechecks and builds the app (C-49). `PACK_INSTALL_DIR` sets where the app goes, `PACK_INSTALL_KEEP=1` keeps it.
 
@@ -38,7 +38,7 @@ The checks that read `dist/` (`api:check`, `check:package`, `check:no-css-leak`,
 
 ## Coverage
 
-`pnpm test:coverage` measures `packages/*/src` (specs left out) with v8 and fails under 90% of statements, branches, functions or lines. A file with no statement, branch or function (the `export {}` placeholder of a package that has no code yet) counts neither for nor against the thresholds: v8 reports `0/0`, which is 100%, and lists the file as an empty file it skipped. The thresholds bite as soon as a package has code.
+`pnpm test:coverage` measures `packages/*/src` (specs left out) with v8 and fails under 90% of statements, branches, functions or lines. A file with no statement, branch or function (a file of types only) counts neither for nor against the thresholds: v8 reports `0/0`, which is 100%, and lists the file as an empty file it skipped.
 
 ## Rule traceability
 
@@ -47,11 +47,13 @@ Every rule in `contract/rules.md` needs a runnable test whose title, or the titl
 - a rule that is neither withdrawn nor pending has no test;
 - a test names an unknown rule, or a withdrawn one;
 - the numbering has a gap;
-- fewer rules than the 1.0 count, or fewer runnable tests than the floor, are found (both are constants at the top of the spec).
+- fewer rules than the 1.0 count, or fewer runnable tests than the floor, are found (both are constants at the top of `contract-traceability.spec.ts`).
 
 A rule is **withdrawn** when its title is `(withdrawn)` (C-42): its number is never reused and it needs no test.
 
-A rule is **pending** while it is listed in `tests/repo/pending-rules.ts`. The packages are written piece by piece, so most rules start there. The list may only shrink: the spec fails when a pending rule already has a test, so the pull request that adds a rule's first test removes the rule from the list in the same change. 1.0 is released with the list empty and the test floor raised to the 1.0 count.
+A rule is **pending** while it is listed in `tests/repo/pending-rules.ts`. 1.0 has every rule tested and the list empty. A later rule may start there while its pull request is split; the list may only shrink: the traceability spec fails when a pending rule already has a test, so the pull request that adds a rule's first test removes the rule from the list in the same change. A release has the list empty.
+
+A new behavior starts as a rule: append a `### C-nn Title` to `contract/rules.md` (never reuse a number), add a test that names it, change the code, run `pnpm contract:gen`, and raise `minimumTests` when the test count grows.
 
 ## Measuring
 
@@ -60,7 +62,7 @@ Size is a budget per consumer fixture (P8), measured as a consumer pays it: a mi
 - `pnpm measure:package-size` builds `tests/fixtures/packages/` (`protocol`, `core` with the core features, `core-all` with every feature) minus `empty`; `pnpm check:package-size` checks them against `scripts/package-size-budget.json`.
 - `pnpm measure:consumer-size` builds `tests/fixtures/consumer/` (`composable`, `component`) minus `vue-only`; `pnpm check:size` checks them against `scripts/consumer-size-budget.json`.
 
-A budget is the last measure plus 5%, rounded up, under an optional ceiling. A deliberate growth raises it in the same change, with a one-line reason in the budget's `history`. While a package is empty its fixtures import it as a namespace; the piece that fills the package replaces its fixtures with real use and sets the budgets from its first measure.
+A budget is the last measure plus 5%, rounded up, under an optional ceiling. A deliberate growth raises it in the same change, with a one-line reason in the budget's `history`. Each fixture uses its package for real (a console with commands, the component with `v-model`), so a budget measures what an app pays.
 
 ## Releasing
 
@@ -70,7 +72,7 @@ There are no major releases ([ADR 0009](docs/decisions/0009-release-versions.md)
 
 **The first release.** The packages carry the unreleased `0.0.0` until the pull request that prepares 1.0. While no `v*` tag exists, CI accepts `0.0.0` and `1.0.0`, and a release accepts only `1.0.0`. The first publish of the three names to npm is made by hand; after it each package on npmjs.com gets this repository and `release.yml` as its trusted publisher.
 
-1. In the pull request that prepares the release, set `version` in the root `package.json` and in every `packages/*/package.json` to the new version, and the install line of `README.md` (`pnpm add @dolusoft/command-console@<version>`) to the same version (`tests/repo/package-manifest.spec.ts` fails when they differ; at `0.0.0` the README has no install line).
+1. In the pull request that prepares the release, set `version` in the root `package.json` and in every `packages/*/package.json` to the new version, and the install line of `README.md` (`pnpm add @dolusoft/command-console@<version>`) to the same version, and drop the README's "not published yet" sentence (`tests/repo/package-manifest.spec.ts` fails when they differ; at `0.0.0` the install line names no version).
 2. After the pull request is merged, tag the merge commit on `main` and push the tag:
 
    ```bash

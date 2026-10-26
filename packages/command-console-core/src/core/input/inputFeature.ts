@@ -1,5 +1,6 @@
-// The input feature (spec §5.2, §6.1 step 4, §6.8): the live line, its caret
-// and the revision the adapter keys the input element by.
+// The input feature (core README: State; README: Running a line, Sensitive
+// lines): the live line, its caret and the revision the adapter keys the
+// input element by.
 import {
   assignMethods,
   inputChanged,
@@ -18,7 +19,7 @@ const clamp = (caret: number, value: string) =>
 /**
  * Writes the input in the open action and tells the `onInputChange` hooks.
  * A programmatic clear of a non-empty input increments the revision; a user
- * edit (`programmatic: false`) never does (spec §6.8, C-54).
+ * edit (`programmatic: false`) never does (README: Sensitive lines, C-54).
  */
 const write = (
   console: object,
@@ -51,8 +52,8 @@ const write = (
 }
 
 /**
- * The line-end cleanup (spec §6.1 step 4), the same on every path that ends
- * a line: clears the input, increments the revision when the line was
+ * The line-end cleanup (README: Running a line), the same on every path that
+ * ends a line: clears the input, increments the revision when the line was
  * sensitive, and calls the `onLineCleared` hooks. Runs in the open action.
  */
 export const endLine = (console: object, sensitive: boolean): void => {

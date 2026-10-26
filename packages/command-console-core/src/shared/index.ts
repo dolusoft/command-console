@@ -1,4 +1,4 @@
-// shared/: the contract the features talk through (spec §3.5, ADR 0002).
+// shared/: the contract the features talk through (ADR 0002).
 //
 // | Hook                                   | Registered by            | Called by                         |
 // | -------------------------------------- | ------------------------ | --------------------------------- |

@@ -1,6 +1,6 @@
-// The completion list (spec §7.3, §6.5): a named listbox, one option per
-// candidate, rendered only while a session is open. The ids tie it to the
-// input's `aria-controls` and `aria-activedescendant` (C-48).
+// The completion list (README: DOM and styling, Completion): a named listbox,
+// one option per candidate, rendered only while a session is open. The ids tie
+// it to the input's `aria-controls` and `aria-activedescendant` (C-48).
 import { h, type VNode, type VNodeArrayChildren } from 'vue'
 
 import type { CompletionSession } from '@dolusoft/command-console-core'

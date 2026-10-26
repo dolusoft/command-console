@@ -19,8 +19,8 @@
 //
 // The live input is the one place the secret may be while it is typed, so
 // `probe.check` skips it unless asked. The command's `run` and the
-// `isSensitive` predicate receive the line by design (spec §6.8) and are not
-// wrapped.
+// `isSensitive` predicate receive the line by design (README: Sensitive
+// lines) and are not wrapped.
 import type {
   CommandDefinition,
   Console,

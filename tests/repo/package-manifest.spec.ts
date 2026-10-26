@@ -129,14 +129,14 @@ describe.each(packages)(
 describe('README install lines', () => {
   const readme = readFileSync(join(root, 'README.md'), 'utf8')
   const installs = [
-    ...readme.matchAll(/^pnpm add @dolusoft\/command-console@(\S+)$/gm)
+    ...readme.matchAll(/^pnpm add @dolusoft\/command-console(?:@(\S+))?$/gm)
   ]
 
-  // The README gets its install line with the first release; until then the
-  // version is the unreleased 0.0.0 and there is nothing to install.
+  // Until the first release the version is the unreleased 0.0.0 and the
+  // install line names no version; the release pull request adds it.
   it('installs the Vue package at the version of the workspace', () => {
     expect(installs.map(([, version]) => version)).toEqual(
-      workspace.version === '0.0.0' ? [] : [workspace.version]
+      workspace.version === '0.0.0' ? [undefined] : [workspace.version]
     )
   })
 

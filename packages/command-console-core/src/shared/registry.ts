@@ -1,4 +1,4 @@
-// The per-console record of shared/ (spec §3.5, ADR 0002): everything the
+// The per-console record of shared/ (ADR 0002): everything the
 // features have in common. It is keyed by the console instance in a WeakMap
 // and dropped on dispose, so it never keeps a disposed console alive and a
 // late call (a settling promise, an event after unmount) finds nothing.

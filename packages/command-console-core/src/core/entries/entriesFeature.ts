@@ -1,4 +1,4 @@
-// The entries feature (spec §6.9): the scrollback, its ids, `maxEntries` and
+// The entries feature (C-55): the scrollback, its ids, `maxEntries` and
 // the `clear` effect.
 import type { ConsoleEntry } from '@dolusoft/command-protocol'
 

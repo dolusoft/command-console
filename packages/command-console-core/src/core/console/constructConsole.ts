@@ -1,4 +1,4 @@
-// Builds a console from its features (spec §3.2, TanStack v9 shape): the
+// Builds a console from its features (ADR 0002, TanStack v9 shape): the
 // options merge the features' defaults, the initial state takes
 // `initialState` and each feature's adjustment, then every feature assigns
 // its methods and, once all methods exist, registers its hooks.

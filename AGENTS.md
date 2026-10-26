@@ -8,7 +8,7 @@ Read this before changing anything. It is short on purpose; the details live in 
 - [docs/decisions/](docs/decisions/README.md): the architecture decisions (ADRs). Do not work against one; propose a new record that supersedes it.
 - [contract/rules.md](contract/rules.md): the behavior rules `C-nn`. Rule, test, code and generated docs move together (P12). [contract/dom.ts](contract/dom.ts): the DOM hooks (P6).
 - [CONTRIBUTING.md](CONTRIBUTING.md): layout, commands, rule traceability, measuring, releasing.
-- While 1.0 is built, `docs/spec/command-console-1.0.md` is the specification the pieces are built from; the change that finishes 1.0 moves what is left of it into the README and deletes it.
+- [README.md](README.md) and the package READMEs: the behavior as a consumer uses it. They describe the code; a behavior change updates them in the same pull request.
 
 ## Branches
 

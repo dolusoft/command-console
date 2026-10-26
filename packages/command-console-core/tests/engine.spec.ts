@@ -1,7 +1,7 @@
 // The engine and the shared/ hooks as the optional features use them. A fake
 // feature stands in for recall, completion and context: it registers the
 // hooks the real one will and records what it is told. These specs are the
-// contract the feature implementers build on (spec §3.2, §3.5).
+// contract the feature implementers build on (ADR 0002).
 import { describe, expect, it, vi } from 'vitest'
 
 import {

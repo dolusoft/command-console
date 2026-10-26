@@ -1,8 +1,8 @@
-// The completion feature (spec §6.5, §6.6, ADR 0006): Tab completes the
-// token at the caret from the visible command names or the command's
-// `complete`. The candidate list is session state, never an entry. Argument
-// positions at or after a command's `fromArg` (all of them for
-// `sensitive: true` or a predicate match) call no provider and open no
+// The completion feature (README: Completion, Keyboard, ADR 0006): Tab
+// completes the token at the caret from the visible command names or the
+// command's `complete`. The candidate list is session state, never an
+// entry. Argument positions at or after a command's `fromArg` (all of them
+// for `sensitive: true` or a predicate match) call no provider and open no
 // session (P16, C-35).
 import type { Found, Target } from './completion.types'
 import {
@@ -62,8 +62,8 @@ const resultOf = (result: CompletionResult, prefix: string): Found => {
 }
 
 /**
- * The candidates of `target` (spec §6.5 steps 1–3), or `null` when its
- * position is not safe: then no provider is called and no session opens.
+ * The candidates of `target` (C-37, C-38), or `null` when its position is
+ * not safe: then no provider is called and no session opens.
  * A line the predicate marks is unsafe everywhere, its name included; an
  * unknown first token that names a sensitive command case-insensitively is
  * unsafe at every argument position.
@@ -134,7 +134,7 @@ const writeCompleted = (
   }
 }
 
-/** Tab with no session (spec §6.5 steps 1–7); `false` when nothing was done. */
+/** Tab with no session (C-37 to C-41); `false` when nothing was done. */
 const complete = (console: object): boolean => {
   const { input, running } = read(console)
   if (running !== null || input.value === '') {
@@ -294,7 +294,7 @@ const feature = {
         return true
       }
       // Tab on a non-empty input is always taken, even when nothing can be
-      // completed; on an empty input it moves focus (spec §6.6, C-59).
+      // completed; on an empty input it moves focus (README: Keyboard, C-59).
       complete(console)
       return read(console).input.value !== ''
     })
@@ -323,7 +323,7 @@ const feature = {
 
 /**
  * The completion feature: Tab completes command names and, through a
- * command's `complete`, its safe arguments (spec §6.5).
+ * command's `complete`, its safe arguments (README: Completion).
  *
  * @example
  * ```ts

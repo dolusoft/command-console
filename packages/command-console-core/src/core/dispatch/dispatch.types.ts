@@ -46,7 +46,7 @@ export interface CommandDefinition extends CommandSpec {
   ): CommandReturn | Promise<CommandReturn>
   /**
    * The candidates for an argument (completion feature). Synchronous in 1.0.
-   * Called only for safe positions (spec §6.5).
+   * Called only for safe positions (README: Completion).
    */
   complete?(request: CompletionRequest): CompletionResult
 }

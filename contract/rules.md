@@ -17,7 +17,7 @@ The console handles keys on its input element only. Where the browser's default 
 
 Every other key (characters, Backspace, Delete, left and right, Home and End, selection, paste, Ctrl+A) keeps its native behavior.
 
-"Spec §n" points to a section of `docs/spec/command-console-1.0.md`. The change that removes the spec moves those sections into the README and points these references there.
+The [README](../README.md) describes the same behavior for a reader of the library; where a rule is short, its section there gives the detail.
 
 ### C-01 Plain console
 
@@ -150,7 +150,8 @@ An input entry keeps the prompt it was ended with; the next prompt follows the t
 
 ### C-28 Returns
 
-`void`, a string, a block array and a response give the specified entries; same content, same entries.
+`void` gives no output entry, a string one text block, a block array those blocks, a response its output with its
+`tone` and `quiet`; same content, same entries.
 
 ### C-29 Write
 
@@ -205,8 +206,10 @@ The input does not change.
 
 ### C-40 One candidate
 
-The candidate is written into the token's span with the quoting of spec §6.5 and its quote closed, and a space is added
-unless `final: false` or the token is not the last; the caret follows it.
+The candidate is written into the token's span and its quote closed, and a space is added unless `final: false`, the
+token is not the last, or a space already follows it; the caret follows it. Quoting: a quoted or open token keeps its
+quote character, except that `'…'` becomes `"…"` for a candidate containing `'`; a bare token whose text needs quoting
+(`quoteArgument(text) !== text`) opens `'`, or `"` when the text contains `'`.
 
 ### C-41 Several candidates
 
@@ -216,7 +219,7 @@ kept; Enter on a selection accepts it as C-40 does and submits nothing; Escape r
 
 ### C-42 (withdrawn)
 
-Async completion is not in 1.0 (spec §1.1).
+Async completion is not in 1.0 (README, "Not in 1.0").
 
 ### C-43 Completion closes
 
@@ -250,7 +253,7 @@ listbox is named; a recalled line is written to the status element; quiet entrie
 
 ### C-49 Packaging
 
-ESM only, own `.d.ts`, `vue` a peer, no alias or `optimizeDeps` needed by a consumer, `README.md` and `LICENSE` in
+ESM only, own `.d.ts`, `vue` a peer, no alias or `optimizeDeps` needed by a consumer, `README.md` and `LICENSE.md` in
 every tarball (pack-install test).
 
 ### C-50 No transport, no storage
@@ -268,7 +271,7 @@ Keys are handled on the input only; no listener remains after unmount; Ctrl+C wi
 
 ### C-53 Key map
 
-The fixed key map of spec §6.6 applies with exact modifiers; a key with `isComposing` is never handled.
+The fixed key map (the table above; README, "Keyboard") applies with exact modifiers; a key with `isComposing` is never handled.
 
 ### C-54 Input replaced (Vue)
 

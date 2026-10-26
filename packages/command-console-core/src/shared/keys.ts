@@ -1,7 +1,7 @@
-// The fixed key map (spec §6.6, C-53). `handleKey` matches a chord and tries
-// the chord's actions in order; an action returns `true` when its condition
-// held and it acted, so the next one is not tried and the key counts as
-// handled. An action that is not registered (its feature is absent) is
+// The fixed key map (README: Keyboard, C-53). `handleKey` matches a chord and
+// tries the chord's actions in order; an action returns `true` when its
+// condition held and it acted, so the next one is not tried and the key counts
+// as handled. An action that is not registered (its feature is absent) is
 // skipped. A key no action handles is left to the browser.
 import { liveRecord, recordOf } from './registry'
 
@@ -46,8 +46,8 @@ interface Chord {
 
 /**
  * Chord → actions, tried in order. Modifiers match exactly; letters compare
- * case-insensitively. The "when" of each action (spec §6.6) is the action's
- * own check:
+ * case-insensitively. The "when" of each action (README: Keyboard) is the
+ * action's own check:
  *
  * - Enter: `acceptCompletion` when a candidate is selected, else `submit`.
  * - Ctrl+C: `cancel`, only without a selection (`handleKey` checks it).
@@ -57,7 +57,7 @@ interface Chord {
  * - Shift+Tab: `completePrevious` with a session open.
  * - Escape: `closeCompletion` with a session open.
  *
- * While a command runs only Ctrl+C is handled (spec §6.4).
+ * While a command runs only Ctrl+C is handled (README: Cancelling and errors).
  */
 const keyMap: readonly (readonly [Chord, readonly KeyActionName[]])[] = [
   [{ key: 'enter' }, ['acceptCompletion', 'submit']],

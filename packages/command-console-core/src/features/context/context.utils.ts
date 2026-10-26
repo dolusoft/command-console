@@ -2,7 +2,8 @@ import type { ContextFrame } from '@dolusoft/command-protocol'
 
 /**
  * The id sequence of `frames`, as one comparable string. Two stacks with the
- * same ids in the same order are the same context (spec §3.4).
+ * same ids in the same order are the same context (core README: Controlled
+ * slices).
  */
 export const idsOf = (frames: readonly ContextFrame[]): string =>
   JSON.stringify(frames.map(frame => frame.id))

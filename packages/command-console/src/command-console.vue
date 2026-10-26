@@ -1,9 +1,10 @@
 <script setup lang="ts">
-// <CommandConsole> (spec §7.2): the composable's console drawn as the DOM of
-// spec §7.3. The component holds no console state (P15): it renders the
-// snapshot and forwards DOM events to core actions. What it keeps is
-// DOM-bound: element refs, the "stuck to bottom" flag, the last value it
-// emitted per controlled slice and the caret it last reported.
+// <CommandConsole> (README: The component): the composable's console drawn as
+// the DOM of `contract/dom.ts` (README: DOM and styling). The component holds
+// no console state (P15): it renders the snapshot and forwards DOM events to
+// core actions. What it keeps is DOM-bound: element refs, the "stuck to
+// bottom" flag, the last value it emitted per controlled slice and the caret
+// it last reported.
 import {
   computed,
   onMounted,
@@ -62,14 +63,14 @@ const emit = defineEmits<ConsoleEmits>()
 
 const slots = defineSlots<ConsoleSlots>()
 
-// The component always uses every optional feature (spec §7.2).
+// The component always uses every optional feature (README: The component).
 const features: OptionalFeatures = consoleFeatures({
   recallFeature,
   completionFeature,
   contextFeature
 })
 
-// --- v-model (spec §3.4, C-61) ----------------------------------------------
+// --- v-model (core README: Controlled slices, C-61) -------------------------
 // An updater is resolved against the value this component last emitted for
 // the slice, else the prop: a second action in the same tick builds on the
 // first one's value, not on a prop the parent has not re-rendered yet. A new
@@ -156,7 +157,7 @@ const prompt = computed(() => {
   return console.getPrompt()
 })
 /**
- * The recalled line, for the status element (spec §6.3): a screen reader
+ * The recalled line, for the status element (README: Recall): a screen reader
  * does not announce a scripted value change in a focused field.
  */
 const recalled = computed(() => {
@@ -197,7 +198,7 @@ const onLogClick = (event: MouseEvent) => {
   }
 }
 
-// --- The input element (spec §7.4, C-54) ------------------------------------
+// --- The input element (README: DOM and styling, C-54) ----------------------
 // The element is keyed by `input.revision`. When it is replaced, the new
 // one gets focus only if the old one had it, and the caret goes to the end.
 // Its value is written as a DOM property here, never bound in the template:

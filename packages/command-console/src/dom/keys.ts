@@ -1,5 +1,5 @@
-// KeyboardEvent → KeyInput (spec §5.2): the adapter's whole share of the
-// key map. Core never sees a DOM event.
+// KeyboardEvent → KeyInput (core README: State): the adapter's whole share of
+// the key map. Core never sees a DOM event.
 import type { KeyInput } from '@dolusoft/command-console-core'
 
 import { selectionOf } from './selection'

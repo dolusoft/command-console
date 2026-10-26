@@ -4,7 +4,7 @@
 /** A quote character of the line syntax. */
 export type Quote = "'" | '"'
 
-/** The token Tab completes (spec §6.5 step 1). */
+/** The token Tab completes (README: Completion). */
 export interface Target {
   /** 0 for the command name, `i + 1` for argument `i`. */
   position: number

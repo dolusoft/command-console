@@ -1,5 +1,6 @@
-// useCommandConsole (spec §7.1, C-68): reactive options reach `setOptions`,
-// every notification reaches `state`, no DOM work, disposal with the scope.
+// useCommandConsole (README: The composable, C-68): reactive options reach
+// `setOptions`, every notification reaches `state`, no DOM work, disposal with
+// the scope.
 import { describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref, shallowRef } from 'vue'
 

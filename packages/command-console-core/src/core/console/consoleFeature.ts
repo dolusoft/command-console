@@ -1,5 +1,6 @@
-// The console feature (spec §3.2, §3.3, §6.6, §6.10): state access, options,
-// the key map, reset and dispose, and the `close` effect.
+// The console feature (ADR 0002; core README: Actions and notification,
+// Lifecycle; README: Keyboard): state access, options, the key map, reset and
+// dispose, and the `close` effect.
 import type { ConsoleEntry, ContextFrame } from '@dolusoft/command-protocol'
 
 import type {

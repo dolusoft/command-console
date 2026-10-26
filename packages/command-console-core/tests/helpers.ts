@@ -1,5 +1,5 @@
 // Helpers of the core specs: fake commands, key inputs, deferred promises and
-// deep freezing. No DOM, no timers (spec §12).
+// deep freezing. No DOM, no timers.
 import type {
   CommandDefinition,
   CommandReturn,

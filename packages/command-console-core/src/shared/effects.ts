@@ -1,10 +1,11 @@
-// Effects (spec §4, §6.1). Each effect type is applied by the feature that
-// owns it: `clear` (entries), `close` (console), `push-context`,
-// `pop-context`, `reset-context` (context), `clear-recall` (recall). Dispatch
-// applies a run's effects in order, before the run's output, inside the
-// action of the run's end; an effect whose feature is absent is ignored.
+// Effects (protocol README; README: Running a line). Each effect type is
+// applied by the feature that owns it: `clear` (entries), `close` (console),
+// `push-context`, `pop-context`, `reset-context` (context), `clear-recall`
+// (recall). Dispatch applies a run's effects in order, before the run's
+// output, inside the action of the run's end; an effect whose feature is
+// absent is ignored.
 // Context effects of a run whose context changed by someone else are dropped
-// by dispatch before they reach the handler (spec §6.7).
+// by dispatch before they reach the handler (README: Context).
 import type { ConsoleEffect } from '@dolusoft/command-protocol'
 
 import type { EffectHandler } from './hooks'

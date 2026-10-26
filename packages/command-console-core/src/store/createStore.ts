@@ -1,4 +1,5 @@
-// The store and the action boundary (spec §3.3, §3.4; ADR 0001, ADR 0003).
+// The store and the action boundary (core README: Actions and notification,
+// Controlled slices; ADR 0001, ADR 0003).
 //
 // An action is one synchronous step. Inside it every change goes to a working
 // copy of the state; a call made while an action is open joins it. When the
@@ -119,8 +120,9 @@ export function createStore<S extends object, C extends keyof S>(
     for (const [key, step] of reports) {
       guarded(() => config.report(key, step))
       const reported = action.working[key]
-      // The only scheduling the core does (spec §3.3): after this tick the
-      // consumer's own value is the base again.
+      // The only scheduling the core does (core README: Actions and
+      // notification): after this tick the consumer's own value is the base
+      // again.
       void Promise.resolve().then(() => {
         if (pending.get(key) === reported) {
           pending.delete(key)

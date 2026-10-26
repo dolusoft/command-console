@@ -1,6 +1,6 @@
-// Updaters (spec §3.4). A controlled slice is reported as one updater per
-// action that replays every change of the action, in order, onto the value it
-// is given.
+// Updaters (core README: Controlled slices). A controlled slice is reported as
+// one updater per action that replays every change of the action, in order,
+// onto the value it is given.
 
 /** A new value, or a function from the old value to the new one. */
 export type Updater<T> = T | ((old: T) => T)

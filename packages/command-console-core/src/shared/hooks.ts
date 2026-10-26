@@ -1,4 +1,4 @@
-// The hooks features talk through (spec §3.5, ADR 0002). An optional feature
+// The hooks features talk through (ADR 0002). An optional feature
 // never imports another feature or a core feature folder at run time: what
 // one needs from another is registered here by the feature that has it and
 // called by the one that needs it. Every function takes the console instance
@@ -47,8 +47,8 @@ export interface ContextProvider {
   /** The frames now, bottom → top (a copy the caller may keep). */
   snapshot(): ContextFrame[]
   /**
-   * A number that changes on every context change (by id sequence, spec
-   * §3.4). A run keeps the value it started with.
+   * A number that changes on every context change (by id sequence, core
+   * README: Controlled slices). A run keeps the value it started with.
    */
   revision(): number
 }
@@ -69,7 +69,7 @@ export interface CommandLookup {
    * as a match). A match makes every argument position unsafe.
    */
   matchesPredicate(line: string): boolean
-  /** Whether `line` is sensitive (spec §5.3). */
+  /** Whether `line` is sensitive (README: Sensitive lines). */
   isSensitive(line: string): boolean
 }
 
@@ -131,8 +131,9 @@ const provide = <
 /**
  * Registered by recall: `line` (trimmed) was submitted and is not sensitive.
  * Called by dispatch after the line-end cleanup and before tokenizing, so
- * unknown commands and lines with an unterminated quote are recorded too.
- * Never called for an empty, cancelled or sensitive line (spec §6.1, §6.3).
+ * unknown commands and lines with an unterminated quote are recorded too. Never
+ * called for an empty, cancelled or sensitive line (README: Running a line,
+ * Recall).
  */
 export const onLineSubmitted = (
   console: object,
@@ -216,9 +217,10 @@ export const keyPressed = (console: object, input: KeyInput): void =>
 
 /**
  * Registered by recall (an external `recall` ends browsing) and context (an
- * external `context` with another id sequence is a context change, spec
- * §3.4, §6.7). Called by `setOptions`, inside its action, for each
- * controlled slice whose value the consumer replaced (a different array).
+ * external `context` with another id sequence is a context change, core
+ * README: Controlled slices). Called by `setOptions`, inside its action, for
+ * each controlled slice whose value the consumer replaced (a different
+ * array).
  */
 export const onControlledChange = (
   console: object,
@@ -268,7 +270,7 @@ export const contextOf = (console: object): ContextProvider | null =>
  * run's own effects (a context method, an external `context`). Called by
  * context inside the action that changed it; dispatch aborts the current
  * run's signal (the run goes on, and its context effects are dropped when it
- * ends, spec §6.7).
+ * ends, README: Context).
  */
 export const onContextChange = (console: object, hook: () => void): void => {
   liveRecord(console).hooks.contextChanged.push(hook)

@@ -14,7 +14,7 @@ import type {
 } from '../dispatch/dispatch.types'
 
 // ---------------------------------------------------------------------------
-// State (spec §5.2)
+// State (core README: State)
 
 /** The live input line. */
 export interface InputState {
@@ -38,7 +38,7 @@ export interface RunningCommand {
   phase: 'authorizing' | 'running'
 }
 
-/** An open completion (completion feature, spec §6.5). */
+/** An open completion (completion feature, README: Completion). */
 export interface CompletionSession {
   status: 'open' | 'none'
   /** Filtered, deduplicated, in the provider's order. */
@@ -66,7 +66,7 @@ export interface ConsoleState {
   context: ContextFrame[]
 }
 
-/** The slices a consumer may control (spec §3.4). */
+/** The slices a consumer may control (core README: Controlled slices). */
 export interface ControllableState {
   entries: ConsoleEntry[]
   recall: string[]
@@ -77,7 +77,7 @@ export interface ControllableState {
 export type ControlledSlice = keyof ControllableState
 
 // ---------------------------------------------------------------------------
-// Optional features (spec §3.2, ADR 0002)
+// Optional features (ADR 0002)
 
 /** The recall feature: ArrowUp / ArrowDown browse the submitted lines. */
 export interface RecallFeature {
@@ -149,12 +149,12 @@ export type FeatureAPIsOf<TFeatures> = ('recallFeature' extends keyof TFeatures
   ('contextFeature' extends keyof TFeatures ? ContextAPI : unknown)
 
 // ---------------------------------------------------------------------------
-// Options (spec §5.1)
+// Options (core README: Options)
 
 /** What a console is created with. */
 export interface ConsoleOptions<
   // `{}` and not its constraint, so a console created without `features` has
-  // no optional method (spec §3.2).
+  // no optional method (ADR 0002).
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   TFeatures extends Partial<OptionalFeatures> = {}
 > {
@@ -165,7 +165,7 @@ export interface ConsoleOptions<
   prompt?: string
   /** The first value of each slice; ignored for a controlled slice. */
   initialState?: Partial<ControllableState>
-  /** A slice given here is controlled (spec §3.4). */
+  /** A slice given here is controlled (core README: Controlled slices). */
   state?: Partial<ControllableState>
   onEntriesChange?: (updater: Updater<ConsoleEntry[]>) => void
   onRecallChange?: (updater: Updater<string[]>) => void
@@ -200,7 +200,7 @@ export interface ConsoleOptions<
 }
 
 // ---------------------------------------------------------------------------
-// The instance (spec §5.2)
+// The instance (core README: State)
 
 /** The methods every console has. */
 export interface CoreConsoleAPI<
@@ -223,8 +223,8 @@ export interface CoreConsoleAPI<
   /**
    * Sets the live input programmatically (the consumer's call). Clearing a
    * non-empty input increments `input.revision`, so the adapter replaces the
-   * input element and its undo history (spec §6.8). The caret defaults to the
-   * end. Does nothing while a command runs.
+   * input element and its undo history (README: Sensitive lines). The caret
+   * defaults to the end. Does nothing while a command runs.
    */
   setInput(value: string, caret?: number): void
   /**
@@ -239,7 +239,7 @@ export interface CoreConsoleAPI<
   clearEntries(): void
   /** The prompt of the next input entry. */
   getPrompt(): string
-  /** Whether `line` would be redacted (spec §5.3). */
+  /** Whether `line` would be redacted (README: Sensitive lines). */
   isSensitive(line: string): boolean
   /** The specs that are not hidden, in registration order. */
   getCommands(): CommandSpec[]
