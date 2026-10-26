@@ -1,6 +1,6 @@
 {
   "name": "@dolusoft/command-protocol",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "The JSON of a command console: entries, output blocks, command specs, responses, effects, context frames, and the line tokenizer. No dependencies.",
   "private": false,
   "type": "module",
