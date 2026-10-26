@@ -297,7 +297,7 @@ describe('C-66 context depth', () => {
   })
 })
 
-describe('expose (spec §7.2)', () => {
+describe('expose (README: The component)', () => {
   it('a template ref reaches focus, run, cancel, reset, clear, console and state', async () => {
     const { commands } = makeCommands()
     const consoleRef = ref<ConsoleExpose | null>(null)

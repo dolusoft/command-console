@@ -1,4 +1,4 @@
-// The completion feature (spec §6.5, §6.6): one describe per rule.
+// The completion feature (README: Completion, Keyboard): one describe per rule.
 import { describe, expect, it, vi } from 'vitest'
 
 import {

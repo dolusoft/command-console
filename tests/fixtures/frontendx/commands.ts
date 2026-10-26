@@ -1,8 +1,8 @@
-// A frontendx-shaped command set (spec §12) with fake data: the settings
-// console of dolusoft/frontendx#1812 reduced to what the library sees. Not
-// shipped; the specs replay the B-items of spec §8 against it. The core
-// piece covers what needs only the core features; the feature pieces add
-// recall, completion and context replays on the same set.
+// A frontendx-shaped command set with fake data: the settings console of
+// dolusoft/frontendx#1812 reduced to what the library sees. Not shipped; the
+// specs replay the frontendx behaviors (`B-nn`) against it, the core ones
+// with the core features and the recall, completion and context ones with
+// their features.
 //
 // `config <section>` enters a section (push-context) and `end` leaves it
 // (pop-context): without the context feature both effects are ignored.

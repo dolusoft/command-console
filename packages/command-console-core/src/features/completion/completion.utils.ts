@@ -1,5 +1,5 @@
-// Pure helpers of the completion feature (spec §6.5): the token at the caret,
-// the filter, the longest common prefix and the quoting of written text.
+// Pure helpers of the completion feature (README: Completion): the token at the
+// caret, the filter, the longest common prefix and the quoting of written text.
 import { quoteArgument, tokenize, type Token } from '@dolusoft/command-protocol'
 
 import type { Quote, Target } from './completion.types'
@@ -14,7 +14,7 @@ export const quoteOf = (raw: string): Quote | null => {
 }
 
 /**
- * The token completion works on (spec §6.5 step 1): the tolerant token whose
+ * The token completion works on (README: Completion): the tolerant token whose
  * raw span contains the caret (its end included), else an empty token at the
  * caret.
  */
@@ -55,7 +55,7 @@ export const isLast = (line: string, end: number): boolean =>
 /**
  * Keeps the candidates whose lowercase starts with the lowercase `prefix`,
  * in their order, without duplicates and without empty strings or
- * non-strings (spec §6.5 step 3). Returns a new array.
+ * non-strings (README: Completion). Returns a new array.
  */
 export const filterCandidates = (
   candidates: readonly unknown[],
@@ -97,9 +97,9 @@ export const commonPrefix = (candidates: readonly string[]): string => {
 }
 
 /**
- * `text` as it is written into a token's span (spec §6.5 step 7). A quoted
- * or open token keeps its quote character, escaped for it (a `'` token whose
- * text holds a `'` switches to `"`, the only quote that can carry it). A bare
+ * `text` as it is written into a token's span (C-40). A quoted or open
+ * token keeps its quote character, escaped for it (a `'` token whose text
+ * holds a `'` switches to `"`, the only quote that can carry it). A bare
  * token opens a quote only when the text needs one: `'`, or `"` when the
  * text holds a `'`. `close` writes the closing quote.
  */

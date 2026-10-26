@@ -17,7 +17,7 @@
 // Type-only imports (`import type`, `export type`, and imports whose every
 // specifier is `type`) from core/ are allowed in shared/ and features/: a
 // feature implements the internal feature interface and reads the console's
-// types, which erase at build and couple no runtime code (§3.5 of the spec
+// types, which erase at build and couple no runtime code (ADR 0002
 // keeps features off the core feature folders at runtime). A `type` import
 // of another feature is still refused.
 import { dirname, posix, relative, resolve, sep } from 'node:path'

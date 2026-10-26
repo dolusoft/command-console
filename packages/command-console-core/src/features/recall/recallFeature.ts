@@ -1,4 +1,4 @@
-// The recall feature (spec §6.3, §6.6): the submitted lines, oldest →
+// The recall feature (README: Recall, Keyboard): the submitted lines, oldest →
 // newest, browsed with ArrowUp / ArrowDown. The list is a controllable slice
 // (`recall`); the cursor and the draft are internal and die with the line.
 //
@@ -49,7 +49,7 @@ const previous = (console: object): boolean => {
         input.value.trim() !== '' && lookupOf(console).isSensitive(input.value)
       if (sensitive) {
         // A programmatic clear replaces the element that held the line
-        // (spec §6.8), so its undo history goes with it.
+        // (README: Sensitive lines), so its undo history goes with it.
         writeInput(console, '', 0, 'recall')
       }
       store.update('recallDraft', () => (sensitive ? '' : input.value))
@@ -86,7 +86,7 @@ const following = (console: object): boolean => {
   })
 }
 
-/** Empties the list and ends browsing (spec §6.3, C-23). */
+/** Empties the list and ends browsing (README: Recall, C-23). */
 const clear = (console: object): void => {
   const { store } = liveRecord(console)
   store.update('recall', old => (old.length === 0 ? old : []))

@@ -1,8 +1,8 @@
-// The dispatch feature (spec §6.1, §6.2, §6.4, §6.8): ends lines, looks the
-// command up, runs it and appends what it returns. A run is several actions:
-// its start, each asynchronous `write()`, and its end. Every end is guarded
-// by the run: a run that is no longer current changes nothing and calls
-// nothing (C-17).
+// The dispatch feature (README: Running a line, Cancelling and errors,
+// Sensitive lines): ends lines, looks the command up, runs it and appends what
+// it returns. A run is several actions: its start, each asynchronous `write()`,
+// and its end. Every end is guarded by the run: a run that is no longer current
+// changes nothing and calls nothing (C-17).
 import {
   type CommandResponse,
   type ContextFrame,
@@ -134,7 +134,7 @@ const cleanup = (console: object, run: Run) => {
   run.resolve(true)
 }
 
-/** Effects in order, then the output (spec §6.1, B-29). */
+/** Effects in order, then the output (README: Running a line, B-29). */
 const apply = (
   console: object,
   run: Run,
@@ -337,8 +337,9 @@ const start = (
 // --- Ending a line ------------------------------------------------------------
 
 /**
- * Ends the live input as Enter does (spec §6.1, start action). Runs in the
- * open action; resolves after the run's end, or at once when nothing runs.
+ * Ends the live input as Enter does (README: Running a line, start action).
+ * Runs in the open action; resolves after the run's end, or at once when
+ * nothing runs.
  */
 const submitLine = (console: object): Promise<boolean> => {
   const { store } = liveRecord(console)
@@ -403,7 +404,10 @@ const submitLine = (console: object): Promise<boolean> => {
   )
 }
 
-/** Ctrl+C without a run: the line ends as cancelled (spec §6.2, B-10). */
+/**
+ * Ctrl+C without a run: the line ends as cancelled (README: Cancelling and
+ * errors, B-10).
+ */
 const cancelLine = (console: object) => {
   const { store } = liveRecord(console)
   const trimmed = store.read().input.value.trim()

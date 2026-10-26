@@ -2,7 +2,7 @@ import type { ConsoleEntry } from '@dolusoft/command-protocol'
 
 import type { ConsoleStore } from '../../shared'
 
-/** Keeps the newest `max` entries (spec §6.9); `undefined` keeps all. */
+/** Keeps the newest `max` entries (C-55); `undefined` keeps all. */
 export const trimEntries = (
   entries: ConsoleEntry[],
   max: number | undefined

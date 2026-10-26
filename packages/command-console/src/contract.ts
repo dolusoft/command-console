@@ -73,7 +73,7 @@ export type {
 } from '@dolusoft/command-protocol'
 
 // ---------------------------------------------------------------------------
-// Labels (spec §7.5, P7)
+// Labels (README: Labels, P7)
 
 /** The text of one message code: a string, or a function of its parameters. */
 export type MessageLabels = {

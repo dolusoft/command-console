@@ -1,6 +1,6 @@
-// One entry of the log (spec §7.3): an ended input line (its prompt, its
-// text or `labels.redacted`, the cancelled marker) or the blocks of an
-// output.
+// One entry of the log (README: DOM and styling): an ended input line (its
+// prompt, its text or `labels.redacted`, the cancelled marker) or the blocks of
+// an output.
 import { h, type VNode, type VNodeArrayChildren } from 'vue'
 
 import type { ConsoleEntry } from '@dolusoft/command-protocol'

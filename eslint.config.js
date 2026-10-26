@@ -73,7 +73,8 @@ const p1Properties = [
 
 // The protocol and the core have no DOM, no clock and no timer: the core
 // sees `KeyInput`, never a DOM event, and its only scheduling is one
-// `Promise.resolve().then` per report of a controlled slice (spec §3.3).
+// `Promise.resolve().then` per report of a controlled slice (core README:
+// Actions and notification).
 const domFree = [
   'document',
   'window',
@@ -90,8 +91,9 @@ const domFree = [
     'The protocol and the core have no DOM, clock or timer; the Vue package reads them (P14).'
 }))
 
-// Spec §6.6, §7.4 (D-07, C-52): keys are listened to on the input element
-// only; the Vue package never listens on the window or the document.
+// README: Keyboard, DOM and styling (D-07, C-52): keys are listened to on the
+// input element only; the Vue package never listens on the window or the
+// document.
 const globalListeners = [
   {
     selector:

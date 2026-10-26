@@ -1,5 +1,5 @@
-// The recall feature (spec §6.3, §6.6, §6.10): C-19..C-23, C-31 and the
-// recall paths of C-36.
+// The recall feature (README: Recall, Keyboard; core README: Lifecycle):
+// C-19..C-23, C-31 and the recall paths of C-36.
 import { describe, expect, it, vi } from 'vitest'
 
 import {

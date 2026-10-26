@@ -4,7 +4,7 @@ import type { MessageBlock, MessageParams } from '@dolusoft/command-protocol'
 
 import type { ConsoleLabels, ConsoleLabelsInput } from './contract'
 
-/** The English defaults (spec §7.5). */
+/** The English defaults (README: Labels). */
 const defaultLabels: ConsoleLabels = {
   input: 'Command',
   inputDescription:

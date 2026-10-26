@@ -1,5 +1,5 @@
-// The completion paths of the C-36 leak matrix (spec §6.5 step 2, §12). Run
-// them with a console that has the completion feature:
+// The completion paths of the C-36 leak matrix (C-35). Run them with a
+// console that has the completion feature:
 // `runLeakPath(path, options => createConsole({ ...options, features: { completionFeature } }))`.
 //
 // Each path types a sensitive line, presses Tab where the secret is (or

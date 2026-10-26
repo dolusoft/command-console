@@ -1,5 +1,5 @@
-// The context feature (spec §6.7, §3.4): C-26, C-27 with frames, C-62 and
-// the context paths of the leak matrix (C-36).
+// The context feature (README: Context; core README: Controlled slices): C-26,
+// C-27 with frames, C-62 and the context paths of the leak matrix (C-36).
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import {

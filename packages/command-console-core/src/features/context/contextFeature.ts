@@ -1,8 +1,8 @@
-// The context feature (spec §6.7, §3.4): a stack of frames, bottom → top,
-// with an implicit root. The top frame sets the prompt of the next input
-// entry. A run takes a snapshot of the frames and the revision at its start;
-// dispatch drops the context effects of a run whose context changed by
-// someone else, and this feature tells it when that happens.
+// The context feature (README: Context; core README: Controlled slices): a
+// stack of frames, bottom → top, with an implicit root. The top frame sets the
+// prompt of the next input entry. A run takes a snapshot of the frames and the
+// revision at its start; dispatch drops the context effects of a run whose
+// context changed by someone else, and this feature tells it when that happens.
 import type { ContextFrame } from '@dolusoft/command-protocol'
 
 import { idsOf, popFrames, pushFrame, resetFrames } from './context.utils'
@@ -108,7 +108,7 @@ const feature = {
       change(console, resetFrames, false)
     )
     // An external `context` with another id sequence is a context change; a
-    // new array with the same ids is not (spec §3.4).
+    // new array with the same ids is not (core README: Controlled slices).
     onControlledChange(console, controlled => {
       if (
         controlled.slice === 'context' &&

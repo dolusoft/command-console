@@ -1,5 +1,6 @@
-// Copy is never taken over (spec §6.2, D-07): with text selected in the input,
-// or in the console's part of the document, Ctrl+C stays the browser's.
+// Copy is never taken over (README: Keyboard, D-07): with text selected in
+// the input, or in the console's part of the document, Ctrl+C stays the
+// browser's.
 import type { KeyInput } from '@dolusoft/command-console-core'
 
 /** Whether the document has a non-empty selection inside `root`. */

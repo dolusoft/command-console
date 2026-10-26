@@ -1,7 +1,7 @@
-// Scroll (spec §7.4, Q-08, C-58): the log sticks to the bottom while the user
-// is within 2 px of it, and after the user's own submit; new output does not
-// move a view the user scrolled up. `scrollTop` is the only style-related
-// write of the package (P5).
+// Scroll (README: DOM and styling, Q-08, C-58): the log sticks to the bottom
+// while the user is within 2 px of it, and after the user's own submit; new
+// output does not move a view the user scrolled up. `scrollTop` is the only
+// style-related write of the package (P5).
 import { nextTick, onBeforeUnmount, onMounted, type ShallowRef } from 'vue'
 
 /** How close to the bottom still counts as at the bottom, in px. */

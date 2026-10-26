@@ -1,5 +1,5 @@
-// Replays the B-items of spec §8 that need only the core features against
-// the frontendx-shaped command set (tests/fixtures/frontendx).
+// Replays the frontendx behaviors (`B-nn`) that need only the core features
+// against the frontendx-shaped command set (tests/fixtures/frontendx).
 import { describe, expect, it, vi } from 'vitest'
 
 import { createConsole, type RunInfo } from '@dolusoft/command-console-core'

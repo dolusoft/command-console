@@ -1,5 +1,5 @@
-// A click in the log focuses the input (spec §7.4, B-33), unless the user is
-// selecting text or clicked something of its own.
+// A click in the log focuses the input (README: DOM and styling, B-33), unless
+// the user is selecting text or clicked something of its own.
 
 const interactive =
   'a, button, input, select, textarea, [tabindex], [contenteditable]'

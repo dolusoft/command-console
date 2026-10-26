@@ -1,6 +1,6 @@
-// One output block (spec §7.3): `.cc-block` with its `data-type`, in the
-// element of its type, or a `div` around the consumer's `block-<type>` slot
-// (C-67). All text goes through Vue's escaping; there is no HTML (S-08).
+// One output block (README: DOM and styling): `.cc-block` with its `data-type`,
+// in the element of its type, or a `div` around the consumer's `block-<type>`
+// slot (C-67). All text goes through Vue's escaping; there is no HTML (S-08).
 import { h, type VNode, type VNodeArrayChildren } from 'vue'
 
 import type {

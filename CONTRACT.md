@@ -151,7 +151,7 @@ export type {
 } from '@dolusoft/command-protocol'
 
 // ---------------------------------------------------------------------------
-// Labels (spec §7.5, P7)
+// Labels (README: Labels, P7)
 
 /** The text of one message code: a string, or a function of its parameters. */
 export type MessageLabels = {
@@ -577,7 +577,7 @@ export type JsonValue =
 
 // packages/command-console-core/src/core/console/console.types.ts
 // ---------------------------------------------------------------------------
-// State (spec §5.2)
+// State (core README: State)
 
 /** The live input line. */
 export interface InputState {
@@ -603,7 +603,7 @@ export interface RunningCommand {
 }
 
 // packages/command-console-core/src/core/console/console.types.ts
-/** An open completion (completion feature, spec §6.5). */
+/** An open completion (completion feature, README: Completion). */
 export interface CompletionSession {
   status: 'open' | 'none'
   /** Filtered, deduplicated, in the provider's order. */
@@ -633,7 +633,7 @@ export interface ConsoleState {
 }
 
 // packages/command-console-core/src/core/console/console.types.ts
-/** The slices a consumer may control (spec §3.4). */
+/** The slices a consumer may control (core README: Controlled slices). */
 export interface ControllableState {
   entries: ConsoleEntry[]
   recall: string[]
@@ -654,12 +654,12 @@ export interface OptionalFeatures {
 
 // packages/command-console-core/src/core/console/console.types.ts
 // ---------------------------------------------------------------------------
-// Options (spec §5.1)
+// Options (core README: Options)
 
 /** What a console is created with. */
 export interface ConsoleOptions<
   // `{}` and not its constraint, so a console created without `features` has
-  // no optional method (spec §3.2).
+  // no optional method (ADR 0002).
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   TFeatures extends Partial<OptionalFeatures> = {}
 > {
@@ -670,7 +670,7 @@ export interface ConsoleOptions<
   prompt?: string
   /** The first value of each slice; ignored for a controlled slice. */
   initialState?: Partial<ControllableState>
-  /** A slice given here is controlled (spec §3.4). */
+  /** A slice given here is controlled (core README: Controlled slices). */
   state?: Partial<ControllableState>
   onEntriesChange?: (updater: Updater<ConsoleEntry[]>) => void
   onRecallChange?: (updater: Updater<string[]>) => void
@@ -755,7 +755,7 @@ export interface CommandDefinition extends CommandSpec {
   ): CommandReturn | Promise<CommandReturn>
   /**
    * The candidates for an argument (completion feature). Synchronous in 1.0.
-   * Called only for safe positions (spec §6.5).
+   * Called only for safe positions (README: Completion).
    */
   complete?(request: CompletionRequest): CompletionResult
 }
@@ -832,9 +832,9 @@ export interface KeyInput {
 }
 
 // packages/command-console-core/src/store/action.ts
-// Updaters (spec §3.4). A controlled slice is reported as one updater per
-// action that replays every change of the action, in order, onto the value it
-// is given.
+// Updaters (core README: Controlled slices). A controlled slice is reported as
+// one updater per action that replays every change of the action, in order,
+// onto the value it is given.
 
 /** A new value, or a function from the old value to the new one. */
 export type Updater<T> = T | ((old: T) => T)
@@ -973,7 +973,8 @@ An input entry keeps the prompt it was ended with; the next prompt follows the t
 
 #### C-28 Returns
 
-`void`, a string, a block array and a response give the specified entries; same content, same entries.
+`void` gives no output entry, a string one text block, a block array those blocks, a response its output with its
+`tone` and `quiet`; same content, same entries.
 
 #### C-29 Write
 
@@ -1028,8 +1029,10 @@ The input does not change.
 
 #### C-40 One candidate
 
-The candidate is written into the token's span with the quoting of spec §6.5 and its quote closed, and a space is added
-unless `final: false` or the token is not the last; the caret follows it.
+The candidate is written into the token's span and its quote closed, and a space is added unless `final: false`, the
+token is not the last, or a space already follows it; the caret follows it. Quoting: a quoted or open token keeps its
+quote character, except that `'…'` becomes `"…"` for a candidate containing `'`; a bare token whose text needs quoting
+(`quoteArgument(text) !== text`) opens `'`, or `"` when the text contains `'`.
 
 #### C-41 Several candidates
 
@@ -1039,7 +1042,7 @@ kept; Enter on a selection accepts it as C-40 does and submits nothing; Escape r
 
 #### C-42 (withdrawn)
 
-Async completion is not in 1.0 (spec §1.1).
+Async completion is not in 1.0 (README, "Not in 1.0").
 
 #### C-43 Completion closes
 
@@ -1073,7 +1076,7 @@ listbox is named; a recalled line is written to the status element; quiet entrie
 
 #### C-49 Packaging
 
-ESM only, own `.d.ts`, `vue` a peer, no alias or `optimizeDeps` needed by a consumer, `README.md` and `LICENSE` in
+ESM only, own `.d.ts`, `vue` a peer, no alias or `optimizeDeps` needed by a consumer, `README.md` and `LICENSE.md` in
 every tarball (pack-install test).
 
 #### C-50 No transport, no storage
@@ -1091,7 +1094,7 @@ Keys are handled on the input only; no listener remains after unmount; Ctrl+C wi
 
 #### C-53 Key map
 
-The fixed key map of spec §6.6 applies with exact modifiers; a key with `isComposing` is never handled.
+The fixed key map (the table above; README, "Keyboard") applies with exact modifiers; a key with `isComposing` is never handled.
 
 #### C-54 Input replaced (Vue)
 

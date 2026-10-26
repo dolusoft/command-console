@@ -1,8 +1,8 @@
-// useCommandConsole (spec §7.1): a console without markup. It creates the
-// console once, passes reactive option changes to `setOptions`, mirrors every
-// notification into a `shallowRef` and disposes the console with its effect
-// scope. It does no DOM work, so a consumer can draw a template of its own.
-// The Vue package keeps no console state of its own (P15).
+// useCommandConsole (README: The composable): a console without markup. It
+// creates the console once, passes reactive option changes to `setOptions`,
+// mirrors every notification into a `shallowRef` and disposes the console with
+// its effect scope. It does no DOM work, so a consumer can draw a template of
+// its own. The Vue package keeps no console state of its own (P15).
 import {
   onScopeDispose,
   shallowReadonly,
@@ -65,7 +65,7 @@ const valueKeys = [
  * ```
  */
 export function useCommandConsole<
-  // `{}` and not its constraint, as `createConsole` (spec §3.2).
+  // `{}` and not its constraint, as `createConsole` (ADR 0002).
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   T extends Partial<OptionalFeatures> = {}
 >(options: UseCommandConsoleOptions<T>): UseCommandConsoleReturn<T> {

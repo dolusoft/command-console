@@ -1,5 +1,5 @@
-// Sensitivity (spec §5.3, §6.8, ADR 0006). Computed once when a line ends,
-// from the tolerant tokens, before anything else sees the line.
+// Sensitivity (README: Sensitive lines, ADR 0006). Computed once when a line
+// ends, from the tolerant tokens, before anything else sees the line.
 import { tokenize } from '@dolusoft/command-protocol'
 
 import type { CommandDefinition } from './dispatch.types'
@@ -49,7 +49,7 @@ export const matchesPredicate = (
 /**
  * Whether `line` is sensitive: its first token (quotes removed) names a
  * sensitive command or alias, compared case-insensitively, or the predicate
- * marks it (spec §5.3).
+ * marks it (README: Sensitive lines).
  */
 export const isLineSensitive = (
   line: string,

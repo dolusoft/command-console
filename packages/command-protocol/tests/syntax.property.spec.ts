@@ -1,4 +1,4 @@
-// Property tests of the line syntax (spec §12): random lines over the
+// Property tests of the line syntax: random lines over the
 // characters the syntax cares about, from fixed seeds.
 import { describe, expect, it } from 'vitest'
 

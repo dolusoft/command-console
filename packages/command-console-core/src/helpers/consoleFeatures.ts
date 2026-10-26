@@ -8,7 +8,7 @@ import { constructConsole } from '../core/console/constructConsole'
 
 /**
  * Keeps the type of a features object, so it can be declared once, outside
- * a component, and passed to `createConsole` (spec §3.2).
+ * a component, and passed to `createConsole` (ADR 0002).
  *
  * @example
  * ```ts
@@ -28,7 +28,7 @@ export function consoleFeatures<T extends Partial<OptionalFeatures>>(
  * Throws when a command name is invalid or repeats (C-56).
  */
 // `{}` and not its constraint: without `features` the console has no
-// optional method (spec §3.2, C-01).
+// optional method (ADR 0002, C-01).
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export function createConsole<T extends Partial<OptionalFeatures> = {}>(
   options: ConsoleOptions<T>

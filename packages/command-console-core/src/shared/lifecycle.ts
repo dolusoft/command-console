@@ -1,6 +1,6 @@
-// Methods, reset and dispose (spec §6.10). Every method a feature puts on the
-// instance goes through `assignMethods`, which refuses to overwrite another
-// feature's method and turns every call after `dispose()` into a no-op.
+// Methods, reset and dispose (core README: Lifecycle). Every method a feature
+// puts on the instance goes through `assignMethods`, which refuses to overwrite
+// another feature's method and turns every call after `dispose()` into a no-op.
 import { isDisposed, liveRecord, recordOf, takeRecord } from './registry'
 
 type Method = (...args: never[]) => unknown

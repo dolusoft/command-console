@@ -14,8 +14,9 @@ const rethrowAsync = (error: unknown): void => {
 }
 
 /**
- * Reports an error through `onError` (spec §3.3): a command's error with its
- * `RunInfo`, a callback's error with `null`. An error `onError` itself throws
+ * Reports an error through `onError` (core README: Actions and
+ * notification): a command's error with its `RunInfo`, a callback's error
+ * with `null`. An error `onError` itself throws
  * is rethrown asynchronously; so is a callback's error without `onError`.
  */
 export const reportError = (

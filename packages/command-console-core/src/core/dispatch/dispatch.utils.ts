@@ -17,8 +17,8 @@ const checkName = (name: unknown, where: string) => {
 }
 
 /**
- * Validates the commands (spec §5.1, C-56): names and aliases are non-empty,
- * without whitespace or quotes, unique across every name and alias;
+ * Validates the commands (core README: Options, C-56): names and aliases are
+ * non-empty, without whitespace or quotes, unique across every name and alias;
  * `fromArg` is a non-negative integer; `run` is a function. Throws on the
  * first violation.
  */
@@ -78,7 +78,7 @@ export const specOf = (command: CommandDefinition): CommandSpec => {
   return spec
 }
 
-/** A command's return as a response (spec §6.1, End action). */
+/** A command's return as a response (README: Running a line, End action). */
 export const normalizeReturn = (value: CommandReturn): CommandResponse => {
   if (typeof value === 'string' || Array.isArray(value)) {
     return { output: value }
