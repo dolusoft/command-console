@@ -8,13 +8,7 @@
  * 1.0 is released with this list empty.
  */
 export const pendingRules: readonly string[] = [
-  'C-19',
-  'C-20',
-  'C-21',
-  'C-22',
-  'C-23',
   'C-26',
-  'C-31',
   'C-35',
   'C-37',
   'C-38',
