@@ -1,0 +1,6 @@
+pnpm-lock.yaml
+docs/spec/
+CONTRACT.md
+contract/rules.md
+PRINCIPLES.md
+packages/*/etc/

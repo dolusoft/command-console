@@ -1,0 +1,36 @@
+name: Chromium
+description: Installs the Playwright Chromium of the lockfile, from cache when it can.
+
+# Used by the jobs that open a browser: `browser` (Vitest browser mode,
+# render counts) and `package` (pack-install loads the installed packages
+# in Chromium). Runs after `pnpm install`.
+runs:
+  using: composite
+  steps:
+    - name: Resolve Playwright version
+      id: playwright
+      shell: bash
+      run: echo "version=$(node node_modules/playwright/cli.js --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+    # Downloads Chromium only on a cache miss. No `--with-deps`: the runner
+    # image ships Google Chrome, so Chromium's system libraries are already
+    # there, and the extra fonts it would add from apt are not needed (no
+    # test compares screenshots). Those font downloads from the runner's apt
+    # mirror stalled the v3.3.0 release run past 5 minutes, twice. A slow
+    # download from the Playwright CDN is cut (Playwright itself is the
+    # process signalled, killed 10 s later if it lingers) and retried.
+    - name: Install Chromium
+      shell: bash
+      run: |
+        for attempt in 1 2 3; do
+          if timeout -k 10 150 node node_modules/playwright/cli.js install chromium; then
+            exit 0
+          fi
+          echo "::warning::playwright install, attempt $attempt failed or stalled"
+        done
+        exit 1

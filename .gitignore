@@ -1,0 +1,18 @@
+node_modules/
+# Library builds
+dist
+coverage
+*.log
+# Output of `pnpm pack`
+*.tgz
+.env
+.idea
+.DS_Store
+
+# Browser test screenshots (inspection only, never baselines)
+tests/contract/browser/__screenshots__/
+# Vitest browser-mode failure screenshots and attachments
+.vitest/
+
+# API Extractor scratch output
+temp/

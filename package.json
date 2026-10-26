@@ -1,0 +1,78 @@
+{
+  "name": "command-console-workspace",
+  "version": "0.0.0",
+  "description": "Workspace of Command Console: the protocol, core and Vue packages in packages/.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=24",
+      "onFail": "error"
+    }
+  },
+  "packageManager": "pnpm@12.4.1",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dolusoft/command-console.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dolusoft/command-console/issues"
+  },
+  "homepage": "https://github.com/dolusoft/command-console#readme",
+  "license": "MIT",
+  "scripts": {
+    "build": "pnpm -r build",
+    "lint": "eslint .",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run --project unit",
+    "test:coverage": "vitest run --project unit --coverage",
+    "test:browser": "node scripts/test-browser.mjs",
+    "test:browser:headless": "node scripts/test-browser.mjs --browser.headless",
+    "test:browser:inspect": "vitest --project browser --mode inspect --watch",
+    "measure:consumer-size": "pnpm build && node scripts/consumer-size.mjs",
+    "check:size": "node scripts/consumer-size.mjs --check",
+    "measure:package-size": "pnpm build && node scripts/package-size.mjs",
+    "check:package-size": "node scripts/package-size.mjs --check",
+    "check:no-css-leak": "node scripts/check-dist-fresh.mjs && node scripts/check-css-leak.mjs",
+    "check:package": "node scripts/check-dist-fresh.mjs && node scripts/check-no-css.mjs && publint packages/command-protocol && publint packages/command-console-core && publint packages/command-console && cd packages/command-protocol && attw --pack . --profile esm-only && cd ../command-console-core && attw --pack . --profile esm-only && cd ../command-console && attw --pack . --profile esm-only",
+    "knip": "knip",
+    "contract:gen": "node scripts/gen-contract.mjs",
+    "contract:check": "node scripts/gen-contract.mjs --check",
+    "api:check": "node scripts/check-dist-fresh.mjs && node scripts/api-report.mjs",
+    "api:update": "node scripts/api-report.mjs --local",
+    "check:deps": "node scripts/check-deps.mjs",
+    "pack-install": "node scripts/pack-install-test.mjs"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@eslint/js": "^10.0.1",
+    "@microsoft/api-extractor": "^7.59.3",
+    "@types/node": "^26.6.4",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "@vitest/browser-playwright": "5.0.3",
+    "@vitest/coverage-v8": "5.0.3",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import-x": "^4.17.1",
+    "eslint-plugin-prettier": "^5.5.6",
+    "eslint-plugin-vue": "^10.11.1",
+    "globals": "^17.13.0",
+    "happy-dom": "^20.14.5",
+    "knip": "^6.39.0",
+    "playwright": "^1.63.0",
+    "prettier": "^3.9.9",
+    "publint": "^0.3.25",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vite": "^8.3.2",
+    "vitest": "5.0.3",
+    "vue": "^3.5.43",
+    "vue-component-meta": "^3.3.12",
+    "vue-eslint-parser": "^10.4.1",
+    "vue-tsc": "^3.3.12"
+  }
+}

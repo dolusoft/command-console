@@ -1,0 +1,65 @@
+diff --git a/dist/client.js b/dist/client.js
+index 36a12dcc4bd3afc1b7af2571e32a87487c442892..d47d63339252a8daaae86d0390738f4e5a7aaae5 100644
+--- a/dist/client.js
++++ b/dist/client.js
+@@ -430,6 +430,22 @@ function createClient() {
+ 		timeout: -1
+ 	});
+ 	let openPromise;
++	// PATCH (dolusoft/query-table): one pending promise survives reconnects.
++	// Upstream makes a new promise on every reconnect, so whoever awaited
++	// the first socket (the tester's `prepare`) waits on a socket that
++	// failed (ERR_CONNECTION_TIMED_OUT on Windows loopback) and the run hangs.
++	let pendingOpen = null;
++	function settleOpen() {
++		if (pendingOpen) {
++			clearTimeout(pendingOpen.timeout);
++			pendingOpen.resolve();
++			pendingOpen = null;
++		} else {
++			// The wait timed out while this socket was still connecting:
++			// it is open now, so later waiters must not get the rejection.
++			openPromise = Promise.resolve();
++		}
++	}
+ 	function reconnect(reset = false) {
+ 		if (reset) {
+ 			tries = reconnectTries;
+@@ -438,19 +454,25 @@ function createClient() {
+ 		registerWS();
+ 	}
+ 	function registerWS() {
+-		openPromise = new Promise((resolve, reject) => {
+-			const timeout = setTimeout(() => {
+-				reject(new Error(`Cannot connect to the server in ${connectTimeout / 1e3} seconds`));
+-			}, connectTimeout);
+-			if (ctx.ws.OPEN === ctx.ws.readyState) {
+-				resolve();
+-			}
+-			// still have a listener even if it's already open to update tries
+-			ctx.ws.addEventListener("open", () => {
+-				tries = reconnectTries;
+-				resolve();
+-				clearTimeout(timeout);
++		if (!pendingOpen) {
++			openPromise = new Promise((resolve, reject) => {
++				const timeout = setTimeout(() => {
++					pendingOpen = null;
++					reject(new Error(`Cannot connect to the server in ${connectTimeout / 1e3} seconds`));
++				}, connectTimeout);
++				pendingOpen = {
++					resolve,
++					timeout
++				};
+ 			});
++		}
++		if (ctx.ws.OPEN === ctx.ws.readyState) {
++			settleOpen();
++		}
++		// still have a listener even if it's already open to update tries
++		ctx.ws.addEventListener("open", () => {
++			tries = reconnectTries;
++			settleOpen();
+ 		});
+ 		ctx.ws.addEventListener("message", (v) => {
+ 			onMessage(v.data);

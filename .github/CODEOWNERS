@@ -1,0 +1,18 @@
+# Changes to these paths need a review from a code owner. Together with branch
+# protection ("Require review from Code Owners") on `main`, they keep the
+# boundaries of the packages from moving without a decision.
+
+/PRINCIPLES.md              @zahidzorbaz @ozerenes @batuhanozhan
+/docs/decisions/            @zahidzorbaz @ozerenes @batuhanozhan
+/contract/rules.md          @zahidzorbaz @ozerenes @batuhanozhan
+/contract/dom.ts            @zahidzorbaz @ozerenes @batuhanozhan
+/eslint.config.js           @zahidzorbaz @ozerenes @batuhanozhan
+/scripts/*budget*           @zahidzorbaz @ozerenes @batuhanozhan
+/scripts/check-deps.mjs     @zahidzorbaz @ozerenes @batuhanozhan
+/scripts/eslint-layers.mjs  @zahidzorbaz @ozerenes @batuhanozhan
+/.github/                   @zahidzorbaz @ozerenes @batuhanozhan
+/AGENTS.md                  @zahidzorbaz @ozerenes @batuhanozhan
+/CLAUDE.md                  @zahidzorbaz @ozerenes @batuhanozhan
+/tests/repo/                @zahidzorbaz @ozerenes @batuhanozhan
+/knip.json                  @zahidzorbaz @ozerenes @batuhanozhan
+/vitest.config.ts           @zahidzorbaz @ozerenes @batuhanozhan

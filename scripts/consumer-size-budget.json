@@ -1,0 +1,16 @@
+{
+  "note": "Budget for `node scripts/consumer-size.mjs --check` (CI, P8): the cost, minified + gzip, of a Vue app built from each fixture in tests/fixtures/consumer (the Vue package, the core and the protocol bundled), minus the same app without the console (tests/fixtures/consumer/vue-only.ts). `measuredGzipBytes` is the value when the budget was last set; `maxGzipBytes` is that plus 5%, rounded up, capped at `ceilingGzipBytes` when one is set. A deliberate growth raises the budget (and the ceiling when needed) in the same change, with a one-line reason in `history`.",
+  "history": [
+    "0.0.0 (tooling, #1, 2026-10-26): first measurement on the empty packages. Each fixture imports the Vue package as a namespace and renders its export names, so the cost is the fixture's own code; the Vue piece replaces the fixtures with the composable and the component and sets the budgets from their first measure."
+  ],
+  "fixtures": {
+    "composable": {
+      "measuredGzipBytes": 45,
+      "maxGzipBytes": 48
+    },
+    "component": {
+      "measuredGzipBytes": 53,
+      "maxGzipBytes": 56
+    }
+  }
+}

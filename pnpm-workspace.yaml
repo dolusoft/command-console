@@ -1,0 +1,12 @@
+# The three published packages (ADR 0001). Nothing else is a workspace
+# package: tests, fixtures and scripts belong to the root.
+packages:
+  - packages/*
+
+allowBuilds:
+  esbuild: true
+  unrs-resolver: false
+  vue-demi: true
+
+patchedDependencies:
+  '@vitest/browser@5.0.3': patches/@vitest__browser@5.0.3.patch

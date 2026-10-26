@@ -1,0 +1,63 @@
+name: Bug report
+description: The console, its core or the protocol do something other than the documented behavior.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The documented behavior is the numbered rules in [contract/rules.md](https://github.com/dolusoft/command-console/blob/main/contract/rules.md); a report that names the rule it breaks is the fastest to fix.
+  - type: textarea
+    id: symptom
+    attributes:
+      label: What happens
+      description: What you see in the console, in an emitted event or in the browser console.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: The behavior you expected, and the rule (`C-nn`) that says so, if you know it.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest setup that shows the problem. A link to a repository is welcome.
+      placeholder: |
+        1. Commands: ...
+        2. Type ...
+        3. Press ...
+    validations:
+      required: true
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - '@dolusoft/command-console (Vue)'
+        - '@dolusoft/command-console-core'
+        - '@dolusoft/command-protocol'
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The installed version of the package you picked (`pnpm why <package>` or `npm ls <package>`).
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Vue version, browser and operating system.
+      placeholder: Vue 3.5, Chrome 141, Windows 11
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Logs, screenshots, the entries JSON. Leave out anything sensitive the console was given.

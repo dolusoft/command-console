@@ -1,0 +1,40 @@
+{
+  "name": "@dolusoft/command-console-core",
+  "version": "0.0.0",
+  "description": "The engine of a headless command console: createConsole, its features (recall, completion, context) and redaction of sensitive lines. No framework.",
+  "private": false,
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "sideEffects": false,
+  "main": "./dist/command-console-core.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/command-console-core.js"
+    }
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dolusoft/command-console.git",
+    "directory": "packages/command-console-core"
+  },
+  "bugs": {
+    "url": "https://github.com/dolusoft/command-console/issues"
+  },
+  "homepage": "https://github.com/dolusoft/command-console#readme",
+  "license": "MIT",
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json && node ../../scripts/emit-type-extensions.mjs dist/types"
+  },
+  "dependencies": {
+    "@dolusoft/command-protocol": "workspace:*"
+  }
+}
