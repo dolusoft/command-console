@@ -35,6 +35,10 @@ await console.submit() // or: await console.run('echo hello')
   edit the element already shows and never increments it.
 - **Keys**: `handleKey(input)` applies the fixed key map (Enter submits, Ctrl+C cancels or interrupts) and returns
   whether it handled the key.
+- **Completion** (`features: { completionFeature }`): Tab completes the token at the caret from the visible command
+  names, or from the command's `complete(request)` for an argument. One candidate is written (quoted when needed) with
+  a space after it; several open `state.completion`, which Tab/Shift+Tab and the arrows walk, Enter accepts and Escape
+  undoes. Argument positions at or after a command's `fromArg` are never completed.
 - **Sensitive lines** (a `sensitive` command or the `isSensitive` predicate) end as a redacted input entry and never
   reach `RunInfo`, messages, recall or callbacks.
 - **Context** (`features: { contextFeature }`): a stack of frames whose top sets the prompt. `pushContext(frame)`,

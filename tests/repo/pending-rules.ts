@@ -7,12 +7,4 @@
  * the first test of a rule removes the rule from this list in the same change.
  * 1.0 is released with this list empty.
  */
-export const pendingRules: readonly string[] = [
-  'C-35',
-  'C-37',
-  'C-38',
-  'C-39',
-  'C-40',
-  'C-41',
-  'C-43'
-]
+export const pendingRules: readonly string[] = []
