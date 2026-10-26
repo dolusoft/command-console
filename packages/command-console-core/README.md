@@ -30,6 +30,9 @@ await console.submit() // or: await console.run('echo hello')
   back with `setOptions`.
 - **Actions**: every method is one action, with one notification. A command's `run` gets a `CommandRequest` and a
   `RunContext` (`signal`, `write()`); it returns nothing, a string, blocks or a `CommandResponse` with effects.
+- **Input**: `setInput(value, caret?)` is the programmatic write; clearing a non-empty input increments
+  `input.revision` so the adapter replaces the element (and its undo history). `editInput(value, caret)` reports a user
+  edit the element already shows and never increments it.
 - **Keys**: `handleKey(input)` applies the fixed key map (Enter submits, Ctrl+C cancels or interrupts) and returns
   whether it handled the key.
 - **Sensitive lines** (a `sensitive` command or the `isSensitive` predicate) end as a redacted input entry and never

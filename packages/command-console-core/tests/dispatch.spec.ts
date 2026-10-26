@@ -902,6 +902,46 @@ describe('C-57 Interrupt', () => {
 })
 
 describe('C-63 run and submit', () => {
+  it('input.revision counts programmatic clears only, never user edits', () => {
+    const console = createConsole({ commands: [] })
+    // A user typing and backspacing to empty keeps the input element.
+    console.editInput('ab', 2)
+    console.editInput('a', 1)
+    console.editInput('', 0)
+    expect(console.getState().input).toEqual({
+      value: '',
+      caret: 0,
+      revision: 0
+    })
+    // The consumer clearing a non-empty input replaces it.
+    console.editInput('draft', 5)
+    console.setInput('')
+    expect(console.getState().input.revision).toBe(1)
+    // Clearing an input that is already empty is no clear.
+    console.setInput('')
+    expect(console.getState().input.revision).toBe(1)
+    // reset() on a non-empty input replaces it too.
+    console.editInput('x', 1)
+    console.reset()
+    expect(console.getState().input.revision).toBe(2)
+  })
+
+  it('editInput reports the caret and does nothing while a command runs', async () => {
+    const pending = deferred<string>()
+    const console = createConsole({
+      commands: [command('wait', () => pending.promise)]
+    })
+    console.editInput('wa', 1)
+    expect(console.getState().input).toMatchObject({ value: 'wa', caret: 1 })
+    console.editInput('wa', 99)
+    expect(console.getState().input.caret).toBe(2)
+    const done = console.run('wait')
+    console.editInput('typed', 5)
+    expect(console.getState().input.value).toBe('')
+    pending.resolve('x')
+    await done
+  })
+
   it('submit() ends the live input as Enter does', async () => {
     const run = vi.fn(() => 'x')
     const console = createConsole({ commands: [command('a', run)] })

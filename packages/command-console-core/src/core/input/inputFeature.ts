@@ -17,13 +17,15 @@ const clamp = (caret: number, value: string) =>
 
 /**
  * Writes the input in the open action and tells the `onInputChange` hooks.
- * A programmatic clear of a non-empty input increments the revision.
+ * A programmatic clear of a non-empty input increments the revision; a user
+ * edit (`programmatic: false`) never does (spec §6.8, C-54).
  */
 const write = (
   console: object,
   value: string,
   caret: number,
-  origin: InputOrigin
+  origin: InputOrigin,
+  programmatic: boolean
 ): void => {
   const { store } = liveRecord(console)
   const previous = store.read().input
@@ -31,7 +33,7 @@ const write = (
     value,
     caret: clamp(caret, value),
     revision:
-      value === '' && previous.value !== ''
+      programmatic && value === '' && previous.value !== ''
         ? previous.revision + 1
         : previous.revision
   }
@@ -80,14 +82,20 @@ export const inputFeature: ConsoleFeature = {
   name: 'input',
 
   constructConsoleAPIs(console: AnyConsole) {
+    const set = (value: string, caret: number, programmatic: boolean) => {
+      const { store } = liveRecord(console)
+      store.action(() => {
+        if (store.read().running === null) {
+          write(console, value, caret, null, programmatic)
+        }
+      })
+    }
     assignMethods(console, {
       setInput(value: string, caret?: number) {
-        const { store } = liveRecord(console)
-        store.action(() => {
-          if (store.read().running === null) {
-            write(console, value, caret ?? value.length, null)
-          }
-        })
+        set(value, caret ?? value.length, true)
+      },
+      editInput(value: string, caret: number) {
+        set(value, caret, false)
       }
     })
   },
@@ -97,7 +105,9 @@ export const inputFeature: ConsoleFeature = {
       const { store } = liveRecord(console)
       store.action(() => {
         if (store.read().running === null) {
-          write(console, value, caret, origin)
+          // A feature's write is programmatic (recall restoring an empty
+          // draft replaces the element like any programmatic clear).
+          write(console, value, caret, origin, true)
         }
       })
     })

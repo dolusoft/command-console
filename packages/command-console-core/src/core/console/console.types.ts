@@ -220,8 +220,20 @@ export interface CoreConsoleAPI<
   reset(): void
   /** Ends the run, frees the console; every later call does nothing. */
   dispose(): void
-  /** Sets the live input (the adapter calls it on every edit). */
+  /**
+   * Sets the live input programmatically (the consumer's call). Clearing a
+   * non-empty input increments `input.revision`, so the adapter replaces the
+   * input element and its undo history (spec §6.8). The caret defaults to the
+   * end. Does nothing while a command runs.
+   */
   setInput(value: string, caret?: number): void
+  /**
+   * Reports a user edit or caret move the input element already shows (the
+   * adapter calls it on every DOM `input` and `selectionchange`). Never
+   * increments `input.revision`: a user backspacing to empty keeps the
+   * element. Does nothing while a command runs.
+   */
+  editInput(value: string, caret: number): void
   /** Appends entries; an id already present throws. */
   appendEntries(entries: ConsoleEntry[]): void
   clearEntries(): void

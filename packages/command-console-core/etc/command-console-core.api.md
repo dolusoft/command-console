@@ -161,6 +161,7 @@ export interface CoreConsoleAPI<TFeatures extends Partial<OptionalFeatures> = {}
     // (undocumented)
     clearEntries(): void;
     dispose(): void;
+    editInput(value: string, caret: number): void;
     getCommands(): CommandSpec[];
     getPrompt(): string;
     getState(): ConsoleState;
