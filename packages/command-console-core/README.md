@@ -238,12 +238,12 @@ command without `input` or `danger`, or a sensitive one, runs locally as without
 ## Requests and agent tools
 
 `request({ command, args, view?, actor })` or `request({ line, actor })` runs a command for a caller other than the
-user's Enter. It resolves `busy` while a run exists, `unknown-command`, `invalid-args`, or `not-allowed` for a command
-without `input` or `danger`, a sensitive or `irreversible` one, and in this release for every actor other than
-`external-agent` and every `danger` other than `read`. These leave no entry. Otherwise an input entry with the
-canonical line and the `actor` is appended and the line takes the path above. The outcome is `ok` with the response's
-`summary` (cut to 200 code points), `failed`, `cancelled`, `not-allowed` (`beforeRun` returned `false`) or the gate's
-code. A line the user types carries no `actor`.
+user's Enter. It resolves `busy` while a run exists, `unknown-command` (for a `hidden` command too), `invalid-args`,
+or `not-allowed` for a command without `input` or `danger`, a sensitive or `irreversible` one, and in this release
+for every actor other than `external-agent` and every `danger` other than `read`. These leave no entry. Otherwise an
+input entry with the canonical line and the `actor` is appended and the line takes the path above. The outcome is
+`ok` with the response's `summary` (cut to 200 code points), `failed`, `cancelled`, `not-allowed` (`beforeRun`
+returned `false`) or the gate's code. A line the user types carries no `actor`.
 
 `agentTools(console, { context })` returns the `context`, `help` and `run` tools as plain objects in the shape of a
 WebMCP tool (`name`, `description`, `inputSchema`, `annotations`, `execute`). The consumer registers them:
@@ -255,8 +255,8 @@ for (const tool of agentTools(console, { context: () => describeViews() })) {
 }
 ```
 
-`help` lists the commands that have `input` and `danger` and are not `hidden`; `run` calls `request` as
-`external-agent`. No `execute` rejects.
+`help` lists the commands that have `input` and `danger` and are neither `hidden` nor `sensitive`; `run` calls
+`request` as `external-agent`. No `execute` rejects.
 
 ## Contract
 

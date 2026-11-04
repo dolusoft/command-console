@@ -902,6 +902,7 @@ describe('C-82 request', () => {
         command('nodanger', undefined, { input: searchInput }),
         search(undefined, { name: 'secret', sensitive: { fromArg: 4 } }),
         search(undefined, { name: 'marked' }),
+        search(undefined, { name: 'hiddenone', hidden: true }),
         command('slow', () => pending.promise)
       ],
       isSensitive: line => line.startsWith('marked')
@@ -913,6 +914,8 @@ describe('C-82 request', () => {
       await ask({ line: 'search "open', actor: agent }),
       await ask({ line: 'nope', actor: agent }),
       await ask({ command: 'nope', args: {}, actor: agent }),
+      await ask({ line: 'hiddenone --ip a', actor: agent }),
+      await ask({ command: 'hiddenone', args: { ip: 'a' }, actor: agent }),
       await ask({ line: 'plain', actor: agent }),
       await ask({ line: 'nodanger --ip a', actor: agent }),
       await ask({ line: 'secret --ip a', actor: agent }),
@@ -927,6 +930,8 @@ describe('C-82 request', () => {
     expect(codes.map(o => o.status === 'error' && o.code)).toEqual([
       'invalid-args',
       'invalid-args',
+      'unknown-command',
+      'unknown-command',
       'unknown-command',
       'unknown-command',
       'not-allowed',
@@ -1008,8 +1013,12 @@ describe('C-83 Agent tools', () => {
         search(() => ({ summary: 'ok' }), { usage: 'search --ip <ip>' }),
         search(undefined, { name: 'hiddenone', hidden: true }),
         command('plain'),
-        search(undefined, { name: 'change', danger: 'change' })
-      ]
+        search(undefined, { name: 'change', danger: 'change' }),
+        search(undefined, { name: 'secret', sensitive: { fromArg: 4 } }),
+        search(undefined, { name: 'open', sensitive: false }),
+        search(undefined, { name: 'marked' })
+      ],
+      isSensitive: line => line.startsWith('marked')
     })
     const context = vi.fn(() => ({ tab: 't1', views: [] }))
     return { console, context, tools: agentTools(console, { context }) }
@@ -1044,12 +1053,15 @@ describe('C-83 Agent tools', () => {
     })
   })
 
-  it('help lists the described, visible commands or describes one', async () => {
+  it('help lists the described, visible, not sensitive commands or describes one', async () => {
     const { tools } = setup()
     const help = tools[1]
+    // `marked` is listed: only a command's own `sensitive` leaves it out.
     expect(await help.execute({})).toEqual([
       { name: 'search', summary: 'Searches.', danger: 'read' },
-      { name: 'change', summary: 'Searches.', danger: 'change' }
+      { name: 'change', summary: 'Searches.', danger: 'change' },
+      { name: 'open', summary: 'Searches.', danger: 'read' },
+      { name: 'marked', summary: 'Searches.', danger: 'read' }
     ])
     expect(await help.execute({ command: 'search' })).toEqual({
       name: 'search',
@@ -1058,7 +1070,7 @@ describe('C-83 Agent tools', () => {
       danger: 'read',
       input: searchInput
     })
-    for (const name of ['plain', 'hiddenone', 'nope']) {
+    for (const name of ['plain', 'hiddenone', 'secret', 'nope']) {
       expect(await help.execute({ command: name })).toEqual({
         status: 'error',
         code: 'unknown-command'
@@ -1079,6 +1091,10 @@ describe('C-83 Agent tools', () => {
     expect(await run.execute({ line: 'change --ip a' })).toEqual({
       status: 'error',
       code: 'not-allowed'
+    })
+    expect(await run.execute({ line: 'hiddenone --ip a' })).toEqual({
+      status: 'error',
+      code: 'unknown-command'
     })
     expect(console.getState().entries[0]).toMatchObject({
       actor: 'external-agent'

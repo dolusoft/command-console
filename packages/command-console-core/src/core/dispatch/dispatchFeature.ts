@@ -761,7 +761,8 @@ const requestLine = (
     const given = typeof input.view === 'string' ? input.view : undefined
     view = () => given
   }
-  if (!command) {
+  // A hidden command is unknown to a caller, even one that knows its name.
+  if (!command || command.hidden === true) {
     return refuse('unknown-command')
   }
   if (

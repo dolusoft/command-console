@@ -447,23 +447,23 @@ a context change append `interrupted`).
 
 ### C-82 request
 
-`request(input)` never rejects and resolves a `CommandOutcome`. While a run exists it is `busy`; an unparsable line is
-`invalid-args`; an unknown command is `unknown-command`; a command without `input` or `danger`, a sensitive one, an
-`irreversible` one, an actor other than `external-agent`, and a `danger` other than `read` are `not-allowed`; options
-that do not match the schema are `invalid-args`. Nothing of these reaches the entries. Otherwise an input entry with
-the canonical line and the `actor` is appended and the line takes the path of C-77 to C-81. The run's end gives `ok`
-with the response's `summary` (cut to 200 code points), `failed`, `cancelled`, `not-allowed` when `beforeRun` returns
-`false`, or the code it ended with. A user's line carries no `actor`.
+`request(input)` never rejects and resolves a `CommandOutcome`. While a run exists it is `busy`; an unparsable line
+is `invalid-args`; an unknown or `hidden` command is `unknown-command`; a command without `input` or `danger`, a
+sensitive one, an `irreversible` one, an actor other than `external-agent`, and a `danger` other than `read` are
+`not-allowed`; options that do not match the schema are `invalid-args`. Nothing of these reaches the entries.
+Otherwise an input entry with the canonical line and the `actor` is appended and the line takes the path of C-77 to
+C-81. The run's end gives `ok` with the response's `summary` (cut to 200 code points), `failed`, `cancelled`,
+`not-allowed` when `beforeRun` returns `false`, or the code it ended with. A user's line carries no `actor`.
 
 ### C-83 Agent tools
 
 `agentTools(console, { context })` returns the `context`, `help` and `run` tools as plain objects (`name`,
 `description`, `inputSchema`, `annotations`, `execute`). `context` returns what `options.context()` returns, or
-`failed` when it throws. `help`
-lists the commands that have `input` and `danger` and are not `hidden` (`name`, `summary`, `danger`), or describes
-one of them (`name`, `summary`, `usage`, `danger`, `input`), or is `unknown-command`. `run` calls `request` as
-`external-agent` with `{ line }` or `{ command, args, view }`, and resolves its outcome; another input is
-`invalid-args`. No `execute` rejects.
+`failed` when it throws. `help` lists the commands that have `input` and `danger` and are neither `hidden` nor
+`sensitive` in their definition (`name`, `summary`, `danger`), or describes one of them (`name`, `summary`, `usage`,
+`danger`, `input`), or is `unknown-command`; a line `isSensitive` would mark does not take a command off the list.
+`run` calls `request` as `external-agent` with `{ line }` or `{ command, args, view }`, and resolves its outcome;
+another input is `invalid-args`. No `execute` rejects.
 
 ### C-84 External console (Vue)
 

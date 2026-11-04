@@ -37,9 +37,14 @@ export interface AgentToolsOptions {
   context: () => JsonValue | Promise<JsonValue>
 }
 
-/** A command an agent can see: one with `input` and `danger`. */
+/**
+ * A command an agent can see: one with `input` and `danger` whose definition
+ * is not `sensitive` (what `request` could run, C-82).
+ */
 const described = (spec: CommandSpec): boolean =>
-  spec.input !== undefined && spec.danger !== undefined
+  spec.input !== undefined &&
+  spec.danger !== undefined &&
+  (spec.sensitive === undefined || spec.sensitive === false)
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
