@@ -598,8 +598,33 @@ describe('C-80 Echo', () => {
     await done
     expect(requests).toHaveLength(1)
     expect(requests[0].input).toEqual({ ip: 'a', limit: 50 })
-    expect(requests[0].input).toBe(fake.sent[0].args)
     expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  it('the transport gets a copy: changing what was sent changes nothing local', async () => {
+    const requests: CommandRequest[] = []
+    const run = vi.fn((request: CommandRequest) => void requests.push(request))
+    const { console, fake } = gated({
+      commands: [search(run)],
+      activeView: () => 'v1'
+    })
+    const given: Envelope[] = []
+    fake.gate.send.mockImplementation((envelope: Envelope) => {
+      given.push(envelope)
+      fake.sent.push(JSON.parse(JSON.stringify(envelope)) as Envelope)
+      envelope.args.extra = 'x'
+      envelope.target.view = 'v2'
+      return Promise.resolve()
+    })
+    const done = console.run('search --ip a')
+    await flush()
+    fake.echo()
+    await done
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(requests[0].input).toEqual({ ip: 'a', limit: 50 })
+    expect(requests[0].input).not.toBe(given[0].args)
+    expect(requests[0].view).toBe('v1')
+    expect(messagesOf(outputs(console.getState().entries))).toEqual([])
   })
 
   it('an echo whose args differ closes the operation with id-conflict', async () => {

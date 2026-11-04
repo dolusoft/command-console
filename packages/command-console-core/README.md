@@ -223,7 +223,8 @@ The consumer's transport implements the gate; the core never touches the network
 
 1. `beforeRun` is asked as before; the run stays `running` and the console locked.
 2. An envelope (`v: 1`, `kind: 'request'`, the actor, `from.tab` and `target.tab` the gate's tab, `target.view`,
-   the canonical name, the normalized input) is sent. Above `envelopeMaxBytes` it is not sent (`too-large`).
+   the canonical name, the normalized input) is sent as a copy: the transport cannot change the local record. Above
+   `envelopeMaxBytes` it is not sent (`too-large`).
 3. Its echo, delivered through `subscribe`, runs the command with the local record when `command`, `args` and `target`
    match; a different echo ends the run with `id-conflict` and `onError`. Other traffic is ignored.
 4. A `send` that rejects, or a `subscribe`, `schedule` or `send` that throws, ends the run with `connection-lost`;

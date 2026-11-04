@@ -483,7 +483,9 @@ const send = (console: object, run: Run) => {
         options.echoTimeoutMs ?? 5000,
         ended('timeout')
       )
-      Promise.resolve(gate.send(envelope)).then(
+      // The transport gets a copy, so nothing it does reaches the record.
+      const copy = JSON.parse(JSON.stringify(envelope)) as Envelope
+      Promise.resolve(gate.send(copy)).then(
         undefined,
         ended('connection-lost')
       )

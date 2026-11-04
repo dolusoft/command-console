@@ -433,7 +433,8 @@ What the gate delivers is read with `parseEnvelope`. A value it refuses, one who
 or whose `from.tab` is not its `target.tab`, and one whose id is not the pending one, is ignored. The pending
 envelope's echo is its own action: when its `command`, `args` and `target` equal the local record, the command's `run`
 is called in the same run with the local record, never the echo's content; otherwise the run ends with
-`operation-failed` `id-conflict` and `onError(error, RunInfo)`.
+`operation-failed` `id-conflict` and `onError(error, RunInfo)`. `gate.send` gets a deep copy of the envelope: what the
+transport does to it never reaches the local record.
 
 ### C-81 Closed operations
 
