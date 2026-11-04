@@ -74,7 +74,7 @@ no optional method, in its type and at run time. The feature set is fixed for th
 | `gate`                                                 | sends described commands as envelopes and runs them from their echo (below); fixed for the console's life  |
 | `activeView()`                                         | the view a typed line (or a `{ line }` request) targets, read when the line ends                           |
 | `echoTimeoutMs`                                        | how long an envelope waits for its echo, a finite number above 0 (else a `TypeError`); default 5000        |
-| `createEnvelopeId()`                                   | makes envelope ids; default `crypto.randomUUID()` (a gate without either throws on creation)               |
+| `createEnvelopeId()`                                   | makes envelope ids; default `crypto.randomUUID()`, else a v4 UUID from `crypto.getRandomValues` (below)    |
 
 Run ids come from `createId` too, so with the default counter the first command's output is `c3` (`c1` the input entry,
 `c2` the run). An id `createId` returns that is already present throws from the method that caused it, as a duplicate
@@ -235,6 +235,10 @@ These ends append an `operation-failed` entry with the code. The last 500 closed
 runs nothing. The console subscribes on its first envelope, and `dispose()` unsubscribes and cancels the timer. A
 command without `input` or `danger`, or a sensitive one, runs locally as without a gate.
 
+Envelope ids come from `createEnvelopeId`, else `crypto.randomUUID()`, else a version 4 UUID made from
+`crypto.getRandomValues` (a page served over plain `http` on a LAN address has only the latter). A console with a gate
+and none of these throws on creation.
+
 ## Requests and agent tools
 
 `request({ command, args, view?, actor })` or `request({ line, actor })` runs a command for a caller other than the
@@ -243,7 +247,33 @@ or `not-allowed` for a command without `input` or `danger`, a sensitive or `irre
 for every actor other than `external-agent` and every `danger` other than `read`. These leave no entry. Otherwise an
 input entry with the canonical line and the `actor` is appended and the line takes the path above. The outcome is
 `ok` with the response's `summary` (cut to 200 code points), `failed`, `cancelled`, `not-allowed` (`beforeRun`
-returned `false`) or the gate's code. A line the user types carries no `actor`.
+returned `false`), the code of a `CommandError`, or the gate's code. A response with `tone: 'error'` (from the command
+or from `beforeRun`) is drawn as usual but its outcome is `failed`, without `summary`. A line the user types carries no
+`actor`.
+
+A command ends its run with a code of its own by throwing (or rejecting) a `CommandError`:
+
+```ts
+import { CommandError } from '@dolusoft/command-console-core'
+
+const show: CommandDefinition = {
+  name: 'show',
+  input: showInput,
+  danger: 'read',
+  run: request => {
+    const tab = findTab(request.view)
+    if (!tab) {
+      throw new CommandError('target-not-found', 'No such tab.')
+    }
+    return tab.render(request.input)
+  }
+}
+```
+
+The run fails as with any error (`onError` gets it, the entry is `formatError`'s or `command-failed`), and the
+outcome is `{ status: 'error', code }`. A command may give `target-not-found`, `invalid-args` or `failed`; any other
+code (`busy`, `timeout`, `id-conflict`, … belong to the core) gives `failed`, and so does a `CommandError` thrown by
+`beforeRun`, `normalize` or `createEnvelopeId`.
 
 `agentTools(console, { context })` returns the `context`, `help` and `run` tools as plain objects in the shape of a
 WebMCP tool (`name`, `description`, `inputSchema`, `annotations`, `execute`). The consumer registers them:

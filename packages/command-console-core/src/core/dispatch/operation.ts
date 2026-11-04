@@ -50,17 +50,45 @@ export const cutSummary = (summary: unknown): string | undefined =>
     ? Array.from(summary).slice(0, summaryLimit).join('')
     : undefined
 
-/** The platform's UUID function, when the page has one. */
-const randomUUID = (): (() => string) | undefined => {
-  const crypto = (globalThis as { crypto?: { randomUUID?: () => string } })
-    .crypto
-  return typeof crypto?.randomUUID === 'function'
-    ? () => crypto.randomUUID!()
-    : undefined
+interface Crypto {
+  randomUUID?: () => string
+  getRandomValues?: (bytes: Uint8Array) => Uint8Array
+}
+
+/** An RFC 4122 version 4 UUID from 16 random bytes. */
+const uuidV4 = (bytes: Uint8Array): string => {
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0'))
+  return [
+    hex.slice(0, 4),
+    hex.slice(4, 6),
+    hex.slice(6, 8),
+    hex.slice(8, 10),
+    hex.slice(10, 16)
+  ]
+    .map(part => part.join(''))
+    .join('-')
 }
 
 /**
- * What makes envelope ids: `createEnvelopeId`, else `crypto.randomUUID`.
+ * The page's UUID function: `crypto.randomUUID`, else a v4 UUID from
+ * `crypto.getRandomValues` (a page on an insecure origin has only the
+ * latter), else none.
+ */
+const randomUUID = (): (() => string) | undefined => {
+  const crypto = (globalThis as { crypto?: Crypto }).crypto
+  if (typeof crypto?.randomUUID === 'function') {
+    return () => crypto.randomUUID!()
+  }
+  if (typeof crypto?.getRandomValues === 'function') {
+    return () => uuidV4(crypto.getRandomValues!(new Uint8Array(16)))
+  }
+  return undefined
+}
+
+/**
+ * What makes envelope ids: `createEnvelopeId`, else the page's UUID function.
  * Throws when a gate is given and neither exists (C-78).
  */
 export const envelopeIds = (
@@ -69,7 +97,7 @@ export const envelopeIds = (
   const create = options.createEnvelopeId ?? randomUUID()
   if (options.gate !== undefined && create === undefined) {
     throw new Error(
-      'A console with a gate needs crypto.randomUUID or a createEnvelopeId option.'
+      'A console with a gate needs crypto.randomUUID, crypto.getRandomValues or a createEnvelopeId option.'
     )
   }
   return create
