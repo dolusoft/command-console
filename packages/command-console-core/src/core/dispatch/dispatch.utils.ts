@@ -1,7 +1,9 @@
-import type {
-  CommandResponse,
-  CommandSpec,
-  OutputBlock
+import {
+  checkInputSchema,
+  type CommandResponse,
+  type CommandSpec,
+  type InputSchema,
+  type OutputBlock
 } from '@dolusoft/command-protocol'
 
 import type { CommandDefinition, CommandReturn } from './dispatch.types'
@@ -19,8 +21,9 @@ const checkName = (name: unknown, where: string) => {
 /**
  * Validates the commands (core README: Options, C-56): names and aliases are
  * non-empty, without whitespace or quotes, unique across every name and alias;
- * `fromArg` is a non-negative integer; `run` is a function. Throws on the
- * first violation.
+ * `fromArg` is a non-negative integer; `run` is a function; `input` is an
+ * input schema, `danger` a known value and `normalize` a function (C-76).
+ * Throws on the first violation.
  */
 export const validateCommands = (commands: unknown): void => {
   if (!Array.isArray(commands)) {
@@ -54,6 +57,34 @@ export const validateCommands = (commands: unknown): void => {
     if (typeof command.run !== 'function') {
       throw new Error(`command ${command.name}: run must be a function.`)
     }
+    checkDescription(command)
+  }
+}
+
+const dangers: readonly unknown[] = ['read', 'change', 'irreversible']
+
+/** The checks of C-76: `input`, `danger` and `normalize`. */
+const checkDescription = (command: CommandDefinition) => {
+  if (command.input !== undefined) {
+    try {
+      checkInputSchema(command.input)
+    } catch (error) {
+      throw new TypeError(
+        `command ${command.name}: ${(error as Error).message}`,
+        { cause: error }
+      )
+    }
+  }
+  if (command.danger !== undefined && !dangers.includes(command.danger)) {
+    throw new Error(
+      `command ${command.name}: danger must be 'read', 'change' or 'irreversible'.`
+    )
+  }
+  if (
+    command.normalize !== undefined &&
+    typeof command.normalize !== 'function'
+  ) {
+    throw new Error(`command ${command.name}: normalize must be a function.`)
   }
 }
 
@@ -74,6 +105,12 @@ export const specOf = (command: CommandDefinition): CommandSpec => {
       typeof command.sensitive === 'object'
         ? { fromArg: command.sensitive.fromArg }
         : command.sensitive
+  }
+  if (command.input !== undefined) {
+    spec.input = JSON.parse(JSON.stringify(command.input)) as InputSchema
+  }
+  if (command.danger !== undefined) {
+    spec.danger = command.danger
   }
   return spec
 }

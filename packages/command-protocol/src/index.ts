@@ -1,11 +1,12 @@
 // @dolusoft/command-protocol: the JSON types of a command console (entries,
-// output blocks, command specs, responses, effects, context frames) and the
-// line tokenizer. Zero dependencies, no framework, no DOM (P11).
+// output blocks, command specs, responses, effects, context frames, input
+// schemas, the envelope), the line tokenizer and the pure functions over
+// them. Zero dependencies, no framework, no DOM (P11).
 
 export type { JsonPrimitive, JsonValue } from './json'
 export { isJsonValue } from './json'
 
-export type { ConsoleEntry, InputEntry, OutputEntry } from './entry'
+export type { Actor, ConsoleEntry, InputEntry, OutputEntry } from './entry'
 export type {
   CustomBlock,
   JsonBlock,
@@ -18,9 +19,32 @@ export type {
   TableColumn,
   TextBlock
 } from './block'
-export type { CommandResponse, CommandSpec, ConsoleEffect } from './command'
+export type {
+  CommandResponse,
+  CommandSpec,
+  ConsoleEffect,
+  Danger
+} from './command'
 export type { ContextFrame } from './context'
+export type { CommandOutcome, ErrorCode } from './outcome'
+
+export type {
+  ArrayInputSchema,
+  BooleanInputSchema,
+  InputSchema,
+  InputSchemaNode,
+  NumberInputSchema,
+  StringInputSchema
+} from './input/schema'
+export { inputLimits } from './input/schema'
+export { checkInputSchema } from './input/check'
+export type { InputError, InputErrorCode, InputResult } from './input/validate'
+export { validateInput } from './input/validate'
 
 export type { Token, TokenizeError, TokenizeResult } from './syntax/tokenize'
 export { tokenize } from './syntax/tokenize'
 export { quoteArgument } from './syntax/quote'
+export { formatCommandLine, parseOptions } from './syntax/options'
+
+export type { Envelope, EnvelopeErrorCode, EnvelopeResult } from './envelope'
+export { envelopeBytes, envelopeMaxBytes, parseEnvelope } from './envelope'

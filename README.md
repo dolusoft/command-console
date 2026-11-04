@@ -6,11 +6,11 @@ The console ships no CSS. It renders plain elements with a small, stable set of 
 
 It is not a terminal emulator: no PTY, no ANSI escape handling, no cursor addressing, no full-screen program. `xterm.js` is the tool for that; this library is the tool for an in-app command line whose commands are JavaScript functions.
 
-| Package                                                           | Contents                                                                                                       | Dependencies               |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| [`@dolusoft/command-protocol`](packages/command-protocol)         | JSON types of entries, output blocks, command specs, responses, effects and context frames; the line tokenizer | none                       |
-| [`@dolusoft/command-console-core`](packages/command-console-core) | the console engine (`createConsole`) and its features                                                          | the protocol               |
-| [`@dolusoft/command-console`](packages/command-console)           | `useCommandConsole` and the `CommandConsole` component                                                         | core, protocol; `vue` peer |
+| Package                                                           | Contents                                                                                                                                                             | Dependencies               |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| [`@dolusoft/command-protocol`](packages/command-protocol)         | JSON types of entries, output blocks, command specs, responses, effects, context frames, input schemas and the envelope; the line tokenizer and the checks over them | none                       |
+| [`@dolusoft/command-console-core`](packages/command-console-core) | the console engine (`createConsole`) and its features                                                                                                                | the protocol               |
+| [`@dolusoft/command-console`](packages/command-console)           | `useCommandConsole` and the `CommandConsole` component                                                                                                               | core, protocol; `vue` peer |
 
 ## Install
 
@@ -166,7 +166,7 @@ Effects ask the console for a change, applied in order and before the output is 
 
 ### Cancelling and errors
 
-While a command runs the input is read-only (it keeps focus), Enter, Tab and recall do nothing, and the component shows the `busy` status. There is no timeout. Ctrl+C (without a selection) or `cancel()` interrupts the run: it stops being the current run, its `signal` is aborted, and a `notice` entry `interrupted` is appended. Anything the run writes or returns afterwards is ignored, but a cancelled command may still finish work on its side (a save that already reached the server is not undone); pass `run.signal` to your requests.
+While a command runs the input is read-only (it keeps focus), Enter, Tab and recall do nothing, and the component shows the `busy` status. There is no timeout on a command (only on the echo of a gate, core README: The gate). Ctrl+C (without a selection) or `cancel()` interrupts the run: it stops being the current run, its `signal` is aborted, and a `notice` entry `interrupted` is appended. Anything the run writes or returns afterwards is ignored, but a cancelled command may still finish work on its side (a save that already reached the server is not undone); pass `run.signal` to your requests.
 
 When a command throws or rejects, the console calls `onError(error, info)` with the error exactly as it was thrown, then appends an error entry `command-failed`, which never shows the error's text. Give `formatError(error, info)` to turn an error into your own `CommandResponse` (tone `error` unless it sets one); if it throws, the default entry is used. `onError` is also called with `info: null` when one of your callbacks throws (a change handler, a subscriber, `shouldRecord`).
 
@@ -284,7 +284,32 @@ Not guaranteed, because the library cannot reach it: the IME's own history, the 
 
 `<CommandConsole>` always has recall, completion and context; its `console` is typed with all three.
 
-**Props.** `commands` (required), `prompt` (default `'>'`), `initialState`, `createId` (default a per-console counter `c1`, `c2`, … that skips ids already in the entries), `maxEntries` (drops the oldest; default unbounded), `beforeRun`, `onError`, `formatError`, `isSensitive`, `recallLimit`, `shouldRecord`, `labels`, `autofocus` (default `false`), and `entries`, `recall`, `context` for `v-model:*`. A changed prop is passed on to the console; `initialState` is read once.
+**Props.** `commands` (required without `console`), `prompt` (default `'>'`), `initialState`, `createId` (default a per-console counter `c1`, `c2`, … that skips ids already in the entries), `maxEntries` (drops the oldest; default unbounded), `beforeRun`, `onError`, `formatError`, `isSensitive`, `recallLimit`, `shouldRecord`, `labels`, `autofocus` (default `false`), and `entries`, `recall`, `context` for `v-model:*`. A changed prop is passed on to the console; `initialState` is read once.
+
+**A console that outlives the component.** `console` takes a console created elsewhere, with every optional feature,
+for example one per page that a panel shows while it is open. The component draws it and never disposes it, so a panel
+that is mounted again (`v-if`) shows the same entries and the same live input. Read once: to show another console, key
+the component. The console's options belong to whoever created it: with `console`, the console-option props
+(`commands`, `prompt`, `initialState`, `createId`, `maxEntries`, `beforeRun`, `onError`, `formatError`, `isSensitive`,
+`recallLimit`, `shouldRecord`) and `entries` / `recall` / `context` throw a `TypeError`, rather than being ignored;
+`labels` and `autofocus` apply. `update:*` and `close` are then the creator's `on*` options; `submit` is still emitted.
+
+```ts
+// Once per page, outside the panel.
+const pageConsole = createConsole({
+  features: consoleFeatures({
+    recallFeature,
+    completionFeature,
+    contextFeature
+  }),
+  commands,
+  onClose: () => (open.value = false)
+})
+```
+
+```vue
+<CommandConsole v-if="open" :console="pageConsole" autofocus />
+```
 
 **Events.** `update:entries`, `update:recall`, `update:context` (the new value, for `v-model`); `close` (a command returned the `close` effect); `submit` (`{ inputId, sensitive }`, never the line) when a line is submitted with Enter or the exposed `run`. A change of a slice and the `close` request are events, not `on*` props, so `v-model` has one channel.
 
@@ -305,8 +330,8 @@ The component renders this tree. The classes, `data-*` attributes and ids are li
 div.cc-console [data-busy] data-context-depth=<frames>
 ├─ div.cc-log role="log" aria-label            the scroll container
 │  └─ div.cc-entries
-│     └─ div.cc-entry data-kind="input|output" data-tone data-status [data-redacted] [aria-live="off" when quiet]
-│        ├─ input:  span.cc-prompt, span.cc-line, span.cc-cancelled (after Ctrl+C)
+│     └─ div.cc-entry data-kind="input|output" data-tone data-status [data-redacted] [data-actor] [aria-live="off" when quiet]
+│        ├─ input:  span.cc-actor (a line from the assistant or an agent), span.cc-prompt, span.cc-line, span.cc-cancelled (after Ctrl+C)
 │        └─ output: one .cc-block data-type=… per block
 │           text, json, custom → pre · table → table/thead/th scope=col/tbody · list → ul/li · message → div
 ├─ div.cc-status role="status"                 busy text, or the recalled line
@@ -359,21 +384,25 @@ The library writes no `style` attribute, sets no size and no `overflow`. Give `.
 
 ## Labels
 
-Every text the component shows comes from the `labels` prop, over English defaults. `messages` merges one level deep, so overriding one message keeps the others. A message is a string or a function of its parameters.
+Every text the component shows comes from the `labels` prop, over English defaults. `messages` and `actors` merge one level deep, so overriding one message keeps the others. A message is a string or a function of its parameters.
 
-| Label                            | Default                                                                           |
-| -------------------------------- | --------------------------------------------------------------------------------- |
-| `input`                          | `Command` (the input's accessible name)                                           |
-| `inputDescription`               | `Enter runs the command. Tab completes; on an empty line it leaves the console.`  |
-| `log`                            | `Console output`                                                                  |
-| `redacted`                       | `(input hidden)`                                                                  |
-| `cancelledMarker`                | `^C`                                                                              |
-| `completions`                    | `Suggestions` (the list's accessible name)                                        |
-| `busy`                           | `Running…`                                                                        |
-| `messages['command-not-found']`  | `` p => p.name === null ? 'command not found' : `${p.name}: command not found` `` |
-| `messages['command-failed']`     | `The command failed.`                                                             |
-| `messages['unterminated-quote']` | `Unterminated quote.`                                                             |
-| `messages.interrupted`           | `Interrupted.`                                                                    |
+| Label                            | Default                                                                                                            |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `input`                          | `Command` (the input's accessible name)                                                                            |
+| `inputDescription`               | `Enter runs the command. Tab completes; on an empty line it leaves the console.`                                   |
+| `log`                            | `Console output`                                                                                                   |
+| `redacted`                       | `(input hidden)`                                                                                                   |
+| `cancelledMarker`                | `^C`                                                                                                               |
+| `completions`                    | `Suggestions` (the list's accessible name)                                                                         |
+| `busy`                           | `Running…`                                                                                                         |
+| `actors.assistant`               | `AI` (before the prompt of a line from the application's assistant)                                                |
+| `actors['external-agent']`       | `Agent` (before the prompt of a line from an agent outside the application)                                        |
+| `messages['command-not-found']`  | `` p => p.name === null ? 'command not found' : `${p.name}: command not found` ``                                  |
+| `messages['command-failed']`     | `The command failed.`                                                                                              |
+| `messages['unterminated-quote']` | `Unterminated quote.`                                                                                              |
+| `messages.interrupted`           | `Interrupted.`                                                                                                     |
+| `messages['invalid-args']`       | `Missing option: ip.`, `Unknown option: x.`, `Invalid option ip: wrong format.`; `Invalid options.` without a path |
+| `messages['operation-failed']`   | one English sentence per `p.code` (`timeout`: `No answer in time; the command did not run.`)                       |
 
 ```vue
 <CommandConsole
@@ -388,11 +417,15 @@ Every text the component shows comes from the `labels` prop, over English defaul
 />
 ```
 
-The core writes no human text: what the library says is a `message` block with a code (`command-not-found`, `command-failed`, `unterminated-quote`, `interrupted`) and parameters, and the component turns it into text with `labels.messages`.
+The core writes no human text: what the library says is a `message` block with a code (`command-not-found`, `command-failed`, `unterminated-quote`, `interrupted`, `invalid-args`, `operation-failed`) and parameters, and the component turns it into text with `labels.messages`.
 
 ## The composable
 
 `useCommandConsole(options)` gives the console without markup: `{ console, state }`, where `state` is a read-only `ShallowRef` of the console's state after every action. It takes the core options; a value option (`commands`, `prompt`, `state`, `maxEntries`, `recallLimit`) may be a value, a ref or a getter, a function option (`beforeRun`, `onError`, `onEntriesChange`, …) the function or a ref to it (a bare function is the option, never a getter). `features` and `initialState` are read once. The console is disposed with the calling effect scope.
+
+`useCommandConsole({ console })` mirrors a console created elsewhere instead: it never calls its `setOptions` and never
+disposes it, and the end of the scope only unsubscribes. `console` takes no other option, in its type and at run time
+(a `TypeError`).
 
 ```ts
 import { useCommandConsole } from '@dolusoft/command-console'

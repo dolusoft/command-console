@@ -4,12 +4,41 @@
 
 ```ts
 
+import type { Actor } from '@dolusoft/command-protocol';
+import type { CommandOutcome } from '@dolusoft/command-protocol';
 import type { CommandResponse } from '@dolusoft/command-protocol';
 import type { CommandSpec } from '@dolusoft/command-protocol';
 import type { ConsoleEntry } from '@dolusoft/command-protocol';
 import type { ContextFrame } from '@dolusoft/command-protocol';
+import type { Envelope } from '@dolusoft/command-protocol';
+import type { JsonValue } from '@dolusoft/command-protocol';
 import type { OutputBlock } from '@dolusoft/command-protocol';
 import type { OutputEntry } from '@dolusoft/command-protocol';
+
+// @public
+export interface AgentTool {
+    annotations: AgentToolAnnotations;
+    description: string;
+    execute(input: unknown): Promise<JsonValue>;
+    inputSchema: {
+        [key: string]: JsonValue;
+    };
+    name: string;
+}
+
+// @public
+export interface AgentToolAnnotations {
+    readOnlyHint?: boolean;
+    untrustedContentHint?: boolean;
+}
+
+// @public
+export function agentTools(console: Pick<CoreConsoleAPI, 'getCommands' | 'request'>, options: AgentToolsOptions): [AgentTool, AgentTool, AgentTool];
+
+// @public
+export interface AgentToolsOptions {
+    context: () => JsonValue | Promise<JsonValue>;
+}
 
 // @public
 export type BeforeRunResult = undefined | false | CommandResponse;
@@ -17,6 +46,7 @@ export type BeforeRunResult = undefined | false | CommandResponse;
 // @public
 export interface CommandDefinition extends CommandSpec {
     complete?(request: CompletionRequest): CompletionResult;
+    normalize?(input: Record<string, JsonValue>): Record<string, JsonValue>;
     run(request: CommandRequest, run: RunContext): CommandReturn | Promise<CommandReturn>;
 }
 
@@ -25,9 +55,11 @@ export interface CommandRequest {
     args: string[];
     command: string;
     context: ContextFrame[];
+    input?: Record<string, JsonValue>;
     line: string;
     name: string;
     rest: string;
+    view?: string;
 }
 
 // @public
@@ -90,13 +122,25 @@ export { Console_2 as Console }
 export function consoleFeatures<T extends Partial<OptionalFeatures>>(features: T): T;
 
 // @public
+export interface ConsoleGate {
+    schedule(ms: number, fn: () => void): () => void;
+    send(envelope: Envelope): Promise<void>;
+    subscribe(listener: (raw: unknown) => void): () => void;
+    tab: string;
+}
+
+// @public
 export interface ConsoleOptions<TFeatures extends Partial<OptionalFeatures> = {}> {
+    activeView?: () => string | undefined;
     beforeRun?: (info: RunInfo, signal: AbortSignal) => BeforeRunResult | Promise<BeforeRunResult>;
     // (undocumented)
     commands: CommandDefinition[];
+    createEnvelopeId?: () => string;
     createId?: () => string;
+    echoTimeoutMs?: number;
     features?: TFeatures;
     formatError?: (error: unknown, info: RunInfo) => CommandResponse;
+    gate?: ConsoleGate;
     initialState?: Partial<ControllableState>;
     isSensitive?: (line: string) => boolean;
     maxEntries?: number;
@@ -173,6 +217,7 @@ export interface CoreConsoleAPI<TFeatures extends Partial<OptionalFeatures> = {}
     getState(): ConsoleState;
     handleKey(input: KeyInput): boolean;
     isSensitive(line: string): boolean;
+    request(input: RequestInput): Promise<CommandOutcome>;
     reset(): void;
     run(line: string): Promise<boolean>;
     setInput(value: string, caret?: number): void;
@@ -236,6 +281,17 @@ export interface RecallFeature {
 
 // @public
 export const recallFeature: RecallFeature;
+
+// @public
+export type RequestInput = {
+    command: string;
+    args: Record<string, unknown>;
+    view?: string;
+    actor: Actor;
+} | {
+    line: string;
+    actor: Actor;
+};
 
 // @public
 export interface RunContext {

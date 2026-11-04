@@ -10,7 +10,8 @@ This is the public contract of `@dolusoft/command-console`: the component surfac
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `commands` | `CommandDefinition[]` | yes |  | The commands; validated on every change (C-56). |
+| `console` | `Console<OptionalFeatures>` |  | `undefined` | A console created elsewhere, with every optional feature (C-84): the component draws it and never disposes it, so a remount shows the same entries and input. Read once. Its options are its creator's: with it, the console-option props (`commands` to `shouldRecord`) and the controlled slices throw; `labels` and `autofocus` apply. |
+| `commands` | `CommandDefinition[]` |  | `undefined` | The commands; validated on every change (C-56). Required without `console`. |
 | `prompt` | `string` |  | `undefined` | The root prompt. Default `'>'`. |
 | `initialState` | `Partial<ControllableState>` |  | `undefined` | The first value of each uncontrolled slice; read once. |
 | `createId` | `(() => string)` |  | `undefined` | Makes entry and run ids. Default: a per-console counter. |
@@ -69,7 +70,7 @@ Exported from the package entry point next to the component.
 
 | Name | Signature | Description |
 | --- | --- | --- |
-| `useCommandConsole` | `(options: UseCommandConsoleOptions<T>) => UseCommandConsoleReturn<T>` | Creates a console from `options` and keeps it in step with them. A value option (`commands`, `prompt`, `state`, `maxEntries`, `recallLimit`) may be a plain value, a ref or a getter. A function option (`beforeRun`, `onError`, …) may be the function or a ref that holds it: a bare function is the option itself, never a getter. `features` and `initialState` are read once. |
+| `useCommandConsole` | `(options: UseCommandConsoleOptions<T> \| UseExternalConsoleOptions<T>) => UseCommandConsoleReturn<T>` | Creates a console from `options` and keeps it in step with them; or, given `{ console }` alone, mirrors a console created elsewhere and leaves its options and its life to its creator (C-84). A value option (`commands`, `prompt`, `state`, `maxEntries`, `recallLimit`) may be a plain value, a ref or a getter. A function option (`beforeRun`, `onError`, …) may be the function or a ref that holds it: a bare function is the option itself, never a getter. `features` and `initialState` are read once. `console` with any other option throws a `TypeError`. |
 
 ## Types
 
@@ -93,6 +94,7 @@ import type {
   RunningCommand
 } from '@dolusoft/command-console-core'
 import type {
+  Actor,
   CommandResponse,
   ConsoleEntry,
   ContextFrame,
@@ -129,6 +131,7 @@ export type {
   Updater
 } from '@dolusoft/command-console-core'
 export type {
+  Actor,
   CommandResponse,
   CommandSpec,
   ConsoleEffect,
@@ -179,14 +182,25 @@ export interface ConsoleLabels {
   busy: string
   /** The text of each library-made message block. */
   messages: MessageLabels
+  /**
+   * Shown before the prompt of a line that came from the assistant or an
+   * external agent (C-85). Default `'AI'` and `'Agent'`.
+   */
+  actors: ActorLabels
 }
 
+/** The label of each actor other than the user (C-85). */
+export type ActorLabels = Record<Exclude<Actor, 'user'>, string>
+
 /**
- * The `labels` prop: any part of `ConsoleLabels`. `messages` is merged one
- * level deep, so overriding one message keeps the others.
+ * The `labels` prop: any part of `ConsoleLabels`. `messages` and `actors`
+ * are merged one level deep, so overriding one message keeps the others.
  */
-export type ConsoleLabelsInput = Partial<Omit<ConsoleLabels, 'messages'>> & {
+export type ConsoleLabelsInput = Partial<
+  Omit<ConsoleLabels, 'messages' | 'actors'>
+> & {
   messages?: Partial<MessageLabels>
+  actors?: Partial<ActorLabels>
 }
 
 // ---------------------------------------------------------------------------
@@ -194,8 +208,19 @@ export type ConsoleLabelsInput = Partial<Omit<ConsoleLabels, 'messages'>> & {
 
 /** The props of `<CommandConsole>`. */
 export interface ConsoleProps {
-  /** The commands; validated on every change (C-56). */
-  commands: CommandDefinition[]
+  /**
+   * A console created elsewhere, with every optional feature (C-84): the
+   * component draws it and never disposes it, so a remount shows the same
+   * entries and input. Read once. Its options are its creator's: with it,
+   * the console-option props (`commands` to `shouldRecord`) and the
+   * controlled slices throw; `labels` and `autofocus` apply.
+   */
+  console?: Console<OptionalFeatures>
+  /**
+   * The commands; validated on every change (C-56). Required without
+   * `console`.
+   */
+  commands?: CommandDefinition[]
   /** The root prompt. Default `'>'`. */
   prompt?: string
   /** The first value of each uncontrolled slice; read once. */
@@ -358,14 +383,33 @@ export type UseCommandConsoleOptions<
     commands: MaybeRefOrGetter<CommandDefinition[]>
     /** Read once, when the console is created. */
     initialState?: MaybeRefOrGetter<Partial<ControllableState> | undefined>
+    /** Only in `UseExternalConsoleOptions`, without the other options. */
+    console?: never
   }
+
+/**
+ * The options of `useCommandConsole` over a console created elsewhere
+ * (C-84): the console alone. Its options belong to whoever created it; the
+ * composable only mirrors its state and never disposes it.
+ */
+export type UseExternalConsoleOptions<
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  T extends Partial<OptionalFeatures> = {}
+> = {
+  console: Console<T>
+} & {
+  [K in Exclude<keyof UseCommandConsoleOptions<T>, 'console'>]?: never
+}
 
 /** What `useCommandConsole` returns. */
 export interface UseCommandConsoleReturn<
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   T extends Partial<OptionalFeatures> = {}
 > {
-  /** The console; disposed with the effect scope. */
+  /**
+   * The console; disposed with the effect scope when the composable created
+   * it.
+   */
   console: Console<T>
   /** The state after every action (C-68). */
   state: Readonly<ShallowRef<ConsoleState>>
@@ -444,9 +488,18 @@ export type OutputBlock =
  *   shown (S-06).
  * - `unterminated-quote`: the line has a quote that is not closed.
  * - `interrupted`: a running command was cancelled.
+ * - `invalid-args`: the options of a command with an input schema do not
+ *   match it; the first error's field (`path`) and why (`reason`).
+ * - `operation-failed`: a command's operation ended without running it
+ *   (`not-allowed`, `too-large`, `timeout`, `connection-lost`, `id-conflict`).
  */
 export type MessageCode =
-  'command-not-found' | 'command-failed' | 'unterminated-quote' | 'interrupted'
+  | 'command-not-found'
+  | 'command-failed'
+  | 'unterminated-quote'
+  | 'interrupted'
+  | 'invalid-args'
+  | 'operation-failed'
 
 // packages/command-protocol/src/block.ts
 /**
@@ -459,6 +512,10 @@ export interface MessageParams {
   'command-failed': Record<string, never>
   'unterminated-quote': { index: number | null }
   interrupted: Record<string, never>
+  /** `path` is `null` when the line is sensitive; `''` names the root. */
+  'invalid-args': { path: string | null; reason: InputErrorCode }
+  /** The code the operation ended with. */
+  'operation-failed': { code: ErrorCode }
 }
 
 // packages/command-protocol/src/command.ts
@@ -482,6 +539,13 @@ export interface CommandSpec {
    * those positions are never completed. `true` is `{ fromArg: 0 }`.
    */
   sensitive?: boolean | { fromArg: number }
+  /**
+   * The schema of the command's input (`checkInputSchema`). A command with a
+   * schema is called as `name --field value …` (`parseOptions`).
+   */
+  input?: InputSchema
+  /** What running the command does to the application. */
+  danger?: Danger
 }
 
 // packages/command-protocol/src/command.ts
@@ -495,6 +559,11 @@ export interface CommandResponse {
   quiet?: true
   /** Applied in order, before the output is appended. */
   effects?: ConsoleEffect[]
+  /**
+   * A short result for the caller of an operation (`CommandOutcome`), such
+   * as "342 rows"; at most 200 characters.
+   */
+  summary?: string
 }
 
 // packages/command-protocol/src/command.ts
@@ -548,7 +617,17 @@ export interface InputEntry {
   redacted: boolean
   /** `cancelled` when the line was ended with Ctrl+C. */
   status: 'submitted' | 'cancelled'
+  /** Who the line came from, as a label for the history. */
+  actor?: Actor
 }
+
+// packages/command-protocol/src/entry.ts
+/**
+ * Who a line or a request came from: the user, the application's own
+ * assistant, or an agent outside the application (such as a browser agent).
+ * A label, never a permission.
+ */
+export type Actor = 'user' | 'assistant' | 'external-agent'
 
 // packages/command-protocol/src/entry.ts
 /** What a command or the library wrote. */
@@ -702,6 +781,17 @@ export interface ConsoleOptions<
   recallLimit?: number
   /** Whether a line is recorded (recall feature); default every line. */
   shouldRecord?: (line: string) => boolean
+  /**
+   * Sends the lines of commands with `input` and `danger` as envelopes and
+   * runs them from their echo (ADR 0012); fixed for the life of the console.
+   */
+  gate?: ConsoleGate
+  /** The view instance a typed line targets, read when the line ends. */
+  activeView?: () => string | undefined
+  /** How long an envelope waits for its echo, in ms; default 5000. */
+  echoTimeoutMs?: number
+  /** Makes envelope ids; default `crypto.randomUUID()`. */
+  createEnvelopeId?: () => string
 }
 
 // packages/command-console-core/src/core/console/console.types.ts
@@ -758,6 +848,12 @@ export interface CommandDefinition extends CommandSpec {
    * Called only for safe positions (README: Completion).
    */
   complete?(request: CompletionRequest): CompletionResult
+  /**
+   * Maps the validated input of a command with `input` before it is sent or
+   * run (a relative time made absolute). Pure; its result is checked again
+   * against the schema.
+   */
+  normalize?(input: Record<string, JsonValue>): Record<string, JsonValue>
 }
 
 // packages/command-console-core/src/core/dispatch/dispatch.types.ts
@@ -775,6 +871,13 @@ export interface CommandRequest {
   line: string
   /** The context frames when the run started, bottom → top, root excluded. */
   context: ContextFrame[]
+  /**
+   * The validated, normalized input of a command with `input`; `args`, `rest`
+   * and `line` then come from its canonical line.
+   */
+  input?: Record<string, JsonValue>
+  /** The view instance the line targets (`activeView()` or the request's). */
+  view?: string
 }
 
 // packages/command-console-core/src/core/dispatch/dispatch.types.ts
@@ -1173,6 +1276,140 @@ no DOM work, and disposes the console when its effect scope is disposed.
 The input is not inside a `<form>` rendered by the library and has no `name` attribute; `autocomplete`,
 `autocorrect`, `autocapitalize` and `spellcheck` are off.
 
+#### C-70 Input schema
+
+`checkInputSchema` accepts only the subset: a root of `type: 'object'`; per type only its keywords (`description` and
+`default` for all; `enum`, `minLength`, `maxLength`, `pattern` for strings; `enum`, `minimum`, `maximum` for numbers
+and integers; `items` (required) and `maxItems` for arrays; `properties` and `required` for objects); property names
+that match `^[A-Za-z][A-Za-z0-9_-]*$`; a `pattern` that compiles as a `u` regular expression; `required` names that
+are properties; containers no deeper than `inputLimits.maxDepth`; a `default` the node itself accepts, and none on an
+array. Anything else throws a `TypeError` that names the path; nothing is ignored.
+
+#### C-71 Input validation
+
+`validateInput(schema, value)` returns a copy of the value, never the input: an optional field missing from an object
+takes its `default`, an absent optional array is `[]`. Otherwise it returns every error as `{ path, code }` (`ip`,
+`filter.ip`, `tags[2]`; `''` for the root), with no value in it: a wrong type (`integer` wants a whole number), a
+missing required field, an unknown field (`additional`), and each failed keyword under its own name. Lengths count
+code points.
+
+#### C-72 Input limits
+
+A string longer than `inputLimits.maxTextLength` (1000) code points, an array longer than
+`inputLimits.maxArrayLength` (50), or an object or array deeper than `inputLimits.maxDepth` (3, the root object is 1)
+is a `limit` error, whatever the schema allows; nothing below it is checked.
+
+#### C-73 Option lines
+
+`parseOptions(args, schema)` reads the tokens after the command name as `--name value` pairs: a value converts to the
+field's type (a number as JSON writes it; an object, or an array item that is an object or an array, as JSON text); a
+boolean field alone is `true` and also takes `true` or `false`; an array field repeats its name, and an array field
+that is absent is `[]`. An unknown name or a token that is not a name (`additional`), a name without its value or a
+second value of a field that is not an array (`type`) is an error. The result is that of `validateInput`.
+
+#### C-74 Canonical line
+
+`formatCommandLine(command, value, schema)` writes the command and the fields of the validated value in the order of
+`properties`, each value through `quoteArgument`; `true` is the bare `--name`, `false` is `--name false`. Its tokens
+after the first read back with `parseOptions` to the validated value. A value the schema rejects throws.
+
+#### C-75 Envelope
+
+`parseEnvelope(raw)` accepts a version 1 `request` and returns a new envelope with only the known fields, without
+changing `raw`. A plain object whose `v` is a number other than 1 is `unsupported-version`; one larger than
+`envelopeMaxBytes` (16384 bytes of UTF-8 JSON, `envelopeBytes`) is `too-large`; a missing or mistyped field, another
+`kind`, or `args` that is not a JSON object within the input limits (C-72) is `invalid`. A `null` `target.view` (a
+typed transport may write one back) is no view: it is valid and left out of the new envelope.
+
+#### C-76 Command input and danger
+
+A command's `input` passes `checkInputSchema` and its `danger` is `read`, `change` or `irreversible`, and its
+`normalize` is a function, at creation and on every `setOptions`; anything else throws. `getCommands()` copies
+`input` and `danger` into a command's spec when it has them. `danger` does not need `input`, and a command whose
+`danger` is `irreversible`, with `input` or without, never runs from the console (C-77, C-82).
+
+#### C-77 Schema lines
+
+A line whose command has `danger: 'irreversible'`, with `input` or without, appends an `error` entry
+`operation-failed` with `not-allowed` before its options are read, and no run starts. Otherwise a line whose command
+has `input` is read with `parseOptions`: an error appends an `error` entry `invalid-args` with the first error's
+`path` (`null` for a sensitive line) and `reason`, and no run starts. Otherwise the run starts, `normalize` (if any)
+maps the value, which is checked again; a throw or an invalid result ends the run as failed (C-18). The command's
+request carries the value as `input`, the view of `activeView()` (or of the request, C-82) as `view`, and `args`,
+`rest` and `line` of the canonical line (C-74); `name` stays as typed. An empty or `null` view is no view: the
+request has no `view` and the envelope no `target.view`. Without a gate, or for a command without `danger` or with
+`sensitive`, or a line `isSensitive` marks, it then runs locally.
+
+#### C-78 Gate
+
+`gate` is fixed for the life of the console (`setOptions` with another gate throws). The console subscribes to it on
+its first envelope, never on creation, and `dispose()` unsubscribes and cancels what it scheduled. With a gate, an
+envelope id comes from `createEnvelopeId`, else `crypto.randomUUID()`; creating a console with a gate and neither
+throws, and a `createEnvelopeId` that throws or returns a closed id ends the run as failed (C-18). An `echoTimeoutMs`
+that is not a finite number above 0 throws a `TypeError` at creation and on `setOptions`.
+
+#### C-79 Envelope
+
+With a gate, a schema line of a command with `danger` and without `sensitive` sends an envelope after `beforeRun` lets
+it go: version 1, `kind: 'request'`, the actor, `from.tab` and `target.tab` the gate's tab, `target.view` the run's
+view, the canonical name and the normalized value. The run stays in `phase: 'running'` and the console stays locked
+(C-16) while it waits for its echo; the command does not run before it. An envelope larger than `envelopeMaxBytes`
+ends the run with `operation-failed` `too-large` and sends nothing; a gate `subscribe`, `schedule` or `send` that
+throws, or a `send` that rejects, before the echo ends it with `connection-lost` in an action of its own; no echo
+within `echoTimeoutMs` (default 5000, through `gate.schedule`) ends it with `timeout`.
+
+#### C-80 Echo
+
+What the gate delivers is read with `parseEnvelope`. A value it refuses, one whose `target.tab` is not the gate's tab
+or whose `from.tab` is not its `target.tab`, and one whose id is not the pending one, is ignored. The pending
+envelope's echo is its own action: when its `command`, `args` and `target` equal the local record, the command's `run`
+is called in the same run with the local record, never the echo's content; otherwise the run ends with
+`operation-failed` `id-conflict` and `onError(error, RunInfo)`. `gate.send` gets a deep copy of the envelope: what the
+transport does to it never reaches the local record.
+
+#### C-81 Closed operations
+
+Every end of a run that sent an envelope (done, failed, cancelled, `timeout`, `connection-lost`, `id-conflict`)
+cancels its timer and records its id among the last 500 closed ids; an echo of a closed id runs nothing. Ctrl+C,
+`cancel()`, `reset()` or a context change while the echo is awaited ends the run as cancelled (`cancel()`, Ctrl+C and
+a context change append `interrupted`).
+
+#### C-82 request
+
+`request(input)` never rejects and resolves a `CommandOutcome`. While a run exists it is `busy`; an unparsable line
+is `invalid-args`; an unknown or `hidden` command is `unknown-command`; a command without `input` or `danger`, a
+sensitive one, an `irreversible` one, an actor other than `external-agent`, and a `danger` other than `read` are
+`not-allowed`; options that do not match the schema are `invalid-args`. Nothing of these reaches the entries.
+Otherwise an input entry with the canonical line and the `actor` is appended and the line takes the path of C-77 to
+C-81. The run's end gives `ok` with the response's `summary` (cut to 200 code points), `failed`, `cancelled`,
+`not-allowed` when `beforeRun` returns `false`, or the code it ended with. A user's line carries no `actor`.
+
+#### C-83 Agent tools
+
+`agentTools(console, { context })` returns the `context`, `help` and `run` tools as plain objects (`name`,
+`description`, `inputSchema`, `annotations`, `execute`). `context` returns what `options.context()` returns, or
+`failed` when it throws. `help` lists the commands that have `input` and `danger` and are neither `hidden` nor
+`sensitive` in their definition (`name`, `summary`, `danger`), or describes one of them (`name`, `summary`, `usage`,
+`danger`, `input`), or is `unknown-command`; a line `isSensitive` would mark does not take a command off the list.
+`run` calls `request` as `external-agent` with `{ line }` or `{ command, args, view }`, and resolves its outcome;
+another input is `invalid-args`. No `execute` rejects.
+
+#### C-84 External console (Vue)
+
+`useCommandConsole({ console })` and `<CommandConsole :console>` use a console they did not create: they subscribe to
+it and mirror its state, and never call its `setOptions` or `dispose`; the end of the effect scope, or the unmount,
+only unsubscribes. With `console`, any other option of the composable, and any console-option prop of the component
+(`commands`, `prompt`, `initialState`, `createId`, `maxEntries`, `beforeRun`, `onError`, `formatError`, `isSensitive`,
+`recallLimit`, `shouldRecord`) or controlled slice (`entries`, `recall`, `context`), throws a `TypeError`; so does a
+component with neither `commands` nor `console`. A component mounted again on the same console shows its entries and
+its live input.
+
+#### C-85 Actor (Vue)
+
+An input entry whose `actor` is `assistant` or `external-agent` has `data-actor` with that value and, before its
+prompt, a `span.cc-actor` with `labels.actors[actor]`, so the label is read with the line; a line without `actor` or
+with `user` has neither. A partial `labels.actors` keeps the other defaults.
+
 ## DOM contract
 
 The classes and attributes below are the only hooks a skin can select (P6). The console writes no stylesheet and no inline style (P5); slot content is the consumer’s.
@@ -1185,6 +1422,7 @@ The classes and attributes below are the only hooks a skin can select (P6). The 
 | `cc-log` | `.cc-console > div` | The scrollback, a named `role="log"`. Make it scroll in your CSS (`overflow-y: auto` and a height); the console only writes its `scrollTop` to keep the newest output in view (C-58). |
 | `cc-entries` | `.cc-log > div` | The list of entries inside the log, observed for size changes to keep the log at the bottom (C-58). |
 | `cc-entry` | `.cc-entries > div` | One entry: an ended input line or the output of a command (`data-kind`). |
+| `cc-actor` | `.cc-entry > span` | Before the prompt of a line from the assistant or an external agent: `labels.actors[actor]` (C-85). |
 | `cc-prompt` | `span` | The prompt, in an input entry and before the live input. The `prompt` slot renders inside it (C-67). |
 | `cc-line` | `.cc-entry > span` | The text of an ended input line, or `labels.redacted` when the line was sensitive (C-30). |
 | `cc-cancelled` | `.cc-entry > span` | After a line ended with Ctrl+C: `labels.cancelledMarker` (C-15). |
@@ -1207,6 +1445,7 @@ The classes and attributes below are the only hooks a skin can select (P6). The 
 | `data-tone` | `.cc-entry` | The tone of an output entry as the command gave it (for example an error), for the skin to colour. |
 | `data-status` | `.cc-entry` | How an input line ended (for example `cancelled` or `failed`), for the skin to mark it. |
 | `data-redacted` | `.cc-entry` | Present on the input entry of a sensitive line, whose text is not kept (C-30). |
+| `data-actor` | `.cc-entry` | `assistant` or `external-agent` on the input entry of a line from one of them; absent for the user’s own lines (C-85). |
 | `aria-live` | `.cc-entry` | `off` on a quiet entry, which the log does not announce (C-48). |
 | `data-type` | `.cc-block` | The block type: `text`, `json`, `table`, `list`, `message` or `custom`. |
 | `scope` | `.cc-block th` | `col` on each header cell of a table block. |

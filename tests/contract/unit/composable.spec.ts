@@ -1,6 +1,6 @@
 // useCommandConsole (README: The composable, C-68): reactive options reach
 // `setOptions`, every notification reaches `state`, no DOM work, disposal with
-// the scope.
+// the scope; a console created elsewhere is only mirrored (C-84).
 import { describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref, shallowRef } from 'vue'
 
@@ -10,6 +10,11 @@ import {
   type ConsoleEntry,
   type UseCommandConsoleReturn
 } from '@dolusoft/command-console'
+import {
+  consoleFeatures,
+  createConsole,
+  recallFeature
+} from '@dolusoft/command-console-core'
 
 const echo: CommandDefinition = {
   name: 'echo',
@@ -136,5 +141,70 @@ describe('C-68 composable', () => {
     expect(result.state.value).not.toBeNull()
     warn.mockRestore()
     scope.stop()
+  })
+})
+
+describe('C-84 external console (composable)', () => {
+  it('mirrors a console it did not create, without setOptions', async () => {
+    const owned = createConsole({ commands: [echo] })
+    const setOptions = vi.spyOn(owned, 'setOptions')
+    const { result, scope } = inScope(() =>
+      useCommandConsole({ console: owned })
+    )
+    expect(result.console).toBe(owned)
+    expect(result.state.value).toBe(owned.getState())
+    await owned.run('echo a')
+    expect(lines(result.state.value.entries)).toEqual(['> echo a', 'a'])
+    await nextTick()
+    expect(setOptions).not.toHaveBeenCalled()
+    scope.stop()
+    owned.dispose()
+  })
+
+  it('the end of the scope unsubscribes and never disposes', async () => {
+    const owned = createConsole({ commands: [echo] })
+    const dispose = vi.spyOn(owned, 'dispose')
+    let returned!: UseCommandConsoleReturn
+    const { scope } = inScope(() => {
+      returned = useCommandConsole({ console: owned })
+    })
+    owned.setInput('echo kept')
+    scope.stop()
+    expect(dispose).not.toHaveBeenCalled()
+    // The console lives on; the mirror no longer follows it.
+    expect(owned.getState().input.value).toBe('echo kept')
+    expect(await owned.run('echo b')).toBe(true)
+    expect(lines(owned.getState().entries)).toEqual(['> echo b', 'b'])
+    expect(returned.state.value.entries).toEqual([])
+    owned.dispose()
+  })
+
+  it('keeps the feature type of the console it is given', () => {
+    const owned = createConsole({
+      features: consoleFeatures({ recallFeature }),
+      commands: [echo]
+    })
+    const { result, scope } = inScope(() =>
+      useCommandConsole({ console: owned })
+    )
+    expect(result.console.recallPrevious()).toBe(false)
+    scope.stop()
+    owned.dispose()
+  })
+
+  it('another option with console throws a TypeError', () => {
+    const owned = createConsole({ commands: [echo] })
+    const { scope } = inScope(() => {
+      expect(() =>
+        // @ts-expect-error the options belong to whoever created the console
+        useCommandConsole({ console: owned, commands: [echo] })
+      ).toThrow(TypeError)
+      expect(() =>
+        // @ts-expect-error the options belong to whoever created the console
+        useCommandConsole({ console: owned, prompt: '$' })
+      ).toThrow(/prompt/)
+    })
+    scope.stop()
+    owned.dispose()
   })
 })

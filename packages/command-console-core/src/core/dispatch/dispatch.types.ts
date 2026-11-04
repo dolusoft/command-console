@@ -2,6 +2,8 @@ import type {
   CommandResponse,
   CommandSpec,
   ContextFrame,
+  Envelope,
+  JsonValue,
   OutputBlock,
   OutputEntry
 } from '@dolusoft/command-protocol'
@@ -49,6 +51,12 @@ export interface CommandDefinition extends CommandSpec {
    * Called only for safe positions (README: Completion).
    */
   complete?(request: CompletionRequest): CompletionResult
+  /**
+   * Maps the validated input of a command with `input` before it is sent or
+   * run (a relative time made absolute). Pure; its result is checked again
+   * against the schema.
+   */
+  normalize?(input: Record<string, JsonValue>): Record<string, JsonValue>
 }
 
 /** The parsed line a command runs with. */
@@ -65,6 +73,28 @@ export interface CommandRequest {
   line: string
   /** The context frames when the run started, bottom → top, root excluded. */
   context: ContextFrame[]
+  /**
+   * The validated, normalized input of a command with `input`; `args`, `rest`
+   * and `line` then come from its canonical line.
+   */
+  input?: Record<string, JsonValue>
+  /** The view instance the line targets (`activeView()` or the request's). */
+  view?: string
+}
+
+/**
+ * What the console sends envelopes through (ADR 0012). The consumer's
+ * transport implements it; the core never touches the network.
+ */
+export interface ConsoleGate {
+  /** The id of this tab, the same for the life of the page. */
+  tab: string
+  /** Sends an envelope; a rejection ends the operation as `connection-lost`. */
+  send(envelope: Envelope): Promise<void>
+  /** Calls `listener` with every value the transport receives. */
+  subscribe(listener: (raw: unknown) => void): () => void
+  /** Calls `fn` once after `ms`; returns the function that cancels it. */
+  schedule(ms: number, fn: () => void): () => void
 }
 
 /** The handle a running command gets. */

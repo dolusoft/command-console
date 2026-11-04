@@ -1,6 +1,7 @@
 import type { OutputBlock } from './block'
 import type { ContextFrame } from './context'
 import type { OutputEntry } from './entry'
+import type { InputSchema } from './input/schema'
 
 /**
  * The JSON part of a command: its names and how it is listed and redacted.
@@ -22,7 +23,20 @@ export interface CommandSpec {
    * those positions are never completed. `true` is `{ fromArg: 0 }`.
    */
   sensitive?: boolean | { fromArg: number }
+  /**
+   * The schema of the command's input (`checkInputSchema`). A command with a
+   * schema is called as `name --field value …` (`parseOptions`).
+   */
+  input?: InputSchema
+  /** What running the command does to the application. */
+  danger?: Danger
 }
+
+/**
+ * What running a command does: `read` only reads, `change` changes the
+ * application or sends data out, `irreversible` cannot be undone.
+ */
+export type Danger = 'read' | 'change' | 'irreversible'
 
 /** What a command returns, as JSON. */
 export interface CommandResponse {
@@ -34,6 +48,11 @@ export interface CommandResponse {
   quiet?: true
   /** Applied in order, before the output is appended. */
   effects?: ConsoleEffect[]
+  /**
+   * A short result for the caller of an operation (`CommandOutcome`), such
+   * as "342 rows"; at most 200 characters.
+   */
+  summary?: string
 }
 
 /**

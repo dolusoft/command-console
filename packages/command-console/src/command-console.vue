@@ -1,6 +1,7 @@
 <script setup lang="ts">
-// <CommandConsole> (README: The component): the composable's console drawn as
-// the DOM of `contract/dom.ts` (README: DOM and styling). The component holds
+// <CommandConsole> (README: The component): the composable's console, or one
+// created elsewhere (C-84), drawn as the DOM of `contract/dom.ts` (README: DOM
+// and styling). The component holds
 // no console state (P15): it renders the snapshot and forwards DOM events to
 // core actions. What it keeps is DOM-bound: element refs, the "stuck to
 // bottom" flag, the last value it emitted per controlled slice and the caret
@@ -42,6 +43,8 @@ import { useCommandConsole } from './use-command-console'
 defineOptions({ name: 'CommandConsole' })
 
 const props = withDefaults(defineProps<ConsoleProps>(), {
+  console: undefined,
+  commands: undefined,
   prompt: undefined,
   initialState: undefined,
   createId: undefined,
@@ -115,25 +118,61 @@ const controlled = () => {
   return state
 }
 
-const { console, state } = useCommandConsole({
-  features,
-  commands: () => props.commands,
-  prompt: () => props.prompt,
-  state: controlled,
-  maxEntries: () => props.maxEntries,
-  recallLimit: () => props.recallLimit,
-  initialState: props.initialState,
-  createId: toRef(props, 'createId'),
-  beforeRun: toRef(props, 'beforeRun'),
-  onError: toRef(props, 'onError'),
-  formatError: toRef(props, 'formatError'),
-  isSensitive: toRef(props, 'isSensitive'),
-  shouldRecord: toRef(props, 'shouldRecord'),
-  onEntriesChange: report('entries', value => emit('update:entries', value)),
-  onRecallChange: report('recall', value => emit('update:recall', value)),
-  onContextChange: report('context', value => emit('update:context', value)),
-  onClose: () => emit('close')
-})
+// C-84: the props that are options of the console. With an external console
+// they are its creator's, so giving one is an error, not a silent no-op.
+const consoleOptionProps = [
+  'commands',
+  'prompt',
+  'initialState',
+  'createId',
+  'maxEntries',
+  'beforeRun',
+  'onError',
+  'formatError',
+  'isSensitive',
+  'recallLimit',
+  'shouldRecord',
+  'entries',
+  'recall',
+  'context'
+] as const
+
+const useConsole = () => {
+  if (props.console !== undefined) {
+    const given = consoleOptionProps.filter(name => props[name] !== undefined)
+    if (given.length > 0) {
+      throw new TypeError(
+        `CommandConsole: ${given.join(', ')} cannot be given with console; the options belong to whoever created it.`
+      )
+    }
+    // Read once: the component draws this console for its whole life.
+    return useCommandConsole({ console: props.console })
+  }
+  if (props.commands === undefined) {
+    throw new TypeError('CommandConsole: commands or console is required.')
+  }
+  return useCommandConsole({
+    features,
+    commands: () => props.commands ?? [],
+    prompt: () => props.prompt,
+    state: controlled,
+    maxEntries: () => props.maxEntries,
+    recallLimit: () => props.recallLimit,
+    initialState: props.initialState,
+    createId: toRef(props, 'createId'),
+    beforeRun: toRef(props, 'beforeRun'),
+    onError: toRef(props, 'onError'),
+    formatError: toRef(props, 'formatError'),
+    isSensitive: toRef(props, 'isSensitive'),
+    shouldRecord: toRef(props, 'shouldRecord'),
+    onEntriesChange: report('entries', value => emit('update:entries', value)),
+    onRecallChange: report('recall', value => emit('update:recall', value)),
+    onContextChange: report('context', value => emit('update:context', value)),
+    onClose: () => emit('close')
+  })
+}
+
+const { console: instance, state } = useConsole()
 
 // --- What the template draws ------------------------------------------------
 
@@ -154,7 +193,7 @@ const activeId = computed(() =>
 const prompt = computed(() => {
   void state.value.context
   void props.prompt
-  return console.getPrompt()
+  return instance.getPrompt()
 })
 /**
  * The recalled line, for the status element (README: Recall): a screen reader
@@ -270,7 +309,7 @@ watch(
 const reportEdit = (element: HTMLInputElement) => {
   const caret = element.selectionStart ?? element.value.length
   reported = { value: element.value, caret }
-  console.editInput(element.value, caret)
+  instance.editInput(element.value, caret)
 }
 
 const onInput = (event: Event) => {
@@ -298,7 +337,7 @@ const onCaret = (event: Event) => {
 const submitting = <T,>(action: () => T): T => {
   const before = new Set(state.value.entries.map(entry => entry.id))
   const result = action()
-  const added = console
+  const added = instance
     .getState()
     .entries.find(
       entry =>
@@ -324,7 +363,7 @@ const onKeydown = (event: KeyboardEvent) => {
     // The caret may have moved without an event the console saw.
     onCaret(event)
   }
-  const handled = submitting(() => console.handleKey(key))
+  const handled = submitting(() => instance.handleKey(key))
   if (handled) {
     event.preventDefault()
   }
@@ -336,17 +375,17 @@ const exposed = {
   focus: () => {
     focusInput()
   },
-  run: (line: string) => submitting(() => console.run(line)),
+  run: (line: string) => submitting(() => instance.run(line)),
   cancel: () => {
-    console.cancel()
+    instance.cancel()
   },
   reset: () => {
-    console.reset()
+    instance.reset()
   },
   clear: () => {
-    console.clearEntries()
+    instance.clearEntries()
   },
-  console,
+  console: instance,
   state
 }
 defineExpose(exposed)

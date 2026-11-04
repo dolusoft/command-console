@@ -349,3 +349,137 @@ no DOM work, and disposes the console when its effect scope is disposed.
 
 The input is not inside a `<form>` rendered by the library and has no `name` attribute; `autocomplete`,
 `autocorrect`, `autocapitalize` and `spellcheck` are off.
+
+### C-70 Input schema
+
+`checkInputSchema` accepts only the subset: a root of `type: 'object'`; per type only its keywords (`description` and
+`default` for all; `enum`, `minLength`, `maxLength`, `pattern` for strings; `enum`, `minimum`, `maximum` for numbers
+and integers; `items` (required) and `maxItems` for arrays; `properties` and `required` for objects); property names
+that match `^[A-Za-z][A-Za-z0-9_-]*$`; a `pattern` that compiles as a `u` regular expression; `required` names that
+are properties; containers no deeper than `inputLimits.maxDepth`; a `default` the node itself accepts, and none on an
+array. Anything else throws a `TypeError` that names the path; nothing is ignored.
+
+### C-71 Input validation
+
+`validateInput(schema, value)` returns a copy of the value, never the input: an optional field missing from an object
+takes its `default`, an absent optional array is `[]`. Otherwise it returns every error as `{ path, code }` (`ip`,
+`filter.ip`, `tags[2]`; `''` for the root), with no value in it: a wrong type (`integer` wants a whole number), a
+missing required field, an unknown field (`additional`), and each failed keyword under its own name. Lengths count
+code points.
+
+### C-72 Input limits
+
+A string longer than `inputLimits.maxTextLength` (1000) code points, an array longer than
+`inputLimits.maxArrayLength` (50), or an object or array deeper than `inputLimits.maxDepth` (3, the root object is 1)
+is a `limit` error, whatever the schema allows; nothing below it is checked.
+
+### C-73 Option lines
+
+`parseOptions(args, schema)` reads the tokens after the command name as `--name value` pairs: a value converts to the
+field's type (a number as JSON writes it; an object, or an array item that is an object or an array, as JSON text); a
+boolean field alone is `true` and also takes `true` or `false`; an array field repeats its name, and an array field
+that is absent is `[]`. An unknown name or a token that is not a name (`additional`), a name without its value or a
+second value of a field that is not an array (`type`) is an error. The result is that of `validateInput`.
+
+### C-74 Canonical line
+
+`formatCommandLine(command, value, schema)` writes the command and the fields of the validated value in the order of
+`properties`, each value through `quoteArgument`; `true` is the bare `--name`, `false` is `--name false`. Its tokens
+after the first read back with `parseOptions` to the validated value. A value the schema rejects throws.
+
+### C-75 Envelope
+
+`parseEnvelope(raw)` accepts a version 1 `request` and returns a new envelope with only the known fields, without
+changing `raw`. A plain object whose `v` is a number other than 1 is `unsupported-version`; one larger than
+`envelopeMaxBytes` (16384 bytes of UTF-8 JSON, `envelopeBytes`) is `too-large`; a missing or mistyped field, another
+`kind`, or `args` that is not a JSON object within the input limits (C-72) is `invalid`. A `null` `target.view` (a
+typed transport may write one back) is no view: it is valid and left out of the new envelope.
+
+### C-76 Command input and danger
+
+A command's `input` passes `checkInputSchema` and its `danger` is `read`, `change` or `irreversible`, and its
+`normalize` is a function, at creation and on every `setOptions`; anything else throws. `getCommands()` copies
+`input` and `danger` into a command's spec when it has them. `danger` does not need `input`, and a command whose
+`danger` is `irreversible`, with `input` or without, never runs from the console (C-77, C-82).
+
+### C-77 Schema lines
+
+A line whose command has `danger: 'irreversible'`, with `input` or without, appends an `error` entry
+`operation-failed` with `not-allowed` before its options are read, and no run starts. Otherwise a line whose command
+has `input` is read with `parseOptions`: an error appends an `error` entry `invalid-args` with the first error's
+`path` (`null` for a sensitive line) and `reason`, and no run starts. Otherwise the run starts, `normalize` (if any)
+maps the value, which is checked again; a throw or an invalid result ends the run as failed (C-18). The command's
+request carries the value as `input`, the view of `activeView()` (or of the request, C-82) as `view`, and `args`,
+`rest` and `line` of the canonical line (C-74); `name` stays as typed. An empty or `null` view is no view: the
+request has no `view` and the envelope no `target.view`. Without a gate, or for a command without `danger` or with
+`sensitive`, or a line `isSensitive` marks, it then runs locally.
+
+### C-78 Gate
+
+`gate` is fixed for the life of the console (`setOptions` with another gate throws). The console subscribes to it on
+its first envelope, never on creation, and `dispose()` unsubscribes and cancels what it scheduled. With a gate, an
+envelope id comes from `createEnvelopeId`, else `crypto.randomUUID()`; creating a console with a gate and neither
+throws, and a `createEnvelopeId` that throws or returns a closed id ends the run as failed (C-18). An `echoTimeoutMs`
+that is not a finite number above 0 throws a `TypeError` at creation and on `setOptions`.
+
+### C-79 Envelope
+
+With a gate, a schema line of a command with `danger` and without `sensitive` sends an envelope after `beforeRun` lets
+it go: version 1, `kind: 'request'`, the actor, `from.tab` and `target.tab` the gate's tab, `target.view` the run's
+view, the canonical name and the normalized value. The run stays in `phase: 'running'` and the console stays locked
+(C-16) while it waits for its echo; the command does not run before it. An envelope larger than `envelopeMaxBytes`
+ends the run with `operation-failed` `too-large` and sends nothing; a gate `subscribe`, `schedule` or `send` that
+throws, or a `send` that rejects, before the echo ends it with `connection-lost` in an action of its own; no echo
+within `echoTimeoutMs` (default 5000, through `gate.schedule`) ends it with `timeout`.
+
+### C-80 Echo
+
+What the gate delivers is read with `parseEnvelope`. A value it refuses, one whose `target.tab` is not the gate's tab
+or whose `from.tab` is not its `target.tab`, and one whose id is not the pending one, is ignored. The pending
+envelope's echo is its own action: when its `command`, `args` and `target` equal the local record, the command's `run`
+is called in the same run with the local record, never the echo's content; otherwise the run ends with
+`operation-failed` `id-conflict` and `onError(error, RunInfo)`. `gate.send` gets a deep copy of the envelope: what the
+transport does to it never reaches the local record.
+
+### C-81 Closed operations
+
+Every end of a run that sent an envelope (done, failed, cancelled, `timeout`, `connection-lost`, `id-conflict`)
+cancels its timer and records its id among the last 500 closed ids; an echo of a closed id runs nothing. Ctrl+C,
+`cancel()`, `reset()` or a context change while the echo is awaited ends the run as cancelled (`cancel()`, Ctrl+C and
+a context change append `interrupted`).
+
+### C-82 request
+
+`request(input)` never rejects and resolves a `CommandOutcome`. While a run exists it is `busy`; an unparsable line
+is `invalid-args`; an unknown or `hidden` command is `unknown-command`; a command without `input` or `danger`, a
+sensitive one, an `irreversible` one, an actor other than `external-agent`, and a `danger` other than `read` are
+`not-allowed`; options that do not match the schema are `invalid-args`. Nothing of these reaches the entries.
+Otherwise an input entry with the canonical line and the `actor` is appended and the line takes the path of C-77 to
+C-81. The run's end gives `ok` with the response's `summary` (cut to 200 code points), `failed`, `cancelled`,
+`not-allowed` when `beforeRun` returns `false`, or the code it ended with. A user's line carries no `actor`.
+
+### C-83 Agent tools
+
+`agentTools(console, { context })` returns the `context`, `help` and `run` tools as plain objects (`name`,
+`description`, `inputSchema`, `annotations`, `execute`). `context` returns what `options.context()` returns, or
+`failed` when it throws. `help` lists the commands that have `input` and `danger` and are neither `hidden` nor
+`sensitive` in their definition (`name`, `summary`, `danger`), or describes one of them (`name`, `summary`, `usage`,
+`danger`, `input`), or is `unknown-command`; a line `isSensitive` would mark does not take a command off the list.
+`run` calls `request` as `external-agent` with `{ line }` or `{ command, args, view }`, and resolves its outcome;
+another input is `invalid-args`. No `execute` rejects.
+
+### C-84 External console (Vue)
+
+`useCommandConsole({ console })` and `<CommandConsole :console>` use a console they did not create: they subscribe to
+it and mirror its state, and never call its `setOptions` or `dispose`; the end of the effect scope, or the unmount,
+only unsubscribes. With `console`, any other option of the composable, and any console-option prop of the component
+(`commands`, `prompt`, `initialState`, `createId`, `maxEntries`, `beforeRun`, `onError`, `formatError`, `isSensitive`,
+`recallLimit`, `shouldRecord`) or controlled slice (`entries`, `recall`, `context`), throws a `TypeError`; so does a
+component with neither `commands` nor `console`. A component mounted again on the same console shows its entries and
+its live input.
+
+### C-85 Actor (Vue)
+
+An input entry whose `actor` is `assistant` or `external-agent` has `data-actor` with that value and, before its
+prompt, a `span.cc-actor` with `labels.actors[actor]`, so the label is read with the line; a line without `actor` or
+with `user` has neither. A partial `labels.actors` keeps the other defaults.

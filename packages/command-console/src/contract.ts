@@ -15,6 +15,7 @@ import type {
   RunningCommand
 } from '@dolusoft/command-console-core'
 import type {
+  Actor,
   CommandResponse,
   ConsoleEntry,
   ContextFrame,
@@ -51,6 +52,7 @@ export type {
   Updater
 } from '@dolusoft/command-console-core'
 export type {
+  Actor,
   CommandResponse,
   CommandSpec,
   ConsoleEffect,
@@ -101,14 +103,25 @@ export interface ConsoleLabels {
   busy: string
   /** The text of each library-made message block. */
   messages: MessageLabels
+  /**
+   * Shown before the prompt of a line that came from the assistant or an
+   * external agent (C-85). Default `'AI'` and `'Agent'`.
+   */
+  actors: ActorLabels
 }
 
+/** The label of each actor other than the user (C-85). */
+export type ActorLabels = Record<Exclude<Actor, 'user'>, string>
+
 /**
- * The `labels` prop: any part of `ConsoleLabels`. `messages` is merged one
- * level deep, so overriding one message keeps the others.
+ * The `labels` prop: any part of `ConsoleLabels`. `messages` and `actors`
+ * are merged one level deep, so overriding one message keeps the others.
  */
-export type ConsoleLabelsInput = Partial<Omit<ConsoleLabels, 'messages'>> & {
+export type ConsoleLabelsInput = Partial<
+  Omit<ConsoleLabels, 'messages' | 'actors'>
+> & {
   messages?: Partial<MessageLabels>
+  actors?: Partial<ActorLabels>
 }
 
 // ---------------------------------------------------------------------------
@@ -116,8 +129,19 @@ export type ConsoleLabelsInput = Partial<Omit<ConsoleLabels, 'messages'>> & {
 
 /** The props of `<CommandConsole>`. */
 export interface ConsoleProps {
-  /** The commands; validated on every change (C-56). */
-  commands: CommandDefinition[]
+  /**
+   * A console created elsewhere, with every optional feature (C-84): the
+   * component draws it and never disposes it, so a remount shows the same
+   * entries and input. Read once. Its options are its creator's: with it,
+   * the console-option props (`commands` to `shouldRecord`) and the
+   * controlled slices throw; `labels` and `autofocus` apply.
+   */
+  console?: Console<OptionalFeatures>
+  /**
+   * The commands; validated on every change (C-56). Required without
+   * `console`.
+   */
+  commands?: CommandDefinition[]
   /** The root prompt. Default `'>'`. */
   prompt?: string
   /** The first value of each uncontrolled slice; read once. */
@@ -280,14 +304,33 @@ export type UseCommandConsoleOptions<
     commands: MaybeRefOrGetter<CommandDefinition[]>
     /** Read once, when the console is created. */
     initialState?: MaybeRefOrGetter<Partial<ControllableState> | undefined>
+    /** Only in `UseExternalConsoleOptions`, without the other options. */
+    console?: never
   }
+
+/**
+ * The options of `useCommandConsole` over a console created elsewhere
+ * (C-84): the console alone. Its options belong to whoever created it; the
+ * composable only mirrors its state and never disposes it.
+ */
+export type UseExternalConsoleOptions<
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  T extends Partial<OptionalFeatures> = {}
+> = {
+  console: Console<T>
+} & {
+  [K in Exclude<keyof UseCommandConsoleOptions<T>, 'console'>]?: never
+}
 
 /** What `useCommandConsole` returns. */
 export interface UseCommandConsoleReturn<
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   T extends Partial<OptionalFeatures> = {}
 > {
-  /** The console; disposed with the effect scope. */
+  /**
+   * The console; disposed with the effect scope when the composable created
+   * it.
+   */
   console: Console<T>
   /** The state after every action (C-68). */
   state: Readonly<ShallowRef<ConsoleState>>

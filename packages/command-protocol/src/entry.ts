@@ -15,7 +15,16 @@ export interface InputEntry {
   redacted: boolean
   /** `cancelled` when the line was ended with Ctrl+C. */
   status: 'submitted' | 'cancelled'
+  /** Who the line came from, as a label for the history. */
+  actor?: Actor
 }
+
+/**
+ * Who a line or a request came from: the user, the application's own
+ * assistant, or an agent outside the application (such as a browser agent).
+ * A label, never a permission.
+ */
+export type Actor = 'user' | 'assistant' | 'external-agent'
 
 /** What a command or the library wrote. */
 export interface OutputEntry {

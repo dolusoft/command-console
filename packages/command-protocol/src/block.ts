@@ -1,4 +1,6 @@
+import type { InputErrorCode } from './input/validate'
 import type { JsonPrimitive, JsonValue } from './json'
+import type { ErrorCode } from './outcome'
 
 /** Plain text, rendered preformatted. */
 export interface TextBlock {
@@ -60,9 +62,18 @@ export type OutputBlock =
  *   shown (S-06).
  * - `unterminated-quote`: the line has a quote that is not closed.
  * - `interrupted`: a running command was cancelled.
+ * - `invalid-args`: the options of a command with an input schema do not
+ *   match it; the first error's field (`path`) and why (`reason`).
+ * - `operation-failed`: a command's operation ended without running it
+ *   (`not-allowed`, `too-large`, `timeout`, `connection-lost`, `id-conflict`).
  */
 export type MessageCode =
-  'command-not-found' | 'command-failed' | 'unterminated-quote' | 'interrupted'
+  | 'command-not-found'
+  | 'command-failed'
+  | 'unterminated-quote'
+  | 'interrupted'
+  | 'invalid-args'
+  | 'operation-failed'
 
 /**
  * The parameters of each message code. For a sensitive line `name` and
@@ -74,4 +85,8 @@ export interface MessageParams {
   'command-failed': Record<string, never>
   'unterminated-quote': { index: number | null }
   interrupted: Record<string, never>
+  /** `path` is `null` when the line is sensitive; `''` names the root. */
+  'invalid-args': { path: string | null; reason: InputErrorCode }
+  /** The code the operation ended with. */
+  'operation-failed': { code: ErrorCode }
 }

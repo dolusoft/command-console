@@ -1,4 +1,6 @@
 import type {
+  Actor,
+  CommandOutcome,
   CommandResponse,
   CommandSpec,
   ConsoleEntry,
@@ -10,6 +12,7 @@ import type { Updater } from '../../store/action'
 import type {
   BeforeRunResult,
   CommandDefinition,
+  ConsoleGate,
   RunInfo
 } from '../dispatch/dispatch.types'
 
@@ -197,7 +200,28 @@ export interface ConsoleOptions<
   recallLimit?: number
   /** Whether a line is recorded (recall feature); default every line. */
   shouldRecord?: (line: string) => boolean
+  /**
+   * Sends the lines of commands with `input` and `danger` as envelopes and
+   * runs them from their echo (ADR 0012); fixed for the life of the console.
+   */
+  gate?: ConsoleGate
+  /** The view instance a typed line targets, read when the line ends. */
+  activeView?: () => string | undefined
+  /** How long an envelope waits for its echo, in ms; default 5000. */
+  echoTimeoutMs?: number
+  /** Makes envelope ids; default `crypto.randomUUID()`. */
+  createEnvelopeId?: () => string
 }
+
+/** What `request()` runs: a command and its input, or a line. */
+export type RequestInput =
+  | {
+      command: string
+      args: Record<string, unknown>
+      view?: string
+      actor: Actor
+    }
+  | { line: string; actor: Actor }
 
 // ---------------------------------------------------------------------------
 // The instance (core README: State)
@@ -253,6 +277,11 @@ export interface CoreConsoleAPI<
   run(line: string): Promise<boolean>
   /** Interrupts the running command, else cancels the live line. */
   cancel(): void
+  /**
+   * Runs a command for a caller other than the user's Enter (an agent).
+   * Never rejects: every refusal or failure is an `error` outcome.
+   */
+  request(input: RequestInput): Promise<CommandOutcome>
   /** Applies the key map; `true` when the key was handled. */
   handleKey(input: KeyInput): boolean
 }
