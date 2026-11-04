@@ -1344,7 +1344,8 @@ request has no `view` and the envelope no `target.view`. Without a gate, or for 
 
 `gate` is fixed for the life of the console (`setOptions` with another gate throws). The console subscribes to it on
 its first envelope, never on creation, and `dispose()` unsubscribes and cancels what it scheduled. With a gate, an
-envelope id comes from `createEnvelopeId`, else `crypto.randomUUID()`; creating a console with a gate and neither
+envelope id comes from `createEnvelopeId`, else `crypto.randomUUID()`, else an RFC 4122 version 4 UUID made from
+`crypto.getRandomValues` (a page on an insecure origin has only that); creating a console with a gate and none of them
 throws, and a `createEnvelopeId` that throws or returns a closed id ends the run as failed (C-18). An `echoTimeoutMs`
 that is not a finite number above 0 throws a `TypeError` at creation and on `setOptions`.
 

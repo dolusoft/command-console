@@ -375,11 +375,32 @@ describe('C-78 Gate', () => {
     )
   })
 
-  it('throws on creation with a gate, no crypto.randomUUID and no createEnvelopeId', () => {
+  it('falls back to a v4 UUID from crypto.getRandomValues without crypto.randomUUID', async () => {
+    const getRandomValues = vi.fn((bytes: Uint8Array) => bytes.fill(0xff))
+    vi.stubGlobal('crypto', { getRandomValues })
+    const fake = fakeGate()
+    const console = createConsole({ gate: fake.gate, commands: [search()] })
+    void console.run('search --ip a')
+    await flush()
+    expect(getRandomValues).toHaveBeenCalledTimes(1)
+    expect(fake.sent[0].id).toBe('ffffffff-ffff-4fff-bfff-ffffffffffff')
+    getRandomValues.mockImplementation((bytes: Uint8Array) => bytes.fill(0))
+    fake.echo()
+    await flush()
+    void console.run('search --ip b')
+    await flush()
+    expect(fake.sent[1].id).toBe('00000000-0000-4000-8000-000000000000')
+  })
+
+  it('throws on creation with a gate, no crypto.randomUUID, no crypto.getRandomValues and no createEnvelopeId', () => {
     vi.stubGlobal('crypto', {})
     expect(() =>
       createConsole({ gate: fakeGate().gate, commands: [] })
     ).toThrow(/randomUUID/)
+    vi.stubGlobal('crypto', undefined)
+    expect(() =>
+      createConsole({ gate: fakeGate().gate, commands: [] })
+    ).toThrow(/getRandomValues/)
     expect(() =>
       createConsole({
         gate: fakeGate().gate,

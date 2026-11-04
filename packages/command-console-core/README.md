@@ -74,7 +74,7 @@ no optional method, in its type and at run time. The feature set is fixed for th
 | `gate`                                                 | sends described commands as envelopes and runs them from their echo (below); fixed for the console's life  |
 | `activeView()`                                         | the view a typed line (or a `{ line }` request) targets, read when the line ends                           |
 | `echoTimeoutMs`                                        | how long an envelope waits for its echo, a finite number above 0 (else a `TypeError`); default 5000        |
-| `createEnvelopeId()`                                   | makes envelope ids; default `crypto.randomUUID()` (a gate without either throws on creation)               |
+| `createEnvelopeId()`                                   | makes envelope ids; default `crypto.randomUUID()`, else a v4 UUID from `crypto.getRandomValues` (below)    |
 
 Run ids come from `createId` too, so with the default counter the first command's output is `c3` (`c1` the input entry,
 `c2` the run). An id `createId` returns that is already present throws from the method that caused it, as a duplicate
@@ -234,6 +234,10 @@ The consumer's transport implements the gate; the core never touches the network
 These ends append an `operation-failed` entry with the code. The last 500 closed ids are remembered, so a late echo
 runs nothing. The console subscribes on its first envelope, and `dispose()` unsubscribes and cancels the timer. A
 command without `input` or `danger`, or a sensitive one, runs locally as without a gate.
+
+Envelope ids come from `createEnvelopeId`, else `crypto.randomUUID()`, else a version 4 UUID made from
+`crypto.getRandomValues` (a page served over plain `http` on a LAN address has only the latter). A console with a gate
+and none of these throws on creation.
 
 ## Requests and agent tools
 
