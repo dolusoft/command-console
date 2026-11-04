@@ -166,7 +166,7 @@ Effects ask the console for a change, applied in order and before the output is 
 
 ### Cancelling and errors
 
-While a command runs the input is read-only (it keeps focus), Enter, Tab and recall do nothing, and the component shows the `busy` status. There is no timeout. Ctrl+C (without a selection) or `cancel()` interrupts the run: it stops being the current run, its `signal` is aborted, and a `notice` entry `interrupted` is appended. Anything the run writes or returns afterwards is ignored, but a cancelled command may still finish work on its side (a save that already reached the server is not undone); pass `run.signal` to your requests.
+While a command runs the input is read-only (it keeps focus), Enter, Tab and recall do nothing, and the component shows the `busy` status. There is no timeout on a command (only on the echo of a gate, core README: The gate). Ctrl+C (without a selection) or `cancel()` interrupts the run: it stops being the current run, its `signal` is aborted, and a `notice` entry `interrupted` is appended. Anything the run writes or returns afterwards is ignored, but a cancelled command may still finish work on its side (a save that already reached the server is not undone); pass `run.signal` to your requests.
 
 When a command throws or rejects, the console calls `onError(error, info)` with the error exactly as it was thrown, then appends an error entry `command-failed`, which never shows the error's text. Give `formatError(error, info)` to turn an error into your own `CommandResponse` (tone `error` unless it sets one); if it throws, the default entry is used. `onError` is also called with `info: null` when one of your callbacks throws (a change handler, a subscriber, `shouldRecord`).
 
@@ -374,6 +374,8 @@ Every text the component shows comes from the `labels` prop, over English defaul
 | `messages['command-failed']`     | `The command failed.`                                                             |
 | `messages['unterminated-quote']` | `Unterminated quote.`                                                             |
 | `messages.interrupted`           | `Interrupted.`                                                                    |
+| `messages['invalid-args']`       | `` p => p.path ? `Invalid option: ${p.path}.` : 'Invalid options.' ``             |
+| `messages['operation-failed']`   | one English sentence per `p.code` (`timeout`: `The transport did not answer; …`)  |
 
 ```vue
 <CommandConsole
@@ -388,7 +390,7 @@ Every text the component shows comes from the `labels` prop, over English defaul
 />
 ```
 
-The core writes no human text: what the library says is a `message` block with a code (`command-not-found`, `command-failed`, `unterminated-quote`, `interrupted`) and parameters, and the component turns it into text with `labels.messages`.
+The core writes no human text: what the library says is a `message` block with a code (`command-not-found`, `command-failed`, `unterminated-quote`, `interrupted`, `invalid-args`, `operation-failed`) and parameters, and the component turns it into text with `labels.messages`.
 
 ## The composable
 

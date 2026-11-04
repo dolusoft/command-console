@@ -3,6 +3,12 @@
 // renders the state (P14).
 
 export { consoleFeatures, createConsole } from './helpers/consoleFeatures'
+export { agentTools } from './helpers/agentTools'
+export type {
+  AgentTool,
+  AgentToolAnnotations,
+  AgentToolsOptions
+} from './helpers/agentTools'
 export { contextFeature } from './features/context/contextFeature'
 export { recallFeature } from './features/recall/recallFeature'
 export { completionFeature } from './features/completion/completionFeature'
@@ -23,6 +29,7 @@ export type {
   OptionalFeatures,
   RecallAPI,
   RecallFeature,
+  RequestInput,
   RunningCommand
 } from './core/console/console.types'
 export type {
@@ -32,6 +39,7 @@ export type {
   CommandReturn,
   CompletionRequest,
   CompletionResult,
+  ConsoleGate,
   RunContext,
   RunInfo
 } from './core/dispatch/dispatch.types'

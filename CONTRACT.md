@@ -444,9 +444,18 @@ export type OutputBlock =
  *   shown (S-06).
  * - `unterminated-quote`: the line has a quote that is not closed.
  * - `interrupted`: a running command was cancelled.
+ * - `invalid-args`: the options of a command with an input schema do not
+ *   match it; the first error's field (`path`) and why (`reason`).
+ * - `operation-failed`: a command's operation ended without running it
+ *   (`not-allowed`, `too-large`, `timeout`, `connection-lost`, `id-conflict`).
  */
 export type MessageCode =
-  'command-not-found' | 'command-failed' | 'unterminated-quote' | 'interrupted'
+  | 'command-not-found'
+  | 'command-failed'
+  | 'unterminated-quote'
+  | 'interrupted'
+  | 'invalid-args'
+  | 'operation-failed'
 
 // packages/command-protocol/src/block.ts
 /**
@@ -459,6 +468,10 @@ export interface MessageParams {
   'command-failed': Record<string, never>
   'unterminated-quote': { index: number | null }
   interrupted: Record<string, never>
+  /** `path` is `null` when the line is sensitive; `''` names the root. */
+  'invalid-args': { path: string | null; reason: InputErrorCode }
+  /** The code the operation ended with. */
+  'operation-failed': { code: ErrorCode }
 }
 
 // packages/command-protocol/src/command.ts
@@ -716,6 +729,17 @@ export interface ConsoleOptions<
   recallLimit?: number
   /** Whether a line is recorded (recall feature); default every line. */
   shouldRecord?: (line: string) => boolean
+  /**
+   * Sends the lines of commands with `input` and `danger` as envelopes and
+   * runs them from their echo (ADR 0012); fixed for the life of the console.
+   */
+  gate?: ConsoleGate
+  /** The view instance a typed line targets, read when the line ends. */
+  activeView?: () => string | undefined
+  /** How long an envelope waits for its echo, in ms; default 5000. */
+  echoTimeoutMs?: number
+  /** Makes envelope ids; default `crypto.randomUUID()`. */
+  createEnvelopeId?: () => string
 }
 
 // packages/command-console-core/src/core/console/console.types.ts
@@ -772,6 +796,12 @@ export interface CommandDefinition extends CommandSpec {
    * Called only for safe positions (README: Completion).
    */
   complete?(request: CompletionRequest): CompletionResult
+  /**
+   * Maps the validated input of a command with `input` before it is sent or
+   * run (a relative time made absolute). Pure; its result is checked again
+   * against the schema.
+   */
+  normalize?(input: Record<string, JsonValue>): Record<string, JsonValue>
 }
 
 // packages/command-console-core/src/core/dispatch/dispatch.types.ts
@@ -789,6 +819,13 @@ export interface CommandRequest {
   line: string
   /** The context frames when the run started, bottom → top, root excluded. */
   context: ContextFrame[]
+  /**
+   * The validated, normalized input of a command with `input`; `args`, `rest`
+   * and `line` then come from its canonical line.
+   */
+  input?: Record<string, JsonValue>
+  /** The view instance the line targets (`activeView()` or the request's). */
+  view?: string
 }
 
 // packages/command-console-core/src/core/dispatch/dispatch.types.ts
@@ -1230,6 +1267,74 @@ after the first read back with `parseOptions` to the validated value. A value th
 changing `raw`. A plain object whose `v` is a number other than 1 is `unsupported-version`; one larger than
 `envelopeMaxBytes` (16384 bytes of UTF-8 JSON, `envelopeBytes`) is `too-large`; a missing or mistyped field, another
 `kind`, or `args` that is not a JSON object within the input limits (C-72) is `invalid`.
+
+#### C-76 Command input and danger
+
+A command's `input` passes `checkInputSchema` and its `danger` is `read`, `change` or `irreversible`, and its
+`normalize` is a function, at creation and on every `setOptions`; anything else throws. `getCommands()` copies `input`
+and `danger` into a command's spec when it has them.
+
+#### C-77 Schema lines
+
+A line whose command has `input` is read with `parseOptions`: an error appends an `error` entry `invalid-args` with
+the first error's `path` (`null` for a sensitive line) and `reason`, and no run starts. `danger: 'irreversible'`
+appends `operation-failed` with `not-allowed`, and no run starts. Otherwise the run starts, `normalize` (if any) maps
+the value, which is checked again; a throw or an invalid result ends the run as failed (C-18). The command's request
+carries the value as `input`, the view of `activeView()` as `view`, and `args`, `rest` and `line` of the canonical
+line (C-74); `name` stays as typed. Without a gate, or for a command without `danger` or with `sensitive`, or a line
+`isSensitive` marks, it then runs locally.
+
+#### C-78 Gate
+
+`gate` is fixed for the life of the console (`setOptions` with another gate throws). The console subscribes to it on
+its first envelope, never on creation, and `dispose()` unsubscribes and cancels what it scheduled. With a gate, an
+envelope id comes from `createEnvelopeId`, else `crypto.randomUUID()`; creating a console with a gate and neither
+throws, and a `createEnvelopeId` that throws or returns a closed id ends the run as failed (C-18).
+
+#### C-79 Envelope
+
+With a gate, a schema line of a command with `danger` and without `sensitive` sends an envelope after `beforeRun` lets
+it go: version 1, `kind: 'request'`, the actor, `from.tab` and `target.tab` the gate's tab, `target.view` the run's
+view, the canonical name and the normalized value. The run stays in `phase: 'running'` and the console stays locked
+(C-16) while it waits for its echo; the command does not run before it. An envelope larger than `envelopeMaxBytes`
+ends the run with `operation-failed` `too-large` and sends nothing; a `send` that throws or rejects before the echo
+ends it with `connection-lost`; no echo within `echoTimeoutMs` (default 5000, through `gate.schedule`) ends it with
+`timeout`.
+
+#### C-80 Echo
+
+What the gate delivers is read with `parseEnvelope`. A value it refuses, one whose `target.tab` is not the gate's tab
+or whose `from.tab` is not its `target.tab`, and one whose id is not the pending one, is ignored. The pending
+envelope's echo is its own action: when its `command`, `args` and `target` equal the local record, the command's `run`
+is called in the same run with the local record, never the echo's content; otherwise the run ends with
+`operation-failed` `id-conflict` and `onError(error, RunInfo)`.
+
+#### C-81 Closed operations
+
+Every end of a run that sent an envelope (done, failed, cancelled, `timeout`, `connection-lost`, `id-conflict`)
+cancels its timer and records its id among the last 500 closed ids; an echo of a closed id runs nothing. Ctrl+C,
+`cancel()`, `reset()` or a context change while the echo is awaited ends the run as cancelled (`cancel()`, Ctrl+C and
+a context change append `interrupted`).
+
+#### C-82 request
+
+`request(input)` never rejects and resolves a `CommandOutcome`. While a run exists it is `busy`; an unparsable line is
+`invalid-args`; an unknown command is `unknown-command`; a command without `input` or `danger`, a sensitive one, an
+`irreversible` one, an actor other than `external-agent`, and a `danger` other than `read` are `not-allowed`; options
+that do not match the schema are `invalid-args`. Nothing of these reaches the entries. Otherwise an input entry with
+the canonical line and the `actor` is appended and the line takes the path of C-77 to C-81. The run's end gives `ok`
+with the response's `summary` (cut to 200 code points), `failed`, `cancelled`, `not-allowed` when `beforeRun` returns
+`false`, or the code it ended with. A user's line carries no `actor`.
+
+#### C-83 Agent tools
+
+`agentTools(console, { context })` returns the `context`, `help` and `run` tools as plain objects (`name`,
+`description`, `inputSchema`, `annotations`, `execute`). `context` returns what `options.context()` returns, or
+`failed` when it throws. `help`
+lists the commands that have `input` and `danger` and are not `hidden` (`name`, `summary`, `danger`), or describes
+one of them (`name`, `summary`, `usage`, `danger`, `input`), or is `unknown-command`. `run` calls `request` as
+`external-agent` with `{ line }` or `{ command, args, view }`, and resolves its outcome; another input is
+`invalid-args`. No `execute` rejects.
 
 ## DOM contract
 

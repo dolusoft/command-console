@@ -29,6 +29,7 @@ import {
 } from '../../shared'
 import { resolveUpdater, type Updater } from '../../store/action'
 import { validateCommands } from '../dispatch/dispatch.utils'
+import { envelopeIds } from '../dispatch/operation'
 
 const controllable: readonly ControlledSlice[] = [
   'entries',
@@ -117,7 +118,11 @@ export const consoleFeature: ConsoleFeature = {
           if (!sameFeatures(previous.features, given.features)) {
             throw new Error('setOptions cannot change the feature set.')
           }
+          if (given.gate !== previous.gate) {
+            throw new Error('setOptions cannot change the gate.')
+          }
           validateCommands(given.commands)
+          envelopeIds(given)
           store.action(() => {
             const before = { ...store.read() }
             record.options = mergeOptions(featureDefaults.get(console)!, given)

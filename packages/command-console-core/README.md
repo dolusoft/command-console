@@ -71,6 +71,10 @@ no optional method, in its type and at run time. The feature set is fixed for th
 | `isSensitive(line)`                                    | marks more lines sensitive, OR-ed with the commands' `sensitive`; a throw counts as sensitive              |
 | `recallLimit`                                          | recall: the most lines kept; default 100 (`Infinity` keeps all, a fraction is rounded down)                |
 | `shouldRecord(line)`                                   | recall: whether a submitted line is recorded; default every line                                           |
+| `gate`                                                 | sends described commands as envelopes and runs them from their echo (below); fixed for the console's life  |
+| `activeView()`                                         | the view a typed line (or a `{ line }` request) targets, read when the line ends                           |
+| `echoTimeoutMs`                                        | how long an envelope waits for its echo; default 5000                                                      |
+| `createEnvelopeId()`                                   | makes envelope ids; default `crypto.randomUUID()` (a gate without either throws on creation)               |
 
 Run ids come from `createId` too, so with the default counter the first command's output is `c3` (`c1` the input entry,
 `c2` the run). An id `createId` returns that is already present throws from the method that caused it, as a duplicate
@@ -115,6 +119,7 @@ Every console has:
   empty line, a parse error, an unknown command), `false` without doing anything while a run exists.
 - `run(line)`: replaces the live input with `line` and submits it; the same result as `submit()`.
 - `cancel()`: interrupts the running command, else ends the live line as cancelled.
+- `request(input)`: runs a command for an agent (below); resolves a `CommandOutcome`, never rejects.
 - `handleKey(input: KeyInput)`: applies the fixed key map; `true` when the key was handled, so the adapter prevents the
   default.
 - `appendEntries(entries)` (an id already present throws), `clearEntries()`.
@@ -192,6 +197,64 @@ the sequence of frame ids differs; a new array with the same ids is not one.
   initial values (`initialState`, else empty; for a controlled slice too). Each controlled slice gets one report.
 - `dispose()`: ends the running command the same way, runs every feature's cleanup once (an exception in one does not
   stop the others), clears the internal state, and turns every later method into a no-op. Two consoles share nothing.
+
+## Commands with an input schema
+
+A command with `input` (an `InputSchema`, checked with `checkInputSchema` when the command is registered) is typed as
+`name --field value …` (`parseOptions`). Options that do not match append an `error` entry `invalid-args` with the
+first error's `path` and `reason`, and nothing runs. `danger: 'irreversible'` cannot be run from the line
+(`operation-failed` with `not-allowed`). Otherwise the run starts: `normalize(input)` (optional, pure) maps the value,
+which is checked again, and the command's `CommandRequest` carries it as `input`, the target view as `view`, and
+`args`, `rest` and `line` of the canonical line (`formatCommandLine`). `getCommands()` copies `input` and `danger`.
+
+## The gate
+
+```ts
+interface ConsoleGate {
+  tab: string
+  send(envelope: Envelope): Promise<void>
+  subscribe(listener: (raw: unknown) => void): () => void
+  schedule(ms: number, fn: () => void): () => void
+}
+```
+
+The consumer's transport implements the gate; the core never touches the network, and `schedule` is its only clock
+(ADR 0012). With a gate, a line of a command that has `input` and `danger` and is not sensitive does not run at once:
+
+1. `beforeRun` is asked as before; the run stays `running` and the console locked.
+2. An envelope (`v: 1`, `kind: 'request'`, the actor, `from.tab` and `target.tab` the gate's tab, `target.view`,
+   the canonical name, the normalized input) is sent. Above `envelopeMaxBytes` it is not sent (`too-large`).
+3. Its echo, delivered through `subscribe`, runs the command with the local record when `command`, `args` and `target`
+   match; a different echo ends the run with `id-conflict` and `onError`. Other traffic is ignored.
+4. A `send` that rejects ends the run with `connection-lost`; no echo within `echoTimeoutMs` with `timeout`.
+   `cancel()`, `reset()` and a context change end it as cancelled.
+
+These ends append an `operation-failed` entry with the code. The last 500 closed ids are remembered, so a late echo
+runs nothing. The console subscribes on its first envelope, and `dispose()` unsubscribes and cancels the timer. A
+command without `input` or `danger`, or a sensitive one, runs locally as without a gate.
+
+## Requests and agent tools
+
+`request({ command, args, view?, actor })` or `request({ line, actor })` runs a command for a caller other than the
+user's Enter. It resolves `busy` while a run exists, `unknown-command`, `invalid-args`, or `not-allowed` for a command
+without `input` or `danger`, a sensitive or `irreversible` one, and in this release for every actor other than
+`external-agent` and every `danger` other than `read`. These leave no entry. Otherwise an input entry with the
+canonical line and the `actor` is appended and the line takes the path above. The outcome is `ok` with the response's
+`summary` (cut to 200 code points), `failed`, `cancelled`, `not-allowed` (`beforeRun` returned `false`) or the gate's
+code. A line the user types carries no `actor`.
+
+`agentTools(console, { context })` returns the `context`, `help` and `run` tools as plain objects in the shape of a
+WebMCP tool (`name`, `description`, `inputSchema`, `annotations`, `execute`). The consumer registers them:
+
+```ts
+const controller = new AbortController()
+for (const tool of agentTools(console, { context: () => describeViews() })) {
+  document.modelContext?.registerTool(tool, { signal: controller.signal })
+}
+```
+
+`help` lists the commands that have `input` and `danger` and are not `hidden`; `run` calls `request` as
+`external-agent`. No `execute` rejects.
 
 ## Contract
 
