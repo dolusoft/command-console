@@ -24,6 +24,7 @@ const commandCodes: readonly unknown[] = [
  * `request()` resolves is `{ status: 'error', code }`.
  */
 export class CommandError extends Error {
+  /** The code the run's outcome carries. */
   readonly code: CommandErrorCode
 
   constructor(

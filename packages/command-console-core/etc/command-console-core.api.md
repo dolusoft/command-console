@@ -11,6 +11,7 @@ import type { CommandSpec } from '@dolusoft/command-protocol';
 import type { ConsoleEntry } from '@dolusoft/command-protocol';
 import type { ContextFrame } from '@dolusoft/command-protocol';
 import type { Envelope } from '@dolusoft/command-protocol';
+import type { ErrorCode } from '@dolusoft/command-protocol';
 import type { JsonValue } from '@dolusoft/command-protocol';
 import type { OutputBlock } from '@dolusoft/command-protocol';
 import type { OutputEntry } from '@dolusoft/command-protocol';
@@ -49,6 +50,15 @@ export interface CommandDefinition extends CommandSpec {
     normalize?(input: Record<string, JsonValue>): Record<string, JsonValue>;
     run(request: CommandRequest, run: RunContext): CommandReturn | Promise<CommandReturn>;
 }
+
+// @public
+export class CommandError extends Error {
+    constructor(code: CommandErrorCode, message?: string, options?: ErrorOptions);
+    readonly code: CommandErrorCode;
+}
+
+// @public
+export type CommandErrorCode = Extract<ErrorCode, 'target-not-found' | 'invalid-args' | 'failed'>;
 
 // @public
 export interface CommandRequest {
