@@ -1156,12 +1156,20 @@ describe('C-83 Agent tools', () => {
     const { tools } = setup()
     const help = tools[1]
     // `marked` is listed: only a command's own `sensitive` leaves it out.
-    expect(await help.execute({})).toEqual([
-      { name: 'search', summary: 'Searches.', danger: 'read' },
-      { name: 'change', summary: 'Searches.', danger: 'change' },
-      { name: 'open', summary: 'Searches.', danger: 'read' },
-      { name: 'marked', summary: 'Searches.', danger: 'read' }
-    ])
+    expect(await help.execute({})).toEqual({
+      namespaces: [
+        { name: 'search', count: 1 },
+        { name: 'change', count: 1 },
+        { name: 'open', count: 1 },
+        { name: 'marked', count: 1 }
+      ],
+      commands: [
+        { name: 'search', summary: 'Searches.', danger: 'read' },
+        { name: 'change', summary: 'Searches.', danger: 'change' },
+        { name: 'open', summary: 'Searches.', danger: 'read' },
+        { name: 'marked', summary: 'Searches.', danger: 'read' }
+      ]
+    })
     expect(await help.execute({ command: 'search' })).toEqual({
       name: 'search',
       summary: 'Searches.',
@@ -1202,17 +1210,18 @@ describe('C-83 Agent tools', () => {
 
   it('run refuses another input with invalid-args and never rejects', async () => {
     const { tools } = setup()
-    for (const input of [
-      null,
-      'search',
-      {},
-      { command: 'search' },
-      { command: 'search', args: [] },
-      { command: 'search', args: {}, view: 1 }
-    ]) {
+    for (const [input, message] of [
+      [null, 'expected { line } or { command, args?, view? }'],
+      ['search', 'expected { line } or { command, args?, view? }'],
+      [{}, 'expected { line } or { command, args?, view? }'],
+      [{ command: 'search', args: [] }, 'args: expected object'],
+      [{ command: 'search', args: null }, 'args: expected object'],
+      [{ command: 'search', args: {}, view: 1 }, 'view: expected string']
+    ] as const) {
       expect(await tools[2].execute(input)).toEqual({
         status: 'error',
-        code: 'invalid-args'
+        code: 'invalid-args',
+        message
       })
     }
   })
@@ -1237,7 +1246,11 @@ describe('C-86 Command error', () => {
     })
     expect(
       await console.request({ line: 'search --ip a', actor: agent })
-    ).toEqual({ status: 'error', code: 'target-not-found' })
+    ).toEqual({
+      status: 'error',
+      code: 'target-not-found',
+      message: 'No tab t9.'
+    })
     expect(
       await console.request({ line: 'later --ip a', actor: agent })
     ).toEqual({ status: 'error', code: 'invalid-args' })
@@ -1267,7 +1280,11 @@ describe('C-86 Command error', () => {
     })
     expect(
       await console.request({ line: 'search --ip a', actor: agent })
-    ).toEqual({ status: 'error', code: 'target-not-found' })
+    ).toEqual({
+      status: 'error',
+      code: 'target-not-found',
+      message: 'No tab t9.'
+    })
   })
 
   it('formatError still draws the entry of a CommandError', async () => {

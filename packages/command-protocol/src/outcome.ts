@@ -37,7 +37,8 @@ export const dataMaxBytes = 32768
 /**
  * How an operation ended, as its caller sees it. `summary` is the command's
  * short result (`CommandResponse.summary`), `data` its JSON result
- * (`CommandResponse.data`).
+ * (`CommandResponse.data`). `message` tells the caller what to fix: which
+ * field a refused input misses, or what the command said; it is never drawn.
  */
 export type CommandOutcome =
   | { status: 'ok'; summary?: string; data?: JsonValue }

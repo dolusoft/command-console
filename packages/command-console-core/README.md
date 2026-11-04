@@ -208,6 +208,10 @@ run starts: `normalize(input)` (optional, pure) maps the value, which is checked
 `CommandRequest` carries it as `input`, the target view as `view` (none for an empty or `null` view), and `args`,
 `rest` and `line` of the canonical line (`formatCommandLine`). `getCommands()` copies `input` and `danger`.
 
+A command's `summary` may be a function: `getCommands()` and the agent's `help` call it each time they read it, so
+`summary: () => t('help.rows')` gives the text of the translation loaded now, not of the one loaded when the command
+was defined. One that throws or returns no string gives no summary.
+
 ## The gate
 
 ```ts
@@ -242,7 +246,7 @@ and none of these throws on creation.
 ## Requests and agent tools
 
 `request({ command, args, view?, actor })` or `request({ line, actor })` runs a command for a caller other than the
-user's Enter. It resolves `busy` while a run exists, `unknown-command` (for a `hidden` command too), `invalid-args`,
+user's Enter (no `args` is `{}`). It resolves `busy` while a run exists, `unknown-command` (for a `hidden` command too), `invalid-args`,
 or `not-allowed` for a command without `input` or `danger`, a sensitive or `irreversible` one, and in this release
 for every actor other than `external-agent` and every `danger` other than `read`. These leave no entry. Otherwise an
 input entry with the canonical line and the `actor` is appended and the line takes the path above. The outcome is
@@ -250,6 +254,15 @@ input entry with the canonical line and the `actor` is appended and the line tak
 (`beforeRun` returned `false`), the code of a `CommandError`, or the gate's code. A response with `tone: 'error'`
 (from the command or from `beforeRun`) is drawn as usual but its outcome is `failed`, without `summary` or `data`. A
 line the user types carries no `actor`.
+
+An `error` outcome may carry a `message` for the caller, at most 300 code points: what a refused input is missing
+(`columns: expected array of string; unknown field "time" (did you mean last?)`), or the message of a `CommandError`
+the command's `run` threw. Any other error gives no message, so nothing internal leaks; a refused line the console
+would redact gives none either. The message is never drawn and never repeats an input value.
+
+Before `args` are checked, a string given where the schema wants an array of strings becomes a list of that one
+string (`{ columns: 'a,b' }` is `{ columns: ['a,b'] }`); splitting it is the command's `normalize`. A string for an
+array of another type stays refused.
 
 `data` is the machine result for the caller, next to the `output` the console draws: the rows a command read, as
 JSON. It is never drawn, and the outcome carries a copy of it. When it is not a JSON value (`isJsonValue`) or its UTF-8
@@ -292,7 +305,7 @@ const show: CommandDefinition = {
 ```
 
 The run fails as with any error (`onError` gets it, the entry is `formatError`'s or `command-failed`), and the
-outcome is `{ status: 'error', code }`. A command may give `target-not-found`, `invalid-args` or `failed`; any other
+outcome is `{ status: 'error', code, message }`: the message reaches the caller, not the entries. A command may give `target-not-found`, `invalid-args` or `failed`; any other
 code (`busy`, `timeout`, `id-conflict`, … belong to the core) gives `failed`, and so does a `CommandError` thrown by
 `beforeRun`, `normalize` or `createEnvelopeId`.
 
@@ -306,8 +319,12 @@ for (const tool of agentTools(console, { context: () => describeViews() })) {
 }
 ```
 
-`help` lists the commands that have `input` and `danger` and are neither `hidden` nor `sensitive`; `run` calls
-`request` as `external-agent`. No `execute` rejects.
+`help` sees the commands that have `input` and `danger` and are neither `hidden` nor `sensitive`. With
+`{ command }` it describes one (`name`, `summary`, `usage`, `danger`, `input`). Without it, it returns one page:
+`{ namespaces: [{ name, count }], commands: [{ name, summary, danger }], nextCursor? }`, where a namespace is a name up
+to its first dot. `prefix` (`dataview` or `dataview.`) keeps one namespace, `limit` is 30 by default and 100 at most,
+and `nextCursor` passed back as `cursor` gives the next page; a page stays within 8 KB of JSON. `run` takes `{ line }`
+or `{ command, args?, view? }` and calls `request` as `external-agent`. No `execute` rejects.
 
 ## Contract
 

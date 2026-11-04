@@ -22,9 +22,10 @@ import { collectSuite, coveredIds, namedIds, rulesOf } from './test-names'
 /**
  * The rules: C-01 to C-69 in 1.0, C-70 to C-83 for the envelope and the gate,
  * C-84 and C-85 for the external console and the actor, C-86 and C-87 for a
- * command's own outcome, C-88 for its data. A later rule raises it.
+ * command's own outcome, C-88 for its data, C-89 to C-92 for what an agent
+ * reads back. A later rule raises it.
  */
-const ruleCount = 88
+const ruleCount = 92
 /**
  * The fewest runnable tests the specs must hold, so a broken reader that
  * finds none fails. Each piece raises it to about the count it leaves; 1.0 is

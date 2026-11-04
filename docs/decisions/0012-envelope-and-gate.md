@@ -72,3 +72,27 @@ command that finds no tab wants to say `target-not-found`, but every throw resol
 - The error's message never reaches the outcome or the entries (ADR 0006); the code is the whole answer.
 - **A response in the `error` tone is not `ok`.** A command that reports its failure as output instead of a throw is
   drawn as before, but its outcome is `failed` (C-87): the caller and the user must not read one run two ways.
+
+## Addendum (2026-11-05): what an agent reads back
+
+A live test with the Data View commands of frontendx (1.2.0) showed an agent that could not repair its own call: it
+got `invalid-args` while the reason ("an internal source takes no filter") was drawn only in the terminal; `{ command }`
+without `args` was refused; `help` listed translation keys, because the summary was made when the command was defined
+and the translations came later; `"columns": "a,b"` was refused before the command's `normalize` could split it; and
+one flat `help` list does not hold the 15 to 30 commands that come next.
+
+- **An error outcome may say what to fix (C-89).** This replaces "the error's message never reaches the outcome"
+  above. The message of a `CommandError` from the command's own `run`, and the schema's refusal in words (which field,
+  what it wants, a near known field), go to the outcome's `message`, cut to 300 code points. The entries still get
+  only the code (ADR 0006); a message is for the caller and is never drawn, so P7 (no hardcoded text in what is drawn)
+  holds. Any other error stays `failed` without a message: its text is internal. A refused line the console would
+  redact, and any input value, are never repeated (P16).
+- **No `args` is `{}`.** `request({ command })` and the `run` tool take a command without input.
+- **A summary may be a function (C-90).** It is called when a spec is made, not at registration. `CommandSpec`, the
+  JSON type, keeps a string summary: the function lives on `CommandDefinition` only.
+- **A string for a list of strings is a list of one (C-91),** before the check, on the `{ command, args }` path. The
+  core does not split it: what a separator means is the command's.
+- **`help` is paged (C-92).** It lists namespaces (a name up to its first dot) with their counts and one page of
+  commands, kept within 8 KB, with an opaque `nextCursor`; `prefix` keeps one namespace. The output of `help` without
+  `command` changes from an array to that object; its one consumer is frontendx, and the change is in the release
+  notes.

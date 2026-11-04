@@ -454,7 +454,9 @@ a context change append `interrupted`).
 `request(input)` never rejects and resolves a `CommandOutcome`. While a run exists it is `busy`; an unparsable line
 is `invalid-args`; an unknown or `hidden` command is `unknown-command`; a command without `input` or `danger`, a
 sensitive one, an `irreversible` one, an actor other than `external-agent`, and a `danger` other than `read` are
-`not-allowed`; options that do not match the schema are `invalid-args`. Nothing of these reaches the entries.
+`not-allowed`; options that do not match the schema are `invalid-args`, with a `message` (C-89). `{ command }`
+without `args` is `{ command, args: {} }`, and a string given for an array of strings is a list of it (C-91). Nothing
+of these reaches the entries.
 Otherwise an input entry with the canonical line and the `actor` is appended and the line takes the path of C-77 to
 C-81. The run's end gives `ok` with the response's `summary` (cut to 200 code points) and `data` (C-88), `failed`,
 `cancelled`, `not-allowed` when `beforeRun` returns `false`, the code of a `CommandError` (C-86), `too-large` for
@@ -468,8 +470,9 @@ carries no `actor`.
 `failed` when it throws. `help` lists the commands that have `input` and `danger` and are neither `hidden` nor
 `sensitive` in their definition (`name`, `summary`, `danger`), or describes one of them (`name`, `summary`, `usage`,
 `danger`, `input`), or is `unknown-command`; a line `isSensitive` would mark does not take a command off the list.
-`run` calls `request` as `external-agent` with `{ line }` or `{ command, args, view }`, and resolves its outcome;
-another input is `invalid-args`. No `execute` rejects.
+`help` without `command` lists a page (C-92). `run` calls `request` as `external-agent` with `{ line }` or
+`{ command, args?, view? }` (no `args` is `{}`), and resolves its outcome; another input is `invalid-args` with a
+`message`. No `execute` rejects.
 
 ### C-84 External console (Vue)
 
@@ -494,7 +497,8 @@ another copy of the core counts) ends the run as failed like any error (C-18): `
 the error and the entry is `formatError`'s response or `command-failed`. Its outcome (C-82) is
 `{ status: 'error', code }` with the error's `code` when that is `target-not-found`, `invalid-args` or `failed`, and
 `failed` for any other code, a code the core owns (`busy`, `timeout`, `id-conflict`, …) included. Any other error, and
-a `CommandError` thrown by `beforeRun`, `normalize` or `createEnvelopeId`, gives `failed`.
+a `CommandError` thrown by `beforeRun`, `normalize` or `createEnvelopeId`, gives `failed`. The outcome carries
+the `CommandError`'s message only as C-89 says.
 
 ### C-87 Error response
 
@@ -510,3 +514,36 @@ later never reaches the caller. It is never drawn; the entries are the same with
 function, a bigint, a cycle, a class instance, …) or whose UTF-8 JSON is larger than `dataMaxBytes` (32768) makes the
 outcome `{ status: 'error', code: 'too-large' }`, not `ok` without it; the response is still applied. A response with
 `tone: 'error'` is `failed` (C-87) and carries no `data`. A line the user types never reads `data`.
+
+### C-89 Error message
+
+The `error` outcome of a `request()` (C-82) and of the agent's `run` tool (C-83) may carry a `message` for the
+caller, cut to 300 code points: the message of a `CommandError` thrown or rejected by the command's own `run` (C-86),
+when it differs from its code; and, for input the schema refuses, each error in words (`columns: expected array of
+string`, `last: one of 15m|1h|24h|7d`, `unknown field "time"`, with `(did you mean last?)` when a known field of the
+same object is near), joined by `; `. Any other error, a `CommandError` thrown by `beforeRun`, `normalize` or
+`createEnvelopeId`, and a refused line that `isSensitive` marks give no `message`. A message never repeats an input
+value and never reaches the entries.
+
+### C-90 Summary function
+
+A command's `summary` may be a function. It is called each time a spec is made (`getCommands`, the agent's `help`),
+never at creation, and its string is the spec's `summary`; a function that throws or returns anything but a string
+gives no `summary`. `CommandSpec.summary` stays a string.
+
+### C-91 Text for a list
+
+Before `request({ command, args })` checks `args` against the schema, a string given for a field whose schema is an
+array of strings, at any depth of objects, becomes a list of that one string; the caller's object is not changed.
+Splitting it is the command's work (`normalize`). A string for an array of another type stays refused.
+
+### C-92 Help pages
+
+The agent's `help` takes `{ command?, prefix?, cursor?, limit? }`. With `command` it describes that command (C-83).
+Without it, it returns `{ namespaces, commands, nextCursor? }`: `namespaces` is `{ name, count }` per namespace of the
+listed commands (a name up to its first dot), `commands` is a page of `{ name, summary, danger }` (summary cut to 200
+code points) in the order of the commands. `prefix` without one trailing dot keeps the commands whose name is it or
+starts with it and a dot. `limit` is 30 when not given and at most 100. A page's JSON takes at most 8192 UTF-8 bytes;
+commands leave its end until it fits (one always stays). `nextCursor` is there when commands follow; passed back as
+`cursor` it gives the next page. Another type for a field, a `cursor` `help` did not give or a `limit` below 1 or not
+an integer is `invalid-args` with a `message`.

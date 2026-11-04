@@ -213,11 +213,14 @@ export interface ConsoleOptions<
   createEnvelopeId?: () => string
 }
 
-/** What `request()` runs: a command and its input, or a line. */
+/**
+ * What `request()` runs: a command and its input, or a line. No `args` is
+ * `{}`; a string given for an array of strings is a list of one (C-91).
+ */
 export type RequestInput =
   | {
       command: string
-      args: Record<string, unknown>
+      args?: Record<string, unknown>
       view?: string
       actor: Actor
     }

@@ -23,7 +23,7 @@ import {
   validateInput
 } from '@dolusoft/command-protocol'
 
-import { commandErrorCode } from './commandError'
+import { commandFailure } from './commandError'
 import type {
   CommandDefinition,
   CommandRequest,
@@ -32,6 +32,7 @@ import type {
   RunInfo
 } from './dispatch.types'
 import { blocksOf, isThenable, normalizeReturn, specOf } from './dispatch.utils'
+import { describeInputErrors, listsFromText } from './inputText'
 import {
   checkData,
   cutSummary,
@@ -172,10 +173,10 @@ const output = (
     ? { kind: 'output', tone, blocks, inputId, quiet: true }
     : { kind: 'output', tone, blocks, inputId }
 
-const failure = (code: ErrorCode): CommandOutcome => ({
-  status: 'error',
-  code
-})
+const failure = (code: ErrorCode, text?: string): CommandOutcome =>
+  text === undefined
+    ? { status: 'error', code }
+    : { status: 'error', code, message: text }
 
 // --- The end of a run ---------------------------------------------------------
 
@@ -268,17 +269,17 @@ const fulfil = (console: object, run: Run, value: CommandReturn) => {
 }
 
 /**
- * Ends `run` as failed (C-18); `code` is the outcome's code, `failed` unless
- * the command's own `run` threw a `CommandError` (C-86).
+ * Ends `run` as failed (C-18); `outcome` is `failed` unless the command's own
+ * `run` threw a `CommandError` (C-86, C-89).
  */
 const fail = (
   console: object,
   run: Run,
   error: unknown,
-  code: ErrorCode = 'failed'
+  outcome: CommandOutcome = failure('failed')
 ) => {
   run.current = false
-  run.outcome = failure(code)
+  run.outcome = outcome
   try {
     const { store, options } = liveRecord(console)
     store.afterCommit(() =>
@@ -353,20 +354,20 @@ const settle = (console: object, run: Run, fn: () => void) => {
 
 /**
  * Handles a return that may be a promise: now, or in its own action. A
- * rejection fails the run with the code `codeOf` gives it.
+ * rejection fails the run with the outcome `outcomeOf` gives it.
  */
 const whenSettled = <T>(
   console: object,
   run: Run,
   value: T | PromiseLike<T>,
   onValue: (value: T) => void,
-  codeOf: (error: unknown) => ErrorCode = () => 'failed'
+  outcomeOf: (error: unknown) => CommandOutcome = () => failure('failed')
 ) => {
   if (isThenable(value)) {
     Promise.resolve(value).then(
       result => settle(console, run, () => onValue(result)),
       (error: unknown) =>
-        settle(console, run, () => fail(console, run, error, codeOf(error)))
+        settle(console, run, () => fail(console, run, error, outcomeOf(error)))
     )
   } else {
     onValue(value)
@@ -393,7 +394,7 @@ const go = (console: object, run: Run) => {
   try {
     result = run.command.run(run.request, context)
   } catch (error) {
-    fail(console, run, error, commandErrorCode(error))
+    fail(console, run, error, commandFailure(error))
     return
   }
   whenSettled(
@@ -401,7 +402,7 @@ const go = (console: object, run: Run) => {
     run,
     result,
     value => fulfil(console, run, value),
-    commandErrorCode
+    commandFailure
   )
 }
 
@@ -778,7 +779,8 @@ const requestLine = (
   console: object,
   input: RequestInput
 ): Promise<CommandOutcome> => {
-  const refuse = (code: ErrorCode) => Promise.resolve(failure(code))
+  const refuse = (code: ErrorCode, text?: string) =>
+    Promise.resolve(failure(code, text))
   const { store } = liveRecord(console)
   if (store.read().running !== null) {
     return refuse('busy')
@@ -786,11 +788,16 @@ const requestLine = (
   const lookup = lookupOf(console)
   let command: CommandDefinition | undefined
   let tokens: string[] | null = null
+  let text = ''
   let view: () => string | undefined
   if ('line' in input) {
-    const parsed = tokenize(String(input.line).trim())
-    if (!parsed.ok || parsed.tokens.length === 0) {
-      return refuse('invalid-args')
+    text = String(input.line).trim()
+    const parsed = tokenize(text)
+    if (!parsed.ok) {
+      return refuse('invalid-args', 'unterminated quote')
+    }
+    if (parsed.tokens.length === 0) {
+      return refuse('invalid-args', 'empty line')
     }
     command = lookup.find(parsed.tokens[0].value)
     tokens = parsed.tokens.slice(1).map(token => token.value)
@@ -813,12 +820,23 @@ const requestLine = (
     return refuse('not-allowed')
   }
   const schema = command.input!
+  // No args is `{}`; a string for an array of strings is a list of one (C-91).
+  const args = (input as { args?: unknown }).args
   const read =
     tokens === null
-      ? validateInput(schema, (input as { args: unknown }).args)
+      ? validateInput(
+          schema,
+          listsFromText(schema, args === undefined ? {} : args)
+        )
       : parseOptions(tokens, schema)
   if (!read.ok) {
-    return refuse('invalid-args')
+    // A line the console would redact says nothing back (P16, C-89).
+    return refuse(
+      'invalid-args',
+      tokens !== null && lookup.isSensitive(text)
+        ? undefined
+        : describeInputErrors(schema, read.errors)
+    )
   }
   const line = formatCommandLine(command.name, read.value, schema)
   if (lookup.isSensitive(line)) {

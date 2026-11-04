@@ -17,7 +17,7 @@ It is not a terminal emulator: no PTY, no ANSI escape handling, no cursor addres
 The three packages are released together on npm. Add the Vue package; the protocol and the core come with it as dependencies.
 
 ```bash
-pnpm add @dolusoft/command-console@1.2.0
+pnpm add @dolusoft/command-console@1.3.0
 ```
 
 Peer dependency: `vue` 3.5+. The packages are ESM only and need Node 22.18 or newer (`engines`). A consumer that builds its own markup with optional features imports them from the core, so it adds `@dolusoft/command-console-core` too. A consumer without Vue installs only the core (and the protocol, if it uses the protocol's functions).
@@ -82,7 +82,7 @@ A command is a `CommandDefinition`: the JSON part (`CommandSpec`, from the proto
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `name`      | The name the first token must match, exactly (case-sensitive; a dot is an ordinary character).                                                         |
 | `aliases`   | Other names that run the same command. The request tells which one was typed.                                                                          |
-| `summary`   | One line on what the command does, for your help text.                                                                                                 |
+| `summary`   | One line on what the command does, for your help text; a string, or a function called each time `getCommands()` reads it (a translated text).          |
 | `usage`     | How it is called, for your help text.                                                                                                                  |
 | `hidden`    | Not listed by `getCommands()` and not completed by name; it still runs when typed.                                                                     |
 | `sensitive` | `true`, or `{ fromArg: k }`: the arguments at and after position `k` are secret (`true` is `{ fromArg: 0 }`). See [Sensitive lines](#sensitive-lines). |
