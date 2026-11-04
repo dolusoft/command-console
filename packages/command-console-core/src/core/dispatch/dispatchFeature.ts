@@ -485,10 +485,7 @@ const send = (console: object, run: Run) => {
       )
       // The transport gets a copy, so nothing it does reaches the record.
       const copy = JSON.parse(JSON.stringify(envelope)) as Envelope
-      Promise.resolve(gate.send(copy)).then(
-        undefined,
-        ended('connection-lost')
-      )
+      Promise.resolve(gate.send(copy)).then(undefined, ended('connection-lost'))
     } catch {
       ended('connection-lost')()
     }

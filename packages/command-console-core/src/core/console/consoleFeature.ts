@@ -29,7 +29,7 @@ import {
 } from '../../shared'
 import { resolveUpdater, type Updater } from '../../store/action'
 import { validateCommands } from '../dispatch/dispatch.utils'
-import { envelopeIds } from '../dispatch/operation'
+import { checkGateOptions } from '../dispatch/operation'
 
 const controllable: readonly ControlledSlice[] = [
   'entries',
@@ -122,7 +122,7 @@ export const consoleFeature: ConsoleFeature = {
             throw new Error('setOptions cannot change the gate.')
           }
           validateCommands(given.commands)
-          envelopeIds(given)
+          checkGateOptions(given)
           store.action(() => {
             const before = { ...store.read() }
             record.options = mergeOptions(featureDefaults.get(console)!, given)

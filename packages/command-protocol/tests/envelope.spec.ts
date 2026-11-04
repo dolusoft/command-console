@@ -64,7 +64,9 @@ describe('C-75 Envelope', () => {
   })
 
   it('a null target.view is no view', () => {
-    const result = parseEnvelope(changed({ target: { tab: 't-1', view: null } }))
+    const result = parseEnvelope(
+      changed({ target: { tab: 't-1', view: null } })
+    )
     expect(result).toMatchObject({
       ok: true,
       envelope: { target: { tab: 't-1' } }

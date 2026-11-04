@@ -385,6 +385,55 @@ describe('C-78 Gate', () => {
     expect(fake.timers[0].cancelled).toBe(true)
   })
 
+  it.each([0, -1, NaN, Infinity, '5000', null])(
+    'echoTimeoutMs %s throws a TypeError on creation and on setOptions',
+    echoTimeoutMs => {
+      const fake = fakeGate()
+      expect(() =>
+        createConsole({
+          gate: fake.gate,
+          createEnvelopeId: ids(),
+          commands: [],
+          echoTimeoutMs: echoTimeoutMs as number
+        })
+      ).toThrow(TypeError)
+      const { console } = gated({ commands: [] }, fake)
+      expect(() =>
+        console.setOptions(old => ({
+          ...old,
+          echoTimeoutMs: echoTimeoutMs as number
+        }))
+      ).toThrow(TypeError)
+      expect(() =>
+        console.setOptions(old => ({ ...old, echoTimeoutMs: 0.5 }))
+      ).not.toThrow()
+    }
+  )
+
+  it('a createEnvelopeId that throws fails the run and sends nothing', async () => {
+    const onError = vi.fn()
+    const run = vi.fn()
+    const fake = fakeGate()
+    const console = createConsole({
+      gate: fake.gate,
+      commands: [search(run)],
+      createEnvelopeId: () => {
+        throw new Error('no id')
+      },
+      onError
+    })
+    expect(await console.run('search --ip a')).toBe(true)
+    await flush()
+    expect(run).not.toHaveBeenCalled()
+    expect(fake.gate.send).not.toHaveBeenCalled()
+    expect(console.getState().running).toBeNull()
+    expect(onError).toHaveBeenCalledTimes(1)
+    expect(onError.mock.calls[0][0]).toEqual(new Error('no id'))
+    expect(messagesOf(outputs(console.getState().entries))).toEqual([
+      { type: 'message', code: 'command-failed' }
+    ])
+  })
+
   it('an id that is already closed fails the run', async () => {
     const onError = vi.fn()
     const fake = fakeGate()
@@ -451,37 +500,40 @@ describe('C-79 Envelope', () => {
   it.each([
     ['an empty', ''],
     ['a null', null]
-  ])('%s view is no view: the envelope and the request carry none', async (_, view) => {
-    const requests: CommandRequest[] = []
-    const fake = fakeGate()
-    const console = createConsole({
-      gate: fake.gate,
-      createEnvelopeId: ids(),
-      commands: [search(request => void requests.push(request))],
-      activeView: () => view as string
-    })
-    const typed = console.run('search --ip a')
-    await flush()
-    fake.echo()
-    await typed
-    const asked = console.request({
-      command: 'search',
-      args: { ip: 'b' },
-      view: view as string,
-      actor: 'external-agent'
-    })
-    await flush()
-    fake.echo()
-    expect(await asked).toEqual({ status: 'ok' })
-    expect(fake.sent.map(envelope => envelope.target)).toEqual([
-      { tab: 't1' },
-      { tab: 't1' }
-    ])
-    expect(requests).toHaveLength(2)
-    for (const request of requests) {
-      expect(request).not.toHaveProperty('view')
+  ])(
+    '%s view is no view: the envelope and the request carry none',
+    async (_, view) => {
+      const requests: CommandRequest[] = []
+      const fake = fakeGate()
+      const console = createConsole({
+        gate: fake.gate,
+        createEnvelopeId: ids(),
+        commands: [search(request => void requests.push(request))],
+        activeView: () => view as string
+      })
+      const typed = console.run('search --ip a')
+      await flush()
+      fake.echo()
+      await typed
+      const asked = console.request({
+        command: 'search',
+        args: { ip: 'b' },
+        view: view as string,
+        actor: 'external-agent'
+      })
+      await flush()
+      fake.echo()
+      expect(await asked).toEqual({ status: 'ok' })
+      expect(fake.sent.map(envelope => envelope.target)).toEqual([
+        { tab: 't1' },
+        { tab: 't1' }
+      ])
+      expect(requests).toHaveLength(2)
+      for (const request of requests) {
+        expect(request).not.toHaveProperty('view')
+      }
     }
-  })
+  )
 
   it('beforeRun is asked once before the send; false sends nothing', async () => {
     const answer = deferred<false | undefined>()

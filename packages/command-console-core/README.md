@@ -73,7 +73,7 @@ no optional method, in its type and at run time. The feature set is fixed for th
 | `shouldRecord(line)`                                   | recall: whether a submitted line is recorded; default every line                                           |
 | `gate`                                                 | sends described commands as envelopes and runs them from their echo (below); fixed for the console's life  |
 | `activeView()`                                         | the view a typed line (or a `{ line }` request) targets, read when the line ends                           |
-| `echoTimeoutMs`                                        | how long an envelope waits for its echo; default 5000                                                      |
+| `echoTimeoutMs`                                        | how long an envelope waits for its echo, a finite number above 0 (else a `TypeError`); default 5000        |
 | `createEnvelopeId()`                                   | makes envelope ids; default `crypto.randomUUID()` (a gate without either throws on creation)               |
 
 Run ids come from `createId` too, so with the default counter the first command's output is `c3` (`c1` the input entry,

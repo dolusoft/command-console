@@ -18,7 +18,7 @@ import {
 import { createRecord, type SharedRecord } from '../../shared'
 import { createStore } from '../../store/createStore'
 import { validateCommands } from '../dispatch/dispatch.utils'
-import { envelopeIds } from '../dispatch/operation'
+import { checkGateOptions } from '../dispatch/operation'
 
 /** The keys of `options.features`, in construction order. */
 const optionalFeatureKeys: readonly (keyof OptionalFeatures)[] = [
@@ -69,7 +69,7 @@ export function constructConsole(
   ) as Partial<AnyConsoleOptions>
   const merged = mergeOptions(defaults, options)
   validateCommands(merged.commands)
-  envelopeIds(merged)
+  checkGateOptions(merged)
 
   let initial = emptyState()
   for (const slice of controllable) {

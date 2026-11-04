@@ -1343,7 +1343,8 @@ line `isSensitive` marks, it then runs locally.
 `gate` is fixed for the life of the console (`setOptions` with another gate throws). The console subscribes to it on
 its first envelope, never on creation, and `dispose()` unsubscribes and cancels what it scheduled. With a gate, an
 envelope id comes from `createEnvelopeId`, else `crypto.randomUUID()`; creating a console with a gate and neither
-throws, and a `createEnvelopeId` that throws or returns a closed id ends the run as failed (C-18).
+throws, and a `createEnvelopeId` that throws or returns a closed id ends the run as failed (C-18). An `echoTimeoutMs`
+that is not a finite number above 0 throws a `TypeError` at creation and on `setOptions`.
 
 #### C-79 Envelope
 

@@ -76,6 +76,28 @@ export const envelopeIds = (
 }
 
 /**
+ * Checks the gate options at creation and on every `setOptions` (C-78):
+ * envelope ids can be made, and `echoTimeoutMs` is a finite number above 0.
+ */
+export const checkGateOptions = (
+  options: Pick<
+    AnyConsoleOptions,
+    'gate' | 'createEnvelopeId' | 'echoTimeoutMs'
+  >
+): void => {
+  envelopeIds(options)
+  const ms: unknown = options.echoTimeoutMs
+  if (
+    ms !== undefined &&
+    !(typeof ms === 'number' && Number.isFinite(ms) && ms > 0)
+  ) {
+    throw new TypeError(
+      `echoTimeoutMs must be a finite number above 0 (got ${String(ms)}).`
+    )
+  }
+}
+
+/**
  * Whether a command can travel in an envelope: it has `input` and `danger`
  * and no `sensitive` (C-79).
  */
