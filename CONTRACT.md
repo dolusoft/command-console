@@ -1420,6 +1420,12 @@ the error and the entry is `formatError`'s response or `command-failed`. Its out
 `failed` for any other code, a code the core owns (`busy`, `timeout`, `id-conflict`, …) included. Any other error, and
 a `CommandError` thrown by `beforeRun`, `normalize` or `createEnvelopeId`, gives `failed`.
 
+#### C-87 Error response
+
+A response with `tone: 'error'`, returned by a command's `run` or by `beforeRun`, is applied as any response (effects,
+then output) and its outcome (C-82) is `{ status: 'error', code: 'failed' }`, without its `summary`. A response
+with any other tone, or none, is `ok`.
+
 ## DOM contract
 
 The classes and attributes below are the only hooks a skin can select (P6). The console writes no stylesheet and no inline style (P5); slot content is the consumer’s.

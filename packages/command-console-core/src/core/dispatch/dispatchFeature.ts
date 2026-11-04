@@ -234,13 +234,18 @@ const apply = (
   }
 }
 
+/** Ends `run` with what it returned; an `error` tone is `failed` (C-87). */
 const fulfil = (console: object, run: Run, value: CommandReturn) => {
   run.current = false
   try {
     const response = normalizeReturn(value)
     const summary = cutSummary(response.summary)
     run.outcome =
-      summary === undefined ? { status: 'ok' } : { status: 'ok', summary }
+      response.tone === 'error'
+        ? failure('failed')
+        : summary === undefined
+          ? { status: 'ok' }
+          : { status: 'ok', summary }
     apply(console, run, response, 'default')
   } finally {
     cleanup(console, run)

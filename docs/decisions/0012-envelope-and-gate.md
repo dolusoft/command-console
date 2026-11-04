@@ -70,3 +70,5 @@ command that finds no tab wants to say `target-not-found`, but every throw resol
   one would lie to the caller, so it gives `failed`. A `CommandError` thrown by `beforeRun`, `normalize` or
   `createEnvelopeId` is not the command's answer and gives `failed` too.
 - The error's message never reaches the outcome or the entries (ADR 0006); the code is the whole answer.
+- **A response in the `error` tone is not `ok`.** A command that reports its failure as output instead of a throw is
+  drawn as before, but its outcome is `failed` (C-87): the caller and the user must not read one run two ways.

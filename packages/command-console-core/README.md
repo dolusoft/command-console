@@ -247,17 +247,26 @@ or `not-allowed` for a command without `input` or `danger`, a sensitive or `irre
 for every actor other than `external-agent` and every `danger` other than `read`. These leave no entry. Otherwise an
 input entry with the canonical line and the `actor` is appended and the line takes the path above. The outcome is
 `ok` with the response's `summary` (cut to 200 code points), `failed`, `cancelled`, `not-allowed` (`beforeRun`
-returned `false`), the code of a `CommandError`, or the gate's code. A line the user types carries no `actor`.
+returned `false`), the code of a `CommandError`, or the gate's code. A response with `tone: 'error'` (from the command
+or from `beforeRun`) is drawn as usual but its outcome is `failed`, without `summary`. A line the user types carries no
+`actor`.
 
 A command ends its run with a code of its own by throwing (or rejecting) a `CommandError`:
 
 ```ts
 import { CommandError } from '@dolusoft/command-console-core'
 
-run: request => {
-  const tab = findTab(request.view)
-  if (!tab) throw new CommandError('target-not-found', `No tab ${request.view}.`)
-  // …
+const show: CommandDefinition = {
+  name: 'show',
+  input: showInput,
+  danger: 'read',
+  run: request => {
+    const tab = findTab(request.view)
+    if (!tab) {
+      throw new CommandError('target-not-found', 'No such tab.')
+    }
+    return tab.render(request.input)
+  }
 }
 ```
 

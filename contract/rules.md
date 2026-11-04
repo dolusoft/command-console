@@ -493,3 +493,9 @@ the error and the entry is `formatError`'s response or `command-failed`. Its out
 `{ status: 'error', code }` with the error's `code` when that is `target-not-found`, `invalid-args` or `failed`, and
 `failed` for any other code, a code the core owns (`busy`, `timeout`, `id-conflict`, …) included. Any other error, and
 a `CommandError` thrown by `beforeRun`, `normalize` or `createEnvelopeId`, gives `failed`.
+
+### C-87 Error response
+
+A response with `tone: 'error'`, returned by a command's `run` or by `beforeRun`, is applied as any response (effects,
+then output) and its outcome (C-82) is `{ status: 'error', code: 'failed' }`, without its `summary`. A response
+with any other tone, or none, is `ok`.

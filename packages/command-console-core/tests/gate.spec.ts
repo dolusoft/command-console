@@ -1346,3 +1346,66 @@ describe('C-86 Command error', () => {
     expect(new CommandError('failed').message).toBe('failed')
   })
 })
+
+describe('C-87 Error response', () => {
+  const agent = 'external-agent' as const
+
+  it('a response with tone error from run is failed, without its summary, and is still applied', async () => {
+    const console = createConsole({
+      commands: [
+        search(() => ({
+          output: 'No such view.',
+          tone: 'error',
+          summary: '0 rows'
+        }))
+      ]
+    })
+    expect(
+      await console.request({ line: 'search --ip a', actor: agent })
+    ).toEqual({ status: 'error', code: 'failed' })
+    expect(outputs(console.getState().entries)).toMatchObject([
+      { tone: 'error', blocks: [{ type: 'text', text: 'No such view.' }] }
+    ])
+  })
+
+  it('a response with tone error from beforeRun is failed', async () => {
+    const console = createConsole({
+      commands: [search()],
+      beforeRun: () => ({ output: 'Denied.', tone: 'error' })
+    })
+    expect(
+      await console.request({ line: 'search --ip a', actor: agent })
+    ).toEqual({ status: 'error', code: 'failed' })
+  })
+
+  it('a gated command whose response has tone error is failed', async () => {
+    const { console, fake } = gated({
+      commands: [
+        search(() => Promise.resolve({ output: 'x', tone: 'error' as const }))
+      ]
+    })
+    const outcome = console.request({ line: 'search --ip a', actor: agent })
+    await flush()
+    fake.echo()
+    expect(await outcome).toEqual({ status: 'error', code: 'failed' })
+  })
+
+  it('a response with another tone, or none, is ok', async () => {
+    const console = createConsole({
+      commands: [
+        search(() => ({ output: 'x', tone: 'notice', summary: 'n' })),
+        search(() => ({ output: 'x', tone: 'default' }), { name: 'plain' }),
+        search(() => 'x', { name: 'text' })
+      ]
+    })
+    expect(
+      await console.request({ line: 'search --ip a', actor: agent })
+    ).toEqual({ status: 'ok', summary: 'n' })
+    expect(
+      await console.request({ line: 'plain --ip a', actor: agent })
+    ).toEqual({ status: 'ok' })
+    expect(
+      await console.request({ line: 'text --ip a', actor: agent })
+    ).toEqual({ status: 'ok' })
+  })
+})
