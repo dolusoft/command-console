@@ -1,11 +1,17 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import {
+  type CommandOutcome,
   type CommandResponse,
   type CommandSpec,
   type ConsoleEffect,
   type ConsoleEntry,
   type ContextFrame,
+  type Envelope,
+  type EnvelopeResult,
+  type InputError,
+  type InputResult,
+  type InputSchema,
   isJsonValue,
   type JsonPrimitive,
   type JsonValue,
@@ -18,23 +24,29 @@ import {
 /**
  * `true` when every value `T` admits is JSON. Optional properties may be
  * absent (their `undefined` is ignored); everything else must be a JSON
- * primitive, an array of JSON or an object of JSON.
+ * primitive, an array of JSON or an object of JSON. A recursive type (an
+ * input schema) is followed `Depth` levels deep, past every distinct node.
  */
-type JsonOnly<T> = [T] extends [JsonValue]
+type JsonOnly<T, Depth extends unknown[] = []> = Depth['length'] extends 8
   ? true
-  : T extends JsonPrimitive
+  : [T] extends [JsonValue]
     ? true
-    : T extends readonly (infer U)[]
-      ? JsonOnly<U>
-      : T extends (...args: never[]) => unknown
-        ? false
-        : T extends object
-          ? false extends {
-              [K in keyof T]-?: JsonOnly<Exclude<T[K], undefined>>
-            }[keyof T]
-            ? false
-            : true
-          : false
+    : T extends JsonPrimitive
+      ? true
+      : T extends readonly (infer U)[]
+        ? JsonOnly<U, [...Depth, unknown]>
+        : T extends (...args: never[]) => unknown
+          ? false
+          : T extends object
+            ? false extends {
+                [K in keyof T]-?: JsonOnly<
+                  Exclude<T[K], undefined>,
+                  [...Depth, unknown]
+                >
+              }[keyof T]
+              ? false
+              : true
+            : false
 
 const frame: ContextFrame = {
   id: 'f1',
@@ -83,6 +95,15 @@ const entries: ConsoleEntry[] = [
     redacted: true,
     status: 'cancelled'
   },
+  {
+    id: 'c6',
+    kind: 'input',
+    prompt: '>',
+    text: 'dataview.search --ip 10.0.0.5',
+    redacted: false,
+    status: 'submitted',
+    actor: 'external-agent'
+  },
   { id: 'c3', kind: 'output', tone: 'default', blocks, inputId: 'c1' },
   { id: 'c4', kind: 'output', tone: 'notice', blocks: [], quiet: true },
   { id: 'c5', kind: 'output', tone: 'error', blocks: blocks.slice(0, 1) }
@@ -102,7 +123,58 @@ const responses: CommandResponse[] = [
   {},
   { output: 'done' },
   { output: blocks, tone: 'notice', quiet: true, effects },
-  { tone: 'error', effects: [{ type: 'clear' }] }
+  { tone: 'error', effects: [{ type: 'clear' }] },
+  { output: 'shown', summary: '342 rows' }
+]
+
+const searchInput: InputSchema = {
+  type: 'object',
+  description: 'Search',
+  properties: {
+    ip: { type: 'string', pattern: '^[0-9.]+$', minLength: 7, maxLength: 15 },
+    limit: { type: 'integer', minimum: 1, maximum: 500, default: 100 },
+    level: { type: 'string', enum: ['low', 'high'], default: 'low' },
+    ratio: { type: 'number', enum: [0.5, 1] },
+    verbose: { type: 'boolean', default: false },
+    tags: { type: 'array', items: { type: 'string' }, maxItems: 5 },
+    filter: {
+      type: 'object',
+      properties: { port: { type: 'integer' } },
+      required: ['port'],
+      default: { port: 80 }
+    }
+  },
+  required: ['ip']
+}
+
+const envelopes: Envelope[] = [
+  {
+    v: 1,
+    id: '3f0c6c1e-6d1b-4a8e-9b7e-2a4c1f2d9e10',
+    kind: 'request',
+    actor: 'assistant',
+    from: { tab: 't-1' },
+    target: { tab: 't-1', view: 'v-1' },
+    command: 'dataview.search',
+    args: { ip: '10.0.0.5', tags: ['a'], filter: { port: 53 } }
+  },
+  {
+    v: 1,
+    id: 'x',
+    kind: 'request',
+    actor: 'user',
+    from: { tab: 't-1' },
+    target: { tab: 't-1' },
+    command: 'view.open',
+    args: {}
+  }
+]
+
+const outcomes: CommandOutcome[] = [
+  { status: 'ok' },
+  { status: 'ok', summary: '342 rows' },
+  { status: 'error', code: 'busy' },
+  { status: 'error', code: 'invalid-args', message: 'ip is required' }
 ]
 
 const specs: CommandSpec[] = [
@@ -116,7 +188,9 @@ const specs: CommandSpec[] = [
     sensitive: { fromArg: 1 }
   },
   { name: 'login', sensitive: true },
-  { name: 'debug', hidden: true }
+  { name: 'debug', hidden: true },
+  { name: 'dataview.search', input: searchInput, danger: 'read' },
+  { name: 'rule.delete', input: { type: 'object' }, danger: 'irreversible' }
 ]
 
 const samples: [string, unknown][] = [
@@ -125,7 +199,9 @@ const samples: [string, unknown][] = [
   ['entries', entries],
   ['effects', effects],
   ['responses', responses],
-  ['command specs', specs]
+  ['command specs', specs],
+  ['envelopes', envelopes],
+  ['outcomes', outcomes]
 ]
 
 describe('C-06 JSON', () => {
@@ -144,6 +220,12 @@ describe('C-06 JSON', () => {
     expectTypeOf<JsonOnly<MessageParams>>().toEqualTypeOf<true>()
     expectTypeOf<JsonOnly<Token>>().toEqualTypeOf<true>()
     expectTypeOf<JsonOnly<TokenizeResult>>().toEqualTypeOf<true>()
+    expectTypeOf<JsonOnly<InputSchema>>().toEqualTypeOf<true>()
+    expectTypeOf<JsonOnly<InputError>>().toEqualTypeOf<true>()
+    expectTypeOf<JsonOnly<InputResult>>().toEqualTypeOf<true>()
+    expectTypeOf<JsonOnly<Envelope>>().toEqualTypeOf<true>()
+    expectTypeOf<JsonOnly<EnvelopeResult>>().toEqualTypeOf<true>()
+    expectTypeOf<JsonOnly<CommandOutcome>>().toEqualTypeOf<true>()
   })
 
   it('the type check itself rejects what is not JSON', () => {

@@ -5,17 +5,57 @@
 ```ts
 
 // @public
+export type Actor = 'user' | 'assistant' | 'external-agent';
+
+// @public
+export interface ArrayInputSchema {
+    // (undocumented)
+    description?: string;
+    items: InputSchemaNode;
+    // (undocumented)
+    maxItems?: number;
+    // (undocumented)
+    type: 'array';
+}
+
+// @public
+export interface BooleanInputSchema {
+    // (undocumented)
+    default?: boolean;
+    // (undocumented)
+    description?: string;
+    // (undocumented)
+    type: 'boolean';
+}
+
+// @public
+export function checkInputSchema(schema: unknown): asserts schema is InputSchema;
+
+// @public
+export type CommandOutcome = {
+    status: 'ok';
+    summary?: string;
+} | {
+    status: 'error';
+    code: ErrorCode;
+    message?: string;
+};
+
+// @public
 export interface CommandResponse {
     effects?: ConsoleEffect[];
     output?: string | OutputBlock[];
     quiet?: true;
+    summary?: string;
     tone?: OutputEntry['tone'];
 }
 
 // @public
 export interface CommandSpec {
     aliases?: string[];
+    danger?: Danger;
     hidden?: boolean;
+    input?: InputSchema;
     name: string;
     sensitive?: boolean | {
         fromArg: number;
@@ -62,7 +102,53 @@ export interface CustomBlock {
 }
 
 // @public
+export type Danger = 'read' | 'change' | 'irreversible';
+
+// @public
+export interface Envelope {
+    actor: Actor;
+    args: Record<string, JsonValue>;
+    command: string;
+    from: {
+        tab: string;
+    };
+    id: string;
+    // (undocumented)
+    kind: 'request';
+    target: {
+        tab: string;
+        view?: string;
+    };
+    v: 1;
+}
+
+// @public
+export function envelopeBytes(envelope: Envelope): number;
+
+// @public
+export type EnvelopeErrorCode = 'unsupported-version' | 'invalid' | 'too-large';
+
+// @public
+export const envelopeMaxBytes = 16384;
+
+// @public
+export type EnvelopeResult = {
+    ok: true;
+    envelope: Envelope;
+} | {
+    ok: false;
+    code: EnvelopeErrorCode;
+};
+
+// @public
+export type ErrorCode = 'invalid-args' | 'unknown-command' | 'not-allowed' | 'target-not-found' | 'id-conflict' | 'unsupported-version' | 'too-large' | 'busy' | 'timeout' | 'failed' | 'connection-lost' | 'cancelled';
+
+// @public
+export function formatCommandLine(command: string, value: Record<string, JsonValue>, schema: InputSchema): string;
+
+// @public
 export interface InputEntry {
+    actor?: Actor;
     // (undocumented)
     id: string;
     // (undocumented)
@@ -72,6 +158,52 @@ export interface InputEntry {
     status: 'submitted' | 'cancelled';
     text: string | null;
 }
+
+// @public
+export interface InputError {
+    // (undocumented)
+    code: InputErrorCode;
+    // (undocumented)
+    path: string;
+}
+
+// @public
+export type InputErrorCode = 'type' | 'required' | 'enum' | 'minimum' | 'maximum' | 'minLength' | 'maxLength' | 'pattern' | 'maxItems' | 'additional' | 'limit';
+
+// @public
+export const inputLimits: Readonly<{
+    maxTextLength: number;
+    maxDepth: number;
+    maxArrayLength: number;
+}>;
+
+// @public
+export type InputResult = {
+    ok: true;
+    value: Record<string, JsonValue>;
+} | {
+    ok: false;
+    errors: InputError[];
+};
+
+// @public
+export interface InputSchema {
+    // (undocumented)
+    default?: {
+        [name: string]: JsonValue;
+    };
+    // (undocumented)
+    description?: string;
+    properties?: {
+        [name: string]: InputSchemaNode;
+    };
+    required?: string[];
+    // (undocumented)
+    type: 'object';
+}
+
+// @public
+export type InputSchemaNode = StringInputSchema | NumberInputSchema | BooleanInputSchema | ArrayInputSchema | InputSchema;
 
 // @public
 export function isJsonValue(value: unknown): value is JsonValue;
@@ -130,6 +262,21 @@ export interface MessageParams {
 }
 
 // @public
+export interface NumberInputSchema {
+    // (undocumented)
+    default?: number;
+    // (undocumented)
+    description?: string;
+    enum?: number[];
+    // (undocumented)
+    maximum?: number;
+    // (undocumented)
+    minimum?: number;
+    // (undocumented)
+    type: 'number' | 'integer';
+}
+
+// @public
 export type OutputBlock = TextBlock | JsonBlock | TableBlock | ListBlock | MessageBlock | CustomBlock;
 
 // @public
@@ -147,7 +294,29 @@ export interface OutputEntry {
 }
 
 // @public
+export function parseEnvelope(raw: unknown): EnvelopeResult;
+
+// @public
+export function parseOptions(args: readonly string[], schema: InputSchema): InputResult;
+
+// @public
 export function quoteArgument(value: string): string;
+
+// @public
+export interface StringInputSchema {
+    // (undocumented)
+    default?: string;
+    // (undocumented)
+    description?: string;
+    enum?: string[];
+    // (undocumented)
+    maxLength?: number;
+    // (undocumented)
+    minLength?: number;
+    pattern?: string;
+    // (undocumented)
+    type: 'string';
+}
 
 // @public
 export interface TableBlock {
@@ -203,6 +372,9 @@ export type TokenizeResult = {
     tokens: Token[];
     error: TokenizeError;
 };
+
+// @public
+export function validateInput(schema: InputSchema, value: unknown): InputResult;
 
 // (No @packageDocumentation comment for this package)
 

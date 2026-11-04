@@ -20,13 +20,13 @@ import { collectSuite, coveredIds, namedIds, rulesOf } from './test-names'
 // rule from the list (CONTRIBUTING.md, "Rule traceability").
 
 /** The rules of 1.0: C-01 to C-69. A later rule raises it. */
-const ruleCount = 69
+const ruleCount = 75
 /**
  * The fewest runnable tests the specs must hold, so a broken reader that
  * finds none fails. Each piece raises it to about the count it leaves; 1.0 is
  * released with it set to the 1.0 count.
  */
-const minimumTests = 395
+const minimumTests = 480
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 

@@ -6,11 +6,11 @@ The console ships no CSS. It renders plain elements with a small, stable set of 
 
 It is not a terminal emulator: no PTY, no ANSI escape handling, no cursor addressing, no full-screen program. `xterm.js` is the tool for that; this library is the tool for an in-app command line whose commands are JavaScript functions.
 
-| Package                                                           | Contents                                                                                                       | Dependencies               |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| [`@dolusoft/command-protocol`](packages/command-protocol)         | JSON types of entries, output blocks, command specs, responses, effects and context frames; the line tokenizer | none                       |
-| [`@dolusoft/command-console-core`](packages/command-console-core) | the console engine (`createConsole`) and its features                                                          | the protocol               |
-| [`@dolusoft/command-console`](packages/command-console)           | `useCommandConsole` and the `CommandConsole` component                                                         | core, protocol; `vue` peer |
+| Package                                                           | Contents                                                                                                                                                             | Dependencies               |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| [`@dolusoft/command-protocol`](packages/command-protocol)         | JSON types of entries, output blocks, command specs, responses, effects, context frames, input schemas and the envelope; the line tokenizer and the checks over them | none                       |
+| [`@dolusoft/command-console-core`](packages/command-console-core) | the console engine (`createConsole`) and its features                                                                                                                | the protocol               |
+| [`@dolusoft/command-console`](packages/command-console)           | `useCommandConsole` and the `CommandConsole` component                                                                                                               | core, protocol; `vue` peer |
 
 ## Install
 

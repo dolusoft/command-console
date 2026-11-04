@@ -482,6 +482,13 @@ export interface CommandSpec {
    * those positions are never completed. `true` is `{ fromArg: 0 }`.
    */
   sensitive?: boolean | { fromArg: number }
+  /**
+   * The schema of the command's input (`checkInputSchema`). A command with a
+   * schema is called as `name --field value …` (`parseOptions`).
+   */
+  input?: InputSchema
+  /** What running the command does to the application. */
+  danger?: Danger
 }
 
 // packages/command-protocol/src/command.ts
@@ -495,6 +502,11 @@ export interface CommandResponse {
   quiet?: true
   /** Applied in order, before the output is appended. */
   effects?: ConsoleEffect[]
+  /**
+   * A short result for the caller of an operation (`CommandOutcome`), such
+   * as "342 rows"; at most 200 characters.
+   */
+  summary?: string
 }
 
 // packages/command-protocol/src/command.ts
@@ -548,6 +560,8 @@ export interface InputEntry {
   redacted: boolean
   /** `cancelled` when the line was ended with Ctrl+C. */
   status: 'submitted' | 'cancelled'
+  /** Who the line came from, as a label for the history. */
+  actor?: Actor
 }
 
 // packages/command-protocol/src/entry.ts
@@ -1172,6 +1186,50 @@ no DOM work, and disposes the console when its effect scope is disposed.
 
 The input is not inside a `<form>` rendered by the library and has no `name` attribute; `autocomplete`,
 `autocorrect`, `autocapitalize` and `spellcheck` are off.
+
+#### C-70 Input schema
+
+`checkInputSchema` accepts only the subset: a root of `type: 'object'`; per type only its keywords (`description` and
+`default` for all; `enum`, `minLength`, `maxLength`, `pattern` for strings; `enum`, `minimum`, `maximum` for numbers
+and integers; `items` (required) and `maxItems` for arrays; `properties` and `required` for objects); property names
+that match `^[A-Za-z][A-Za-z0-9_-]*$`; a `pattern` that compiles as a `u` regular expression; `required` names that
+are properties; containers no deeper than `inputLimits.maxDepth`; a `default` the node itself accepts, and none on an
+array. Anything else throws a `TypeError` that names the path; nothing is ignored.
+
+#### C-71 Input validation
+
+`validateInput(schema, value)` returns a copy of the value, never the input: an optional field missing from an object
+takes its `default`, an absent optional array is `[]`. Otherwise it returns every error as `{ path, code }` (`ip`,
+`filter.ip`, `tags[2]`; `''` for the root), with no value in it: a wrong type (`integer` wants a whole number), a
+missing required field, an unknown field (`additional`), and each failed keyword under its own name. Lengths count
+code points.
+
+#### C-72 Input limits
+
+A string longer than `inputLimits.maxTextLength` (1000) code points, an array longer than
+`inputLimits.maxArrayLength` (50), or an object or array deeper than `inputLimits.maxDepth` (3, the root object is 1)
+is a `limit` error, whatever the schema allows; nothing below it is checked.
+
+#### C-73 Option lines
+
+`parseOptions(args, schema)` reads the tokens after the command name as `--name value` pairs: a value converts to the
+field's type (a number as JSON writes it; an object, or an array item that is an object or an array, as JSON text); a
+boolean field alone is `true` and also takes `true` or `false`; an array field repeats its name, and an array field
+that is absent is `[]`. An unknown name or a token that is not a name (`additional`), a name without its value or a
+second value of a field that is not an array (`type`) is an error. The result is that of `validateInput`.
+
+#### C-74 Canonical line
+
+`formatCommandLine(command, value, schema)` writes the command and the fields of the validated value in the order of
+`properties`, each value through `quoteArgument`; `true` is the bare `--name`, `false` is `--name false`. Its tokens
+after the first read back with `parseOptions` to the validated value. A value the schema rejects throws.
+
+#### C-75 Envelope
+
+`parseEnvelope(raw)` accepts a version 1 `request` and returns a new envelope with only the known fields, without
+changing `raw`. A plain object whose `v` is a number other than 1 is `unsupported-version`; one larger than
+`envelopeMaxBytes` (16384 bytes of UTF-8 JSON, `envelopeBytes`) is `too-large`; a missing or mistyped field, another
+`kind`, or `args` that is not a JSON object within the input limits (C-72) is `invalid`.
 
 ## DOM contract
 
