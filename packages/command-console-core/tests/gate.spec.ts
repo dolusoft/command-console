@@ -391,6 +391,15 @@ describe('C-78 Gate', () => {
     void console.run('search --ip b')
     await flush()
     expect(fake.sent[1].id).toBe('00000000-0000-4000-8000-000000000000')
+    getRandomValues.mockImplementation((bytes: Uint8Array) => {
+      bytes.forEach((_, i) => (bytes[i] = i))
+      return bytes
+    })
+    fake.echo()
+    await flush()
+    void console.run('search --ip c')
+    await flush()
+    expect(fake.sent[2].id).toBe('00010203-0405-4607-8809-0a0b0c0d0e0f')
   })
 
   it('throws on creation with a gate, no crypto.randomUUID, no crypto.getRandomValues and no createEnvelopeId', () => {
@@ -1238,6 +1247,26 @@ describe('C-86 Command error', () => {
       { type: 'message', code: 'command-failed' },
       { type: 'message', code: 'command-failed' }
     ])
+  })
+
+  it('a CommandError of another copy of the core is known by its name', async () => {
+    class OtherCommandError extends Error {
+      readonly code = 'target-not-found'
+      constructor() {
+        super('No tab t9.')
+        this.name = 'CommandError'
+      }
+    }
+    const console = createConsole({
+      commands: [
+        search(() => {
+          throw new OtherCommandError()
+        })
+      ]
+    })
+    expect(
+      await console.request({ line: 'search --ip a', actor: agent })
+    ).toEqual({ status: 'error', code: 'target-not-found' })
   })
 
   it('formatError still draws the entry of a CommandError', async () => {

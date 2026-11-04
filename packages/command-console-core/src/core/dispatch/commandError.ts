@@ -40,9 +40,14 @@ export class CommandError extends Error {
 
 /**
  * The outcome code of an error a command's `run` threw: a `CommandError`'s
- * code when a command may give it, else `failed` (C-86).
+ * code when a command may give it, else `failed` (C-86). The error is known
+ * by its `name`, not by `instanceof`: a command built against a second copy
+ * of the core throws a `CommandError` of another class.
  */
-export const commandErrorCode = (error: unknown): CommandErrorCode =>
-  error instanceof CommandError && commandCodes.includes(error.code)
-    ? error.code
-    : 'failed'
+export const commandErrorCode = (error: unknown): CommandErrorCode => {
+  if (!(error instanceof Error) || error.name !== 'CommandError') {
+    return 'failed'
+  }
+  const { code } = error as Error & { code?: unknown }
+  return commandCodes.includes(code) ? (code as CommandErrorCode) : 'failed'
+}

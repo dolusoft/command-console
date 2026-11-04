@@ -488,7 +488,8 @@ with `user` has neither. A partial `labels.actors` keeps the other defaults.
 
 ### C-86 Command error
 
-A command's `run` that throws or rejects a `CommandError` ends the run as failed like any error (C-18): `onError` gets
+A command's `run` that throws or rejects a `CommandError` (an `Error` whose `name` is `CommandError`, so one from
+another copy of the core counts) ends the run as failed like any error (C-18): `onError` gets
 the error and the entry is `formatError`'s response or `command-failed`. Its outcome (C-82) is
 `{ status: 'error', code }` with the error's `code` when that is `target-not-found`, `invalid-args` or `failed`, and
 `failed` for any other code, a code the core owns (`busy`, `timeout`, `id-conflict`, …) included. Any other error, and
