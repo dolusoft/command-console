@@ -222,4 +222,31 @@ describe('C-47 labels (helpers)', () => {
       } as never)
     ).toBe('nope undefined')
   })
+
+  it('C-47 invalid-args and operation-failed have English defaults', () => {
+    const labels = resolveLabels()
+    const text = (block: Parameters<typeof messageText>[1]) =>
+      messageText(labels, block)
+    expect(
+      text({
+        type: 'message',
+        code: 'invalid-args',
+        params: { path: 'ip', reason: 'required' }
+      })
+    ).toBe('Invalid option: ip.')
+    expect(
+      text({
+        type: 'message',
+        code: 'invalid-args',
+        params: { path: null, reason: 'type' }
+      })
+    ).toBe('Invalid options.')
+    expect(
+      text({
+        type: 'message',
+        code: 'operation-failed',
+        params: { code: 'timeout' }
+      })
+    ).toBe('The transport did not answer; the command did not run.')
+  })
 })

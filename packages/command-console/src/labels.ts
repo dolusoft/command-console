@@ -1,8 +1,28 @@
 // Every text the component renders comes from here (P7, C-47): English
 // defaults, merged one level deep with the `labels` prop.
-import type { MessageBlock, MessageParams } from '@dolusoft/command-protocol'
+import type {
+  ErrorCode,
+  MessageBlock,
+  MessageParams
+} from '@dolusoft/command-protocol'
 
 import type { ConsoleLabels, ConsoleLabelsInput } from './contract'
+
+/** The default text of each `operation-failed` code. */
+const operationTexts: Record<ErrorCode, string> = {
+  'invalid-args': 'Invalid options.',
+  'unknown-command': 'Unknown command.',
+  'not-allowed': 'Not allowed from here.',
+  'target-not-found': 'The target no longer exists.',
+  'id-conflict': 'The operation was changed on the way; it did not run.',
+  'unsupported-version': 'Unsupported version.',
+  'too-large': 'The command is too large to send.',
+  busy: 'Busy.',
+  timeout: 'The transport did not answer; the command did not run.',
+  failed: 'The command failed.',
+  'connection-lost': 'No connection; the command did not run.',
+  cancelled: 'Cancelled.'
+}
 
 /** The English defaults (README: Labels). */
 const defaultLabels: ConsoleLabels = {
@@ -21,7 +41,12 @@ const defaultLabels: ConsoleLabels = {
         : `${params.name}: command not found`,
     'command-failed': 'The command failed.',
     'unterminated-quote': 'Unterminated quote.',
-    interrupted: 'Interrupted.'
+    interrupted: 'Interrupted.',
+    'invalid-args': params =>
+      params.path === null || params.path === ''
+        ? 'Invalid options.'
+        : `Invalid option: ${params.path}.`,
+    'operation-failed': params => operationTexts[params.code]
   }
 }
 

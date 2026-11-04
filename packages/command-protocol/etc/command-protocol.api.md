@@ -243,7 +243,7 @@ export interface MessageBlock {
 }
 
 // @public
-export type MessageCode = 'command-not-found' | 'command-failed' | 'unterminated-quote' | 'interrupted';
+export type MessageCode = 'command-not-found' | 'command-failed' | 'unterminated-quote' | 'interrupted' | 'invalid-args' | 'operation-failed';
 
 // @public
 export interface MessageParams {
@@ -252,6 +252,13 @@ export interface MessageParams {
     // (undocumented)
     'command-not-found': {
         name: string | null;
+    };
+    'invalid-args': {
+        path: string | null;
+        reason: InputErrorCode;
+    };
+    'operation-failed': {
+        code: ErrorCode;
     };
     // (undocumented)
     'unterminated-quote': {
