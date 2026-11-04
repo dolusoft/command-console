@@ -4,6 +4,7 @@
 
 ```ts
 
+import { Actor } from '@dolusoft/command-protocol';
 import { BeforeRunResult } from '@dolusoft/command-console-core';
 import { CommandDefinition } from '@dolusoft/command-console-core';
 import { CommandRequest } from '@dolusoft/command-console-core';
@@ -48,6 +49,11 @@ import { TableBlock } from '@dolusoft/command-protocol';
 import { TableColumn } from '@dolusoft/command-protocol';
 import { TextBlock } from '@dolusoft/command-protocol';
 import { Updater } from '@dolusoft/command-console-core';
+
+export { Actor }
+
+// @public
+export type ActorLabels = Record<Exclude<Actor, 'user'>, string>;
 
 export { BeforeRunResult }
 
@@ -112,6 +118,7 @@ export interface ConsoleExpose {
 
 // @public
 export interface ConsoleLabels {
+    actors: ActorLabels;
     busy: string;
     cancelledMarker: string;
     completions: string;
@@ -123,8 +130,9 @@ export interface ConsoleLabels {
 }
 
 // @public
-export type ConsoleLabelsInput = Partial<Omit<ConsoleLabels, 'messages'>> & {
+export type ConsoleLabelsInput = Partial<Omit<ConsoleLabels, 'messages' | 'actors'>> & {
     messages?: Partial<MessageLabels>;
+    actors?: Partial<ActorLabels>;
 };
 
 export { ConsoleOptions }
@@ -133,7 +141,8 @@ export { ConsoleOptions }
 export interface ConsoleProps {
     autofocus?: boolean;
     beforeRun?: (info: RunInfo, signal: AbortSignal) => BeforeRunResult | Promise<BeforeRunResult>;
-    commands: CommandDefinition[];
+    commands?: CommandDefinition[];
+    console?: Console_2<OptionalFeatures>;
     context?: ContextFrame[];
     createId?: () => string;
     entries?: ConsoleEntry[];
@@ -233,7 +242,7 @@ export { TextBlock }
 export { Updater }
 
 // @public
-export function useCommandConsole<T extends Partial<OptionalFeatures> = {}>(options: UseCommandConsoleOptions<T>): UseCommandConsoleReturn<T>;
+export function useCommandConsole<T extends Partial<OptionalFeatures> = {}>(options: UseCommandConsoleOptions<T> | UseExternalConsoleOptions<T>): UseCommandConsoleReturn<T>;
 
 // Warning: (ae-forgotten-export) The symbol "ValueOptions" needs to be exported by the entry point index.d.ts
 // Warning: (ae-forgotten-export) The symbol "FunctionOptions" needs to be exported by the entry point index.d.ts
@@ -243,6 +252,7 @@ export type UseCommandConsoleOptions<T extends Partial<OptionalFeatures> = {}> =
     features?: T;
     commands: MaybeRefOrGetter<CommandDefinition[]>;
     initialState?: MaybeRefOrGetter<Partial<ControllableState> | undefined>;
+    console?: never;
 };
 
 // @public
@@ -250,6 +260,13 @@ export interface UseCommandConsoleReturn<T extends Partial<OptionalFeatures> = {
     console: Console_2<T>;
     state: Readonly<ShallowRef<ConsoleState>>;
 }
+
+// @public
+export type UseExternalConsoleOptions<T extends Partial<OptionalFeatures> = {}> = {
+    console: Console_2<T>;
+} & {
+    [K in Exclude<keyof UseCommandConsoleOptions<T>, 'console'>]?: never;
+};
 
 // (No @packageDocumentation comment for this package)
 
