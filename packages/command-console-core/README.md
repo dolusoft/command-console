@@ -226,8 +226,8 @@ The consumer's transport implements the gate; the core never touches the network
    the canonical name, the normalized input) is sent. Above `envelopeMaxBytes` it is not sent (`too-large`).
 3. Its echo, delivered through `subscribe`, runs the command with the local record when `command`, `args` and `target`
    match; a different echo ends the run with `id-conflict` and `onError`. Other traffic is ignored.
-4. A `send` that rejects ends the run with `connection-lost`; no echo within `echoTimeoutMs` with `timeout`.
-   `cancel()`, `reset()` and a context change end it as cancelled.
+4. A `send` that rejects, or a `subscribe`, `schedule` or `send` that throws, ends the run with `connection-lost`;
+   no echo within `echoTimeoutMs` with `timeout`. `cancel()`, `reset()` and a context change end it as cancelled.
 
 These ends append an `operation-failed` entry with the code. The last 500 closed ids are remembered, so a late echo
 runs nothing. The console subscribes on its first envelope, and `dispose()` unsubscribes and cancels the timer. A

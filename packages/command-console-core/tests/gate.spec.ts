@@ -507,6 +507,38 @@ describe('C-79 Envelope', () => {
     ])
   })
 
+  it.each([
+    ['subscribe', 'subscribe'],
+    ['schedule', 'schedule'],
+    ['send', 'send']
+  ] as const)(
+    'a %s that throws ends the run with connection-lost, in an action of its own',
+    async (_, method) => {
+      const run = vi.fn()
+      const { console, fake } = gated({ commands: [search(run)] })
+      fake.gate[method].mockImplementation(() => {
+        throw new Error('down')
+      })
+      const states: (string | null)[] = []
+      console.subscribe(state => {
+        states.push(state.running?.phase ?? null)
+      })
+      expect(await console.run('search --ip a')).toBe(true)
+      expect(run).not.toHaveBeenCalled()
+      expect(console.getState().running).toBeNull()
+      // The start of the run and its end: two actions, two notifications.
+      expect(states).toEqual([null, null])
+      expect(messagesOf(outputs(console.getState().entries))).toEqual([
+        {
+          type: 'message',
+          code: 'operation-failed',
+          params: { code: 'connection-lost' }
+        }
+      ])
+      expect(await console.submit()).toBe(true)
+    }
+  )
+
   it('no echo within echoTimeoutMs ends the run with timeout', async () => {
     const run = vi.fn()
     const { console, fake } = gated({

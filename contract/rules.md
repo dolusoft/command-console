@@ -423,9 +423,9 @@ With a gate, a schema line of a command with `danger` and without `sensitive` se
 it go: version 1, `kind: 'request'`, the actor, `from.tab` and `target.tab` the gate's tab, `target.view` the run's
 view, the canonical name and the normalized value. The run stays in `phase: 'running'` and the console stays locked
 (C-16) while it waits for its echo; the command does not run before it. An envelope larger than `envelopeMaxBytes`
-ends the run with `operation-failed` `too-large` and sends nothing; a `send` that throws or rejects before the echo
-ends it with `connection-lost`; no echo within `echoTimeoutMs` (default 5000, through `gate.schedule`) ends it with
-`timeout`.
+ends the run with `operation-failed` `too-large` and sends nothing; a gate `subscribe`, `schedule` or `send` that
+throws, or a `send` that rejects, before the echo ends it with `connection-lost` in an action of its own; no echo
+within `echoTimeoutMs` (default 5000, through `gate.schedule`) ends it with `timeout`.
 
 ### C-80 Echo
 

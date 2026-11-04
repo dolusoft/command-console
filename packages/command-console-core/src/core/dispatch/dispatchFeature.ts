@@ -474,10 +474,11 @@ const send = (console: object, run: Run) => {
     if (!run.waiting) {
       return
     }
-    if (state.unsubscribe === null) {
-      state.unsubscribe = gate.subscribe(raw => receive(console, raw))
-    }
+    // Any of the gate's calls may throw; each ends the run in its own action.
     try {
+      if (state.unsubscribe === null) {
+        state.unsubscribe = gate.subscribe(raw => receive(console, raw))
+      }
       run.cancelTimer = gate.schedule(
         options.echoTimeoutMs ?? 5000,
         ended('timeout')
