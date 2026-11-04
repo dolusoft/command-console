@@ -236,36 +236,31 @@ const apply = (
 }
 
 /**
- * The outcome of a response: an `error` tone is `failed` (C-87); `data` that
- * is not JSON or is over `dataMaxBytes` is `too-large` (C-88). Without
- * `withData` (a typed line, which has no caller) `data` is not read. The
- * outcome is a JSON copy: what the command does to `data` later never
- * reaches the caller, and `undefined` fields are left out.
+ * Ends `run` with what it returned. An `error` tone is `failed` (C-87);
+ * `data` that is not JSON or is over `dataMaxBytes` is `too-large` (C-88). A
+ * typed line has no caller, so its `data` is not read. The command's value
+ * is read only inside `checkData`, and the outcome's `data` is parsed from
+ * the text it returns.
  */
-const outcomeOf = (
-  response: CommandResponse,
-  withData: boolean
-): CommandOutcome => {
-  const data = withData ? response.data : undefined
-  return response.tone === 'error'
-    ? failure('failed')
-    : data !== undefined && !checkData(data)
-      ? failure('too-large')
-      : (JSON.parse(
-          JSON.stringify({
-            status: 'ok',
-            summary: cutSummary(response.summary),
-            data
-          })
-        ) as CommandOutcome)
-}
-
-/** Ends `run` with what it returned. */
 const fulfil = (console: object, run: Run, value: CommandReturn) => {
   run.current = false
   try {
     const response = normalizeReturn(value)
-    run.outcome = outcomeOf(response, run.onOutcome !== undefined)
+    const text =
+      run.onOutcome && response.data !== undefined
+        ? checkData(response.data)
+        : ''
+    const summary = cutSummary(response.summary)
+    run.outcome =
+      response.tone === 'error'
+        ? failure('failed')
+        : text === undefined
+          ? failure('too-large')
+          : {
+              status: 'ok',
+              ...(summary !== undefined && { summary }),
+              ...(text && { data: JSON.parse(text) as JsonValue })
+            }
     apply(console, run, response, 'default')
   } finally {
     cleanup(console, run)

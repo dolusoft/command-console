@@ -54,19 +54,40 @@ export const cutSummary = (summary: unknown): string | undefined =>
     : undefined
 
 /**
- * Whether a response's `data` may reach the caller (C-88): a JSON value whose
- * UTF-8 JSON takes at most `dataMaxBytes`. A getter that throws while it is
- * read counts as not JSON.
+ * Refuses, while `JSON.stringify` reads, a value it would drop or turn into
+ * `null`: one that a getter changed after `isJsonValue` read it.
  */
-export const checkData = (data: unknown): boolean => {
-  try {
-    return (
-      isJsonValue(data) &&
-      new TextEncoder().encode(JSON.stringify(data)).length <= dataMaxBytes
-    )
-  } catch {
-    return false
+const strict = (_key: string, value: unknown): unknown => {
+  // An object's own fields come to this function one by one.
+  if (typeof value === 'object' || isJsonValue(value)) {
+    return value
   }
+  throw new TypeError('not JSON')
+}
+
+/**
+ * A response's `data` as the caller gets it (C-88): its JSON, made by the one
+ * `JSON.stringify` the size is measured on, so the caller's copy is parsed
+ * from the very text that was checked; `undefined` when it is not a JSON
+ * value (`isJsonValue`, then `strict`) or its UTF-8 JSON is larger than
+ * `dataMaxBytes`. A cycle, a bigint or a getter that throws counts as not
+ * JSON.
+ */
+export const checkData = (data: unknown): string | undefined => {
+  try {
+    const text = isJsonValue(data) && JSON.stringify(data, strict)
+    // Each UTF-16 unit takes at least one UTF-8 byte.
+    if (
+      text &&
+      text.length <= dataMaxBytes &&
+      new TextEncoder().encode(text).length <= dataMaxBytes
+    ) {
+      return text
+    }
+  } catch {
+    // Not JSON.
+  }
+  return undefined
 }
 
 interface Crypto {

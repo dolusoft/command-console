@@ -61,7 +61,9 @@ const response: CommandResponse = {
     result.ok && echo.ok && envelopeBytes(envelope) <= envelopeMaxBytes
       ? 'default'
       : 'error',
-  ...(JSON.stringify(args).length <= dataMaxBytes ? { data: args } : {})
+  ...(new TextEncoder().encode(JSON.stringify(args)).length <= dataMaxBytes
+    ? { data: args }
+    : {})
 }
 
 document.body.textContent = isJsonValue(response)

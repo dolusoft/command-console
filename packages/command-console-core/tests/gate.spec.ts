@@ -1509,6 +1509,87 @@ describe('C-88 Data', () => {
     })
   })
 
+  it('counts UTF-8 bytes: non-ASCII data at the limit fits, one byte over is too-large', async () => {
+    // A JSON string is its two quotes plus the text; 'ü' is two bytes.
+    const at = 'ü'.repeat((dataMaxBytes - 2) / 2)
+    const console = createConsole({
+      commands: [
+        search(() => ({ data: at })),
+        search(() => ({ data: `${at}a` }), { name: 'over' })
+      ]
+    })
+    expect(await ask(console)).toEqual({ status: 'ok', data: at })
+    expect(await ask(console, 'over')).toEqual({
+      status: 'error',
+      code: 'too-large'
+    })
+  })
+
+  it('-0 is data and reads back as 0', async () => {
+    const console = createConsole({ commands: [search(() => ({ data: -0 }))] })
+    const outcome = await ask(console)
+    expect(outcome.status).toBe('ok')
+    expect(Object.is((outcome as { data: unknown }).data, 0)).toBe(true)
+  })
+
+  it('a getter that changes between reads is too-large, the output is drawn, nothing rejects', async () => {
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    // Each value is JSON on its first read and something else after it.
+    const later: (() => unknown)[] = [
+      () => {
+        throw new Error('gone')
+      },
+      () => () => 1,
+      () => undefined,
+      () => Number.NaN,
+      () => 'x'.repeat(1_000_000)
+    ]
+    const reads: number[] = later.map(() => 0)
+    const changing = (i: number) => ({
+      get rows(): unknown {
+        reads[i]++
+        return reads[i] === 1 ? 1 : later[i]()
+      }
+    })
+    const console = createConsole({
+      commands: later.flatMap((_, i) => [
+        search(() => ({ output: `s${i}`, data: changing(i) }) as never, {
+          name: `s${i}`
+        }),
+        search(
+          () =>
+            Promise.resolve({ output: `a${i}`, data: changing(i) }) as never,
+          { name: `a${i}` }
+        )
+      ])
+    })
+    try {
+      for (let i = 0; i < later.length; i++) {
+        for (const name of [`s${i}`, `a${i}`]) {
+          reads[i] = 0
+          expect(await ask(console, name)).toEqual({
+            status: 'error',
+            code: 'too-large'
+          })
+          expect(reads[i]).toBeLessThanOrEqual(2)
+        }
+      }
+      await flush()
+      expect(
+        outputs(console.getState().entries).map(entry => entry.blocks)
+      ).toEqual(
+        later.flatMap((_, i) => [
+          [{ type: 'text', text: `s${i}` }],
+          [{ type: 'text', text: `a${i}` }]
+        ])
+      )
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
+  })
+
   it('data that is not JSON is too-large', async () => {
     const cycle: Record<string, unknown> = {}
     cycle.self = cycle
@@ -1524,7 +1605,9 @@ describe('C-88 Data', () => {
         get a() {
           throw new Error('x')
         }
-      }
+      },
+      new Array<number>(3),
+      { toJSON: () => 1 }
     ]
     const console = createConsole({
       commands: values.map((data, i) =>

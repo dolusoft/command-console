@@ -30,7 +30,7 @@ const ruleCount = 88
  * finds none fails. Each piece raises it to about the count it leaves; 1.0 is
  * released with it set to the 1.0 count.
  */
-const minimumTests = 563
+const minimumTests = 566
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
