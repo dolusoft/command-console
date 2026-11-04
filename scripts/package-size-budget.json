@@ -6,12 +6,13 @@
     "0.0.0 (core, #1, 2026-10-26): the core fixture builds a console with the core features and runs a command (engine, store, four features, tokenizer); core-all still imports the namespace until the features exist.",
     "0.0.0 (recall, #1, 2026-10-26): core-all becomes a real console with recallFeature (record, browse, clear-recall); completion and context add theirs.",
     "0.0.0 (context, #1, 2026-10-26): core-all adds contextFeature (pushes, pops and resets frames) next to recallFeature; completion adds its own.",
-    "0.0.0 (completion, #1, 2026-10-26): core-all adds completionFeature (token at the caret, filter, quoting, session keys) and completes a token; all three optional features are in."
+    "0.0.0 (completion, #1, 2026-10-26): core-all adds completionFeature (token at the caret, filter, quoting, session keys) and completes a token; all three optional features are in.",
+    "1.0.1 (protocol, #13, 2026-11-04): the protocol fixture also checks an input schema, reads an option line, validates and formats the input, and builds, measures and parses an envelope: the schema checker, the validator, the option line and the envelope are new runtime code (ADR 0012)."
   ],
   "fixtures": {
     "protocol": {
-      "measuredGzipBytes": 848,
-      "maxGzipBytes": 891
+      "measuredGzipBytes": 3713,
+      "maxGzipBytes": 3899
     },
     "core": {
       "measuredGzipBytes": 5736,
