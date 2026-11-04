@@ -1383,7 +1383,8 @@ sensitive one, an `irreversible` one, an actor other than `external-agent`, and 
 `not-allowed`; options that do not match the schema are `invalid-args`. Nothing of these reaches the entries.
 Otherwise an input entry with the canonical line and the `actor` is appended and the line takes the path of C-77 to
 C-81. The run's end gives `ok` with the response's `summary` (cut to 200 code points), `failed`, `cancelled`,
-`not-allowed` when `beforeRun` returns `false`, or the code it ended with. A user's line carries no `actor`.
+`not-allowed` when `beforeRun` returns `false`, the code of a `CommandError` (C-86), or the code it ended with; a
+response with `tone: 'error'` is `failed` (C-87). A user's line carries no `actor`.
 
 #### C-83 Agent tools
 
@@ -1410,6 +1411,14 @@ its live input.
 An input entry whose `actor` is `assistant` or `external-agent` has `data-actor` with that value and, before its
 prompt, a `span.cc-actor` with `labels.actors[actor]`, so the label is read with the line; a line without `actor` or
 with `user` has neither. A partial `labels.actors` keeps the other defaults.
+
+#### C-86 Command error
+
+A command's `run` that throws or rejects a `CommandError` ends the run as failed like any error (C-18): `onError` gets
+the error and the entry is `formatError`'s response or `command-failed`. Its outcome (C-82) is
+`{ status: 'error', code }` with the error's `code` when that is `target-not-found`, `invalid-args` or `failed`, and
+`failed` for any other code, a code the core owns (`busy`, `timeout`, `id-conflict`, …) included. Any other error, and
+a `CommandError` thrown by `beforeRun`, `normalize` or `createEnvelopeId`, gives `failed`.
 
 ## DOM contract
 

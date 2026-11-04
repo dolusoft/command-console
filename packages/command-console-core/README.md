@@ -247,7 +247,24 @@ or `not-allowed` for a command without `input` or `danger`, a sensitive or `irre
 for every actor other than `external-agent` and every `danger` other than `read`. These leave no entry. Otherwise an
 input entry with the canonical line and the `actor` is appended and the line takes the path above. The outcome is
 `ok` with the response's `summary` (cut to 200 code points), `failed`, `cancelled`, `not-allowed` (`beforeRun`
-returned `false`) or the gate's code. A line the user types carries no `actor`.
+returned `false`), the code of a `CommandError`, or the gate's code. A line the user types carries no `actor`.
+
+A command ends its run with a code of its own by throwing (or rejecting) a `CommandError`:
+
+```ts
+import { CommandError } from '@dolusoft/command-console-core'
+
+run: request => {
+  const tab = findTab(request.view)
+  if (!tab) throw new CommandError('target-not-found', `No tab ${request.view}.`)
+  // …
+}
+```
+
+The run fails as with any error (`onError` gets it, the entry is `formatError`'s or `command-failed`), and the
+outcome is `{ status: 'error', code }`. A command may give `target-not-found`, `invalid-args` or `failed`; any other
+code (`busy`, `timeout`, `id-conflict`, … belong to the core) gives `failed`, and so does a `CommandError` thrown by
+`beforeRun`, `normalize` or `createEnvelopeId`.
 
 `agentTools(console, { context })` returns the `context`, `help` and `run` tools as plain objects in the shape of a
 WebMCP tool (`name`, `description`, `inputSchema`, `annotations`, `execute`). The consumer registers them:

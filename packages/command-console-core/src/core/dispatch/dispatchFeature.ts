@@ -23,6 +23,7 @@ import {
   validateInput
 } from '@dolusoft/command-protocol'
 
+import { commandErrorCode } from './commandError'
 import type {
   CommandDefinition,
   CommandRequest,
@@ -246,9 +247,18 @@ const fulfil = (console: object, run: Run, value: CommandReturn) => {
   }
 }
 
-const fail = (console: object, run: Run, error: unknown) => {
+/**
+ * Ends `run` as failed (C-18); `code` is the outcome's code, `failed` unless
+ * the command's own `run` threw a `CommandError` (C-86).
+ */
+const fail = (
+  console: object,
+  run: Run,
+  error: unknown,
+  code: ErrorCode = 'failed'
+) => {
   run.current = false
-  run.outcome = failure('failed')
+  run.outcome = failure(code)
   try {
     const { store, options } = liveRecord(console)
     store.afterCommit(() =>
@@ -321,17 +331,22 @@ const settle = (console: object, run: Run, fn: () => void) => {
   })
 }
 
-/** Handles a return that may be a promise: now, or in its own action. */
+/**
+ * Handles a return that may be a promise: now, or in its own action. A
+ * rejection fails the run with the code `codeOf` gives it.
+ */
 const whenSettled = <T>(
   console: object,
   run: Run,
   value: T | PromiseLike<T>,
-  onValue: (value: T) => void
+  onValue: (value: T) => void,
+  codeOf: (error: unknown) => ErrorCode = () => 'failed'
 ) => {
   if (isThenable(value)) {
     Promise.resolve(value).then(
       result => settle(console, run, () => onValue(result)),
-      (error: unknown) => settle(console, run, () => fail(console, run, error))
+      (error: unknown) =>
+        settle(console, run, () => fail(console, run, error, codeOf(error)))
     )
   } else {
     onValue(value)
@@ -358,10 +373,16 @@ const go = (console: object, run: Run) => {
   try {
     result = run.command.run(run.request, context)
   } catch (error) {
-    fail(console, run, error)
+    fail(console, run, error, commandErrorCode(error))
     return
   }
-  whenSettled(console, run, result, value => fulfil(console, run, value))
+  whenSettled(
+    console,
+    run,
+    result,
+    value => fulfil(console, run, value),
+    commandErrorCode
+  )
 }
 
 const write = (

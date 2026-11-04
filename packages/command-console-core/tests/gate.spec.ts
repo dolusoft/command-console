@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   agentTools,
+  CommandError,
   contextFeature,
   createConsole,
   type CommandDefinition,
@@ -1204,5 +1205,144 @@ describe('C-83 Agent tools', () => {
         code: 'invalid-args'
       })
     }
+  })
+})
+
+describe('C-86 Command error', () => {
+  const agent = 'external-agent' as const
+
+  it('a CommandError from run gives its code, with the usual error entry and onError', async () => {
+    const errors: unknown[] = []
+    const thrown = new CommandError('target-not-found', 'No tab t9.')
+    const console = createConsole({
+      commands: [
+        search(() => {
+          throw thrown
+        }),
+        search(() => Promise.reject(new CommandError('invalid-args')), {
+          name: 'later'
+        })
+      ],
+      onError: error => errors.push(error)
+    })
+    expect(
+      await console.request({ line: 'search --ip a', actor: agent })
+    ).toEqual({ status: 'error', code: 'target-not-found' })
+    expect(
+      await console.request({ line: 'later --ip a', actor: agent })
+    ).toEqual({ status: 'error', code: 'invalid-args' })
+    await flush()
+    expect(errors[0]).toBe(thrown)
+    expect(errors).toHaveLength(2)
+    expect(messagesOf(outputs(console.getState().entries))).toEqual([
+      { type: 'message', code: 'command-failed' },
+      { type: 'message', code: 'command-failed' }
+    ])
+  })
+
+  it('formatError still draws the entry of a CommandError', async () => {
+    const console = createConsole({
+      commands: [
+        search(() => {
+          throw new CommandError('target-not-found')
+        })
+      ],
+      formatError: () => ({ output: 'no such tab' })
+    })
+    expect(
+      await console.request({ line: 'search --ip a', actor: agent })
+    ).toEqual({ status: 'error', code: 'target-not-found' })
+    expect(outputs(console.getState().entries)[0]).toMatchObject({
+      tone: 'error',
+      blocks: [{ type: 'text', text: 'no such tab' }]
+    })
+  })
+
+  it('a code the command cannot give, and any other error, are failed', async () => {
+    const codes = ['busy', 'timeout', 'id-conflict', 'cancelled', 'nope']
+    const console = createConsole({
+      commands: [
+        ...codes.map(code =>
+          search(
+            () => {
+              throw new CommandError(code as 'failed')
+            },
+            { name: code }
+          )
+        ),
+        search(() => {
+          throw new CommandError('failed')
+        }),
+        search(
+          () => {
+            throw Object.assign(new Error('x'), { code: 'target-not-found' })
+          },
+          { name: 'plain' }
+        )
+      ]
+    })
+    for (const name of [...codes, 'search', 'plain']) {
+      expect(
+        await console.request({ line: `${name} --ip a`, actor: agent })
+      ).toEqual({ status: 'error', code: 'failed' })
+    }
+  })
+
+  it('a CommandError from beforeRun, normalize or createEnvelopeId is failed', async () => {
+    const before = createConsole({
+      commands: [search()],
+      beforeRun: () => {
+        throw new CommandError('target-not-found')
+      }
+    })
+    const normalized = createConsole({
+      commands: [
+        search(undefined, {
+          normalize: () => {
+            throw new CommandError('target-not-found')
+          }
+        })
+      ]
+    })
+    const ided = createConsole({
+      gate: fakeGate().gate,
+      commands: [search()],
+      createEnvelopeId: () => {
+        throw new CommandError('target-not-found')
+      }
+    })
+    for (const console of [before, normalized, ided]) {
+      expect(
+        await console.request({ line: 'search --ip a', actor: agent })
+      ).toEqual({ status: 'error', code: 'failed' })
+    }
+  })
+
+  it('a gated command that throws a CommandError after its echo gives its code', async () => {
+    const { console, fake } = gated({
+      commands: [
+        search(() => {
+          throw new CommandError('target-not-found')
+        })
+      ]
+    })
+    const outcome = console.request({ line: 'search --ip a', actor: agent })
+    await flush()
+    fake.echo()
+    expect(await outcome).toEqual({
+      status: 'error',
+      code: 'target-not-found'
+    })
+  })
+
+  it('is an Error with its code, its message and its cause', () => {
+    const cause = new Error('inner')
+    const error = new CommandError('invalid-args', 'Bad view.', { cause })
+    expect(error).toBeInstanceOf(Error)
+    expect(error.name).toBe('CommandError')
+    expect(error.code).toBe('invalid-args')
+    expect(error.message).toBe('Bad view.')
+    expect(error.cause).toBe(cause)
+    expect(new CommandError('failed').message).toBe('failed')
   })
 })

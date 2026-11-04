@@ -4,6 +4,8 @@
 
 export { consoleFeatures, createConsole } from './helpers/consoleFeatures'
 export { agentTools } from './helpers/agentTools'
+export { CommandError } from './core/dispatch/commandError'
+export type { CommandErrorCode } from './core/dispatch/commandError'
 export type {
   AgentTool,
   AgentToolAnnotations,
