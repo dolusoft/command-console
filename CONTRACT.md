@@ -564,6 +564,11 @@ export interface CommandResponse {
    * as "342 rows"; at most 200 characters.
    */
   summary?: string
+  /**
+   * A JSON result for the caller of an operation (`CommandOutcome.data`);
+   * never drawn. At most `dataMaxBytes` UTF-8 bytes as JSON.
+   */
+  data?: JsonValue
 }
 
 // packages/command-protocol/src/command.ts
@@ -1382,9 +1387,10 @@ is `invalid-args`; an unknown or `hidden` command is `unknown-command`; a comman
 sensitive one, an `irreversible` one, an actor other than `external-agent`, and a `danger` other than `read` are
 `not-allowed`; options that do not match the schema are `invalid-args`. Nothing of these reaches the entries.
 Otherwise an input entry with the canonical line and the `actor` is appended and the line takes the path of C-77 to
-C-81. The run's end gives `ok` with the response's `summary` (cut to 200 code points), `failed`, `cancelled`,
-`not-allowed` when `beforeRun` returns `false`, the code of a `CommandError` (C-86), or the code it ended with; a
-response with `tone: 'error'` is `failed` (C-87). A user's line carries no `actor`.
+C-81. The run's end gives `ok` with the response's `summary` (cut to 200 code points) and `data` (C-88), `failed`,
+`cancelled`, `not-allowed` when `beforeRun` returns `false`, the code of a `CommandError` (C-86), `too-large` for
+`data` C-88 refuses, or the code it ended with; a response with `tone: 'error'` is `failed` (C-87). A user's line
+carries no `actor`.
 
 #### C-83 Agent tools
 
@@ -1426,6 +1432,15 @@ a `CommandError` thrown by `beforeRun`, `normalize` or `createEnvelopeId`, gives
 A response with `tone: 'error'`, returned by a command's `run` or by `beforeRun`, is applied as any response (effects,
 then output) and its outcome (C-82) is `{ status: 'error', code: 'failed' }`, without its `summary`. A response
 with any other tone, or none, is `ok`.
+
+#### C-88 Data
+
+A response's `data` reaches the `ok` outcome of a `request()` (C-82) as a JSON copy: what the command does to it
+later never reaches the caller. It is never drawn; the entries are the same with it or without it. No `data`, or
+`undefined`, leaves `data` out of the outcome. `data` that is not a JSON value (`isJsonValue`: `undefined` inside, a
+function, a bigint, a cycle, a class instance, …) or whose UTF-8 JSON is larger than `dataMaxBytes` (32768) makes the
+outcome `{ status: 'error', code: 'too-large' }`, not `ok` without it; the response is still applied. A response with
+`tone: 'error'` is `failed` (C-87) and carries no `data`. A line the user types never reads `data`.
 
 ## DOM contract
 

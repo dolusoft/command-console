@@ -246,10 +246,31 @@ user's Enter. It resolves `busy` while a run exists, `unknown-command` (for a `h
 or `not-allowed` for a command without `input` or `danger`, a sensitive or `irreversible` one, and in this release
 for every actor other than `external-agent` and every `danger` other than `read`. These leave no entry. Otherwise an
 input entry with the canonical line and the `actor` is appended and the line takes the path above. The outcome is
-`ok` with the response's `summary` (cut to 200 code points), `failed`, `cancelled`, `not-allowed` (`beforeRun`
-returned `false`), the code of a `CommandError`, or the gate's code. A response with `tone: 'error'` (from the command
-or from `beforeRun`) is drawn as usual but its outcome is `failed`, without `summary`. A line the user types carries no
-`actor`.
+`ok` with the response's `summary` (cut to 200 code points) and `data`, `failed`, `cancelled`, `not-allowed`
+(`beforeRun` returned `false`), the code of a `CommandError`, or the gate's code. A response with `tone: 'error'`
+(from the command or from `beforeRun`) is drawn as usual but its outcome is `failed`, without `summary` or `data`. A
+line the user types carries no `actor`.
+
+`data` is the machine result for the caller, next to the `output` the console draws: the rows a command read, as
+JSON. It is never drawn, and the outcome carries a copy of it. When it is not a JSON value (`isJsonValue`) or its UTF-8
+JSON is over `dataMaxBytes` (32768 bytes), the outcome is `too-large` rather than `ok` without it; the output is drawn
+as usual. A line the user types never reads it.
+
+```ts
+const rows: CommandDefinition = {
+  name: 'dataview.rows',
+  input: rowsInput,
+  danger: 'read',
+  run: request => {
+    const page = readRows(request.view, request.input)
+    return {
+      output: [{ type: 'json', value: page.rows }],
+      summary: `${page.rows.length} rows`,
+      data: page.rows
+    }
+  }
+}
+```
 
 A command ends its run with a code of its own by throwing (or rejecting) a `CommandError`:
 

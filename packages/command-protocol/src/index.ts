@@ -27,6 +27,7 @@ export type {
 } from './command'
 export type { ContextFrame } from './context'
 export type { CommandOutcome, ErrorCode } from './outcome'
+export { dataMaxBytes } from './outcome'
 
 export type {
   ArrayInputSchema,

@@ -1,5 +1,8 @@
 // The pure parts of an operation that goes through the gate (ADR 0012): the
-// echo comparison, the closed ids, the summary cut and the default envelope id.
+// echo comparison, the closed ids, the summary cut, the data check and the
+// default envelope id.
+import { dataMaxBytes, isJsonValue } from '@dolusoft/command-protocol'
+
 import type { CommandDefinition } from './dispatch.types'
 import type { AnyConsoleOptions } from '../console/console.types'
 
@@ -49,6 +52,22 @@ export const cutSummary = (summary: unknown): string | undefined =>
   typeof summary === 'string'
     ? Array.from(summary).slice(0, summaryLimit).join('')
     : undefined
+
+/**
+ * Whether a response's `data` may reach the caller (C-88): a JSON value whose
+ * UTF-8 JSON takes at most `dataMaxBytes`. A getter that throws while it is
+ * read counts as not JSON.
+ */
+export const checkData = (data: unknown): boolean => {
+  try {
+    return (
+      isJsonValue(data) &&
+      new TextEncoder().encode(JSON.stringify(data)).length <= dataMaxBytes
+    )
+  } catch {
+    return false
+  }
+}
 
 interface Crypto {
   randomUUID?: () => string

@@ -4,6 +4,7 @@
 import {
   checkInputSchema,
   type CommandResponse,
+  dataMaxBytes,
   type Envelope,
   envelopeBytes,
   envelopeMaxBytes,
@@ -59,7 +60,8 @@ const response: CommandResponse = {
   tone:
     result.ok && echo.ok && envelopeBytes(envelope) <= envelopeMaxBytes
       ? 'default'
-      : 'error'
+      : 'error',
+  ...(JSON.stringify(args).length <= dataMaxBytes ? { data: args } : {})
 }
 
 document.body.textContent = isJsonValue(response)

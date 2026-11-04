@@ -121,7 +121,7 @@ export function agentTools(
     {
       name: 'run',
       description:
-        'Runs a command: { line } as typed (name --field value), or { command, args, view? } with args matching its input schema. Returns { status, summary } or { status: "error", code }. Call help first.',
+        'Runs a command: { line } as typed (name --field value), or { command, args, view? } with args matching its input schema. Returns { status, summary?, data? } or { status: "error", code }; data is the JSON result. Call help first.',
       inputSchema: {
         type: 'object',
         properties: {

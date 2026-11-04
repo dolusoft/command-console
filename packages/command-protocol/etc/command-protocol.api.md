@@ -35,6 +35,7 @@ export function checkInputSchema(schema: unknown): asserts schema is InputSchema
 export type CommandOutcome = {
     status: 'ok';
     summary?: string;
+    data?: JsonValue;
 } | {
     status: 'error';
     code: ErrorCode;
@@ -43,6 +44,7 @@ export type CommandOutcome = {
 
 // @public
 export interface CommandResponse {
+    data?: JsonValue;
     effects?: ConsoleEffect[];
     output?: string | OutputBlock[];
     quiet?: true;
@@ -103,6 +105,9 @@ export interface CustomBlock {
 
 // @public
 export type Danger = 'read' | 'change' | 'irreversible';
+
+// @public
+export const dataMaxBytes = 32768;
 
 // @public
 export interface Envelope {

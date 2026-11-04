@@ -39,9 +39,10 @@ check it. Functions (a command's `run` and `complete`, callbacks) live in the co
   command). For a sensitive line `name`, `index` and `path` are `null`.
 - **Commands**: `CommandSpec` is the JSON part of a command (`name`, `aliases`, `summary`, `usage`, `hidden`,
   `sensitive: boolean | { fromArg }`, `input` (its input schema, below), `danger: 'read' | 'change' | 'irreversible'`).
-  `CommandResponse` is what a command may return (`output`, `tone`, `quiet`, `effects`, and `summary`, a short result
-  of at most 200 characters for the caller of an operation).
-- **Outcomes** (`CommandOutcome`): `{ status: 'ok', summary? }` or `{ status: 'error', code: ErrorCode, message? }`,
+  `CommandResponse` is what a command may return (`output`, `tone`, `quiet`, `effects`, `summary`, a short result
+  of at most 200 characters for the caller of an operation, and `data`, a JSON result for that caller that is never
+  drawn, at most `dataMaxBytes` (32768) bytes as UTF-8 JSON).
+- **Outcomes** (`CommandOutcome`): `{ status: 'ok', summary?, data? }` or `{ status: 'error', code: ErrorCode, message? }`,
   how an operation ended for its caller. `ErrorCode` is `invalid-args`, `unknown-command`, `not-allowed`,
   `target-not-found`, `id-conflict`, `unsupported-version`, `too-large`, `busy`, `timeout`, `failed`,
   `connection-lost` or `cancelled`.
