@@ -448,6 +448,41 @@ describe('C-79 Envelope', () => {
     expect(fake.sent[0].target).toEqual({ tab: 't1' })
   })
 
+  it.each([
+    ['an empty', ''],
+    ['a null', null]
+  ])('%s view is no view: the envelope and the request carry none', async (_, view) => {
+    const requests: CommandRequest[] = []
+    const fake = fakeGate()
+    const console = createConsole({
+      gate: fake.gate,
+      createEnvelopeId: ids(),
+      commands: [search(request => void requests.push(request))],
+      activeView: () => view as string
+    })
+    const typed = console.run('search --ip a')
+    await flush()
+    fake.echo()
+    await typed
+    const asked = console.request({
+      command: 'search',
+      args: { ip: 'b' },
+      view: view as string,
+      actor: 'external-agent'
+    })
+    await flush()
+    fake.echo()
+    expect(await asked).toEqual({ status: 'ok' })
+    expect(fake.sent.map(envelope => envelope.target)).toEqual([
+      { tab: 't1' },
+      { tab: 't1' }
+    ])
+    expect(requests).toHaveLength(2)
+    for (const request of requests) {
+      expect(request).not.toHaveProperty('view')
+    }
+  })
+
   it('beforeRun is asked once before the send; false sends nothing', async () => {
     const answer = deferred<false | undefined>()
     const beforeRun = vi.fn(() => answer.promise)
@@ -669,6 +704,17 @@ describe('C-80 Echo', () => {
         block => block.type === 'message' && block.params?.code
       )
     ).toEqual(['id-conflict', 'id-conflict'])
+  })
+
+  it('an echo whose target.view is null matches a record without a view', async () => {
+    const run = vi.fn()
+    const { console, fake } = gated({ commands: [search(run)] })
+    const done = console.run('search --ip a')
+    await flush()
+    fake.echo({ target: { tab: 't1', view: null as never } })
+    await done
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(run.mock.calls[0][0]).not.toHaveProperty('view')
   })
 
   it('ignores what is not the pending echo', async () => {

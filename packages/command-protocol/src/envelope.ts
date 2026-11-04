@@ -59,7 +59,8 @@ function isName(value: unknown): value is string {
  * number other than 1 is `unsupported-version`; one whose JSON is larger
  * than `envelopeMaxBytes` (unknown fields included) is `too-large`; a missing
  * or mistyped field, another `kind`, or `args` that is not a JSON object
- * within `inputLimits` is `invalid`. Unknown fields at the top and inside
+ * within `inputLimits` is `invalid`. A `null` `target.view` is no view (a
+ * typed transport may write one back). Unknown fields at the top and inside
  * `from` and `target` are left out of the new envelope it returns; `raw` is
  * never changed.
  */
@@ -89,7 +90,9 @@ export function parseEnvelope(raw: unknown): EnvelopeResult {
     !isName(from.tab) ||
     !isPlainObject(target) ||
     !isName(target.tab) ||
-    (target.view !== undefined && !isName(target.view)) ||
+    (target.view !== undefined &&
+      target.view !== null &&
+      !isName(target.view)) ||
     !isName(command) ||
     !isPlainObject(args) ||
     !isJsonValue(args) ||
@@ -106,7 +109,7 @@ export function parseEnvelope(raw: unknown): EnvelopeResult {
       actor: actor as Actor,
       from: { tab: from.tab },
       target:
-        target.view === undefined
+        target.view === undefined || target.view === null
           ? { tab: target.tab }
           : { tab: target.tab, view: target.view },
       command,

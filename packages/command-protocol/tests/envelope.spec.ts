@@ -63,6 +63,17 @@ describe('C-75 Envelope', () => {
     }
   })
 
+  it('a null target.view is no view', () => {
+    const result = parseEnvelope(changed({ target: { tab: 't-1', view: null } }))
+    expect(result).toMatchObject({
+      ok: true,
+      envelope: { target: { tab: 't-1' } }
+    })
+    if (result.ok) {
+      expect('view' in result.envelope.target).toBe(false)
+    }
+  })
+
   it('leaves unknown fields out, at the top and inside from and target', () => {
     const result = parseEnvelope(
       changed({
@@ -107,7 +118,6 @@ describe('C-75 Envelope', () => {
     ['a target that is a string', changed({ target: 't-1' })],
     ['a numeric target.view', changed({ target: { tab: 't', view: 1 } })],
     ['an empty target.view', changed({ target: { tab: 't', view: '' } })],
-    ['a null target.view', changed({ target: { tab: 't', view: null } })],
     ['no command', changed({ command: undefined })],
     ['an empty command', changed({ command: '' })],
     ['no args', changed({ args: undefined })],

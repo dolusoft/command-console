@@ -529,7 +529,8 @@ const prepare = (run: Run, plan: Plan) => {
     line,
     input: checked.value
   }
-  if (view !== undefined) {
+  // An empty or `null` view is no view.
+  if (typeof view === 'string' && view !== '') {
     run.request.view = view
   }
 }

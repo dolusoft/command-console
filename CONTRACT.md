@@ -1318,7 +1318,8 @@ after the first read back with `parseOptions` to the validated value. A value th
 `parseEnvelope(raw)` accepts a version 1 `request` and returns a new envelope with only the known fields, without
 changing `raw`. A plain object whose `v` is a number other than 1 is `unsupported-version`; one larger than
 `envelopeMaxBytes` (16384 bytes of UTF-8 JSON, `envelopeBytes`) is `too-large`; a missing or mistyped field, another
-`kind`, or `args` that is not a JSON object within the input limits (C-72) is `invalid`.
+`kind`, or `args` that is not a JSON object within the input limits (C-72) is `invalid`. A `null` `target.view` (a
+typed transport may write one back) is no view: it is valid and left out of the new envelope.
 
 #### C-76 Command input and danger
 
@@ -1332,9 +1333,10 @@ A line whose command has `input` is read with `parseOptions`: an error appends a
 the first error's `path` (`null` for a sensitive line) and `reason`, and no run starts. `danger: 'irreversible'`
 appends `operation-failed` with `not-allowed`, and no run starts. Otherwise the run starts, `normalize` (if any) maps
 the value, which is checked again; a throw or an invalid result ends the run as failed (C-18). The command's request
-carries the value as `input`, the view of `activeView()` as `view`, and `args`, `rest` and `line` of the canonical
-line (C-74); `name` stays as typed. Without a gate, or for a command without `danger` or with `sensitive`, or a line
-`isSensitive` marks, it then runs locally.
+carries the value as `input`, the view of `activeView()` (or of the request, C-82) as `view`, and `args`, `rest` and
+`line` of the canonical line (C-74); `name` stays as typed. An empty or `null` view is no view: the request has no
+`view` and the envelope no `target.view`. Without a gate, or for a command without `danger` or with `sensitive`, or a
+line `isSensitive` marks, it then runs locally.
 
 #### C-78 Gate
 

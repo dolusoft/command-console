@@ -170,8 +170,8 @@ describes and checks it:
 with a new envelope that holds only the known fields, or `{ ok: false, code }`: `unsupported-version` for a plain
 object whose `v` is a number other than 1, `too-large` when its UTF-8 JSON is over `envelopeMaxBytes` (16384,
 measured on the raw value), `invalid` for a missing or mistyped field, another `kind`, or `args` that is not a JSON
-object within the input limits. `envelopeBytes(envelope)` is the UTF-8 length of its JSON, for a sender to measure
-before it sends.
+object within the input limits. A `null` `target.view`, which a typed transport may write back, is no view and is
+left out. `envelopeBytes(envelope)` is the UTF-8 length of its JSON, for a sender to measure before it sends.
 
 ## License
 
