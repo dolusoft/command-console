@@ -386,23 +386,23 @@ The library writes no `style` attribute, sets no size and no `overflow`. Give `.
 
 Every text the component shows comes from the `labels` prop, over English defaults. `messages` and `actors` merge one level deep, so overriding one message keeps the others. A message is a string or a function of its parameters.
 
-| Label                            | Default                                                                           |
-| -------------------------------- | --------------------------------------------------------------------------------- |
-| `input`                          | `Command` (the input's accessible name)                                           |
-| `inputDescription`               | `Enter runs the command. Tab completes; on an empty line it leaves the console.`  |
-| `log`                            | `Console output`                                                                  |
-| `redacted`                       | `(input hidden)`                                                                  |
-| `cancelledMarker`                | `^C`                                                                              |
-| `completions`                    | `Suggestions` (the list's accessible name)                                        |
-| `busy`                           | `Running…`                                                                        |
-| `actors.assistant`               | `AI` (before the prompt of a line from the application's assistant)               |
-| `actors['external-agent']`       | `Agent` (before the prompt of a line from an agent outside the application)       |
-| `messages['command-not-found']`  | `` p => p.name === null ? 'command not found' : `${p.name}: command not found` `` |
-| `messages['command-failed']`     | `The command failed.`                                                             |
-| `messages['unterminated-quote']` | `Unterminated quote.`                                                             |
-| `messages.interrupted`           | `Interrupted.`                                                                    |
-| `messages['invalid-args']`       | `` p => p.path ? `Invalid option: ${p.path}.` : 'Invalid options.' ``             |
-| `messages['operation-failed']`   | one English sentence per `p.code` (`timeout`: `The transport did not answer; …`)  |
+| Label                            | Default                                                                                                            |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `input`                          | `Command` (the input's accessible name)                                                                            |
+| `inputDescription`               | `Enter runs the command. Tab completes; on an empty line it leaves the console.`                                   |
+| `log`                            | `Console output`                                                                                                   |
+| `redacted`                       | `(input hidden)`                                                                                                   |
+| `cancelledMarker`                | `^C`                                                                                                               |
+| `completions`                    | `Suggestions` (the list's accessible name)                                                                         |
+| `busy`                           | `Running…`                                                                                                         |
+| `actors.assistant`               | `AI` (before the prompt of a line from the application's assistant)                                                |
+| `actors['external-agent']`       | `Agent` (before the prompt of a line from an agent outside the application)                                        |
+| `messages['command-not-found']`  | `` p => p.name === null ? 'command not found' : `${p.name}: command not found` ``                                  |
+| `messages['command-failed']`     | `The command failed.`                                                                                              |
+| `messages['unterminated-quote']` | `Unterminated quote.`                                                                                              |
+| `messages.interrupted`           | `Interrupted.`                                                                                                     |
+| `messages['invalid-args']`       | `Missing option: ip.`, `Unknown option: x.`, `Invalid option ip: wrong format.`; `Invalid options.` without a path |
+| `messages['operation-failed']`   | one English sentence per `p.code` (`timeout`: `No answer in time; the command did not run.`)                       |
 
 ```vue
 <CommandConsole

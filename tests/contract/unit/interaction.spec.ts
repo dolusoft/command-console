@@ -4,6 +4,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { h, nextTick } from 'vue'
 
+import type { ErrorCode, InputErrorCode } from '@dolusoft/command-protocol'
+
 import { clickFocusesInput } from '../../../packages/command-console/src/dom/focus'
 import { selectionOf } from '../../../packages/command-console/src/dom/selection'
 import {
@@ -223,30 +225,46 @@ describe('C-47 labels (helpers)', () => {
     ).toBe('nope undefined')
   })
 
-  it('C-47 invalid-args and operation-failed have English defaults', () => {
+  it('C-47 invalid-args names the option and the reason, unless the line is sensitive', () => {
     const labels = resolveLabels()
-    const text = (block: Parameters<typeof messageText>[1]) =>
-      messageText(labels, block)
-    expect(
-      text({
+    const invalid = (path: string | null, reason: InputErrorCode) =>
+      messageText(labels, {
         type: 'message',
         code: 'invalid-args',
-        params: { path: 'ip', reason: 'required' }
+        params: { path, reason }
       })
-    ).toBe('Invalid option: ip.')
-    expect(
-      text({
-        type: 'message',
-        code: 'invalid-args',
-        params: { path: null, reason: 'type' }
-      })
-    ).toBe('Invalid options.')
-    expect(
-      text({
+    expect(invalid('ip', 'required')).toBe('Missing option: ip.')
+    expect(invalid('color', 'additional')).toBe('Unknown option: color.')
+    expect(invalid('limit', 'maximum')).toBe('Invalid option limit: too large.')
+    expect(invalid('tags[2]', 'pattern')).toBe(
+      'Invalid option tags[2]: wrong format.'
+    )
+    expect(invalid('', 'limit')).toBe('Invalid options.')
+    // A sensitive line names no option (C-77).
+    expect(invalid(null, 'type')).toBe('Invalid options.')
+  })
+
+  it('C-47 operation-failed has its own sentence per code', () => {
+    const labels = resolveLabels()
+    const failed = (code: ErrorCode) =>
+      messageText(labels, {
         type: 'message',
         code: 'operation-failed',
-        params: { code: 'timeout' }
+        params: { code }
       })
-    ).toBe('The transport did not answer; the command did not run.')
+    const texts = {
+      'not-allowed': failed('not-allowed'),
+      'too-large': failed('too-large'),
+      timeout: failed('timeout'),
+      'connection-lost': failed('connection-lost'),
+      'id-conflict': failed('id-conflict')
+    }
+    expect(texts).toEqual({
+      'not-allowed': 'This command is not allowed here.',
+      'too-large': 'The command is too large to send.',
+      timeout: 'No answer in time; the command did not run.',
+      'connection-lost': 'No connection; the command did not run.',
+      'id-conflict': 'The command came back changed; it did not run.'
+    })
   })
 })

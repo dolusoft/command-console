@@ -2,26 +2,62 @@
 // defaults, merged one level deep with the `labels` prop.
 import type {
   ErrorCode,
+  InputErrorCode,
   MessageBlock,
   MessageParams
 } from '@dolusoft/command-protocol'
 
 import type { ConsoleLabels, ConsoleLabelsInput } from './contract'
 
-/** The default text of each `operation-failed` code. */
+/**
+ * The default text of each `operation-failed` code: one short sentence each,
+ * saying whether the command ran where the user cannot tell.
+ */
 const operationTexts: Record<ErrorCode, string> = {
   'invalid-args': 'Invalid options.',
   'unknown-command': 'Unknown command.',
-  'not-allowed': 'Not allowed from here.',
+  'not-allowed': 'This command is not allowed here.',
   'target-not-found': 'The target no longer exists.',
-  'id-conflict': 'The operation was changed on the way; it did not run.',
-  'unsupported-version': 'Unsupported version.',
+  'id-conflict': 'The command came back changed; it did not run.',
+  'unsupported-version': 'Unsupported protocol version.',
   'too-large': 'The command is too large to send.',
-  busy: 'Busy.',
-  timeout: 'The transport did not answer; the command did not run.',
+  busy: 'Another command is running.',
+  timeout: 'No answer in time; the command did not run.',
   failed: 'The command failed.',
   'connection-lost': 'No connection; the command did not run.',
-  cancelled: 'Cancelled.'
+  cancelled: 'The command was cancelled.'
+}
+
+/** What is wrong with an option, after `Invalid option <path>: `. */
+const reasonTexts: Record<InputErrorCode, string> = {
+  type: 'wrong type',
+  required: 'missing',
+  enum: 'not one of the allowed values',
+  minimum: 'too small',
+  maximum: 'too large',
+  minLength: 'too short',
+  maxLength: 'too long',
+  pattern: 'wrong format',
+  maxItems: 'too many values',
+  additional: 'unknown',
+  limit: 'too long or too deeply nested'
+}
+
+/** The default `invalid-args` text; a sensitive line names no option. */
+const invalidArgsText = ({
+  path,
+  reason
+}: MessageParams['invalid-args']): string => {
+  if (path === null || path === '') {
+    return 'Invalid options.'
+  }
+  if (reason === 'required') {
+    return `Missing option: ${path}.`
+  }
+  if (reason === 'additional') {
+    return `Unknown option: ${path}.`
+  }
+  return `Invalid option ${path}: ${reasonTexts[reason]}.`
 }
 
 /** The English defaults (README: Labels). */
@@ -42,10 +78,7 @@ const defaultLabels: ConsoleLabels = {
     'command-failed': 'The command failed.',
     'unterminated-quote': 'Unterminated quote.',
     interrupted: 'Interrupted.',
-    'invalid-args': params =>
-      params.path === null || params.path === ''
-        ? 'Invalid options.'
-        : `Invalid option: ${params.path}.`,
+    'invalid-args': invalidArgsText,
     'operation-failed': params => operationTexts[params.code]
   },
   actors: {
