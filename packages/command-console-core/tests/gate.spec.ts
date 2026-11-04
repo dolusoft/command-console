@@ -217,19 +217,34 @@ describe('C-77 Schema lines', () => {
     ])
   })
 
-  it('an irreversible command is not allowed from the line', async () => {
+  it('an irreversible command is not allowed from the line, with or without input', async () => {
     const run = vi.fn()
+    const beforeRun = vi.fn()
+    const fake = fakeGate()
     const console = createConsole({
-      commands: [search(run, { danger: 'irreversible' })]
+      gate: fake.gate,
+      createEnvelopeId: ids(),
+      commands: [
+        search(run, { danger: 'irreversible' }),
+        command('wipe', run, { danger: 'irreversible' })
+      ],
+      beforeRun
     })
     await console.run('search --ip a')
+    await console.run('search --port 1')
+    await console.run('wipe all')
     expect(run).not.toHaveBeenCalled()
+    expect(beforeRun).not.toHaveBeenCalled()
+    expect(fake.gate.send).not.toHaveBeenCalled()
+    const notAllowed = {
+      type: 'message',
+      code: 'operation-failed',
+      params: { code: 'not-allowed' }
+    }
     expect(messagesOf(outputs(console.getState().entries))).toEqual([
-      {
-        type: 'message',
-        code: 'operation-failed',
-        params: { code: 'not-allowed' }
-      }
+      notAllowed,
+      notAllowed,
+      notAllowed
     ])
   })
 

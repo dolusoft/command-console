@@ -201,12 +201,12 @@ the sequence of frame ids differs; a new array with the same ids is not one.
 ## Commands with an input schema
 
 A command with `input` (an `InputSchema`, checked with `checkInputSchema` when the command is registered) is typed as
-`name --field value …` (`parseOptions`). Options that do not match append an `error` entry `invalid-args` with the
-first error's `path` and `reason`, and nothing runs. `danger: 'irreversible'` cannot be run from the line
-(`operation-failed` with `not-allowed`). Otherwise the run starts: `normalize(input)` (optional, pure) maps the value,
-which is checked again, and the command's `CommandRequest` carries it as `input`, the target view as `view` (none for
-an empty or `null` view), and `args`, `rest` and `line` of the canonical line (`formatCommandLine`). `getCommands()`
-copies `input` and `danger`.
+`name --field value …` (`parseOptions`). A command with `danger: 'irreversible'`, with `input` or without, cannot be
+run from the line (`operation-failed` with `not-allowed`, before its options are read). Options that do not match
+append an `error` entry `invalid-args` with the first error's `path` and `reason`, and nothing runs. Otherwise the
+run starts: `normalize(input)` (optional, pure) maps the value, which is checked again, and the command's
+`CommandRequest` carries it as `input`, the target view as `view` (none for an empty or `null` view), and `args`,
+`rest` and `line` of the canonical line (`formatCommandLine`). `getCommands()` copies `input` and `danger`.
 
 ## The gate
 

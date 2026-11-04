@@ -398,19 +398,21 @@ typed transport may write one back) is no view: it is valid and left out of the 
 ### C-76 Command input and danger
 
 A command's `input` passes `checkInputSchema` and its `danger` is `read`, `change` or `irreversible`, and its
-`normalize` is a function, at creation and on every `setOptions`; anything else throws. `getCommands()` copies `input`
-and `danger` into a command's spec when it has them.
+`normalize` is a function, at creation and on every `setOptions`; anything else throws. `getCommands()` copies
+`input` and `danger` into a command's spec when it has them. `danger` does not need `input`, and a command whose
+`danger` is `irreversible`, with `input` or without, never runs from the console (C-77, C-82).
 
 ### C-77 Schema lines
 
-A line whose command has `input` is read with `parseOptions`: an error appends an `error` entry `invalid-args` with
-the first error's `path` (`null` for a sensitive line) and `reason`, and no run starts. `danger: 'irreversible'`
-appends `operation-failed` with `not-allowed`, and no run starts. Otherwise the run starts, `normalize` (if any) maps
-the value, which is checked again; a throw or an invalid result ends the run as failed (C-18). The command's request
-carries the value as `input`, the view of `activeView()` (or of the request, C-82) as `view`, and `args`, `rest` and
-`line` of the canonical line (C-74); `name` stays as typed. An empty or `null` view is no view: the request has no
-`view` and the envelope no `target.view`. Without a gate, or for a command without `danger` or with `sensitive`, or a
-line `isSensitive` marks, it then runs locally.
+A line whose command has `danger: 'irreversible'`, with `input` or without, appends an `error` entry
+`operation-failed` with `not-allowed` before its options are read, and no run starts. Otherwise a line whose command
+has `input` is read with `parseOptions`: an error appends an `error` entry `invalid-args` with the first error's
+`path` (`null` for a sensitive line) and `reason`, and no run starts. Otherwise the run starts, `normalize` (if any)
+maps the value, which is checked again; a throw or an invalid result ends the run as failed (C-18). The command's
+request carries the value as `input`, the view of `activeView()` (or of the request, C-82) as `view`, and `args`,
+`rest` and `line` of the canonical line (C-74); `name` stays as typed. An empty or `null` view is no view: the
+request has no `view` and the envelope no `target.view`. Without a gate, or for a command without `danger` or with
+`sensitive`, or a line `isSensitive` marks, it then runs locally.
 
 ### C-78 Gate
 

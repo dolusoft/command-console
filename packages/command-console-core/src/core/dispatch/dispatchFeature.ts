@@ -673,6 +673,19 @@ const submitLine = (console: object): Promise<boolean> => {
     )
     return Promise.resolve(true)
   }
+  // An irreversible command never runs from the console, with or without
+  // input, before its options are read (C-77).
+  if (command.danger === 'irreversible') {
+    addEntry(
+      console,
+      output(
+        'error',
+        [message('operation-failed', { code: 'not-allowed' })],
+        inputId
+      )
+    )
+    return Promise.resolve(true)
+  }
   const args = parsed.tokens.slice(1).map(token => token.value)
   let plan: Plan | null = null
   if (command.input) {
@@ -689,17 +702,6 @@ const submitLine = (console: object): Promise<boolean> => {
               reason: error.code
             })
           ],
-          inputId
-        )
-      )
-      return Promise.resolve(true)
-    }
-    if (command.danger === 'irreversible') {
-      addEntry(
-        console,
-        output(
-          'error',
-          [message('operation-failed', { code: 'not-allowed' })],
           inputId
         )
       )
