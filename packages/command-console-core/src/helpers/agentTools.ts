@@ -37,6 +37,18 @@ export interface AgentToolsOptions {
   context: () => JsonValue | Promise<JsonValue>
 }
 
+/** How many commands one `help` page lists when no `limit` is given (C-92). */
+const helpPageSize = 30
+
+/** The most commands one `help` page lists (C-92). */
+const helpPageMax = 100
+
+/** The most UTF-8 bytes of one `help` page as JSON (C-92). */
+const helpPageMaxBytes = 8192
+
+/** The longest summary a `help` page lists, in code points. */
+const summaryLimit = 200
+
 /**
  * A command an agent can see: one with `input` and `danger` whose definition
  * is not `sensitive` (what `request` could run, C-82).
@@ -53,12 +65,74 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const json = (value: Record<string, unknown>): JsonValue =>
   JSON.parse(JSON.stringify(value)) as JsonValue
 
-const error = (code: 'invalid-args' | 'unknown-command'): CommandOutcome => ({
-  status: 'error',
-  code
-})
+const error = (
+  code: 'invalid-args' | 'unknown-command',
+  message?: string
+): CommandOutcome =>
+  message === undefined
+    ? { status: 'error', code }
+    : { status: 'error', code, message }
 
 const failed: CommandOutcome = { status: 'error', code: 'failed' }
+
+const bytes = (value: JsonValue): number =>
+  new TextEncoder().encode(JSON.stringify(value)).length
+
+/** A command's namespace: its name up to the first dot (C-92). */
+const namespaceOf = (name: string): string => name.split('.', 1)[0]
+
+/**
+ * Whether `name` is under `prefix`. One trailing dot is dropped; what is left
+ * is the name itself or the part before one of its dots, so `dataview` and
+ * `dataview.` take `dataview.search` and neither takes `dataviews.x`.
+ */
+const underPrefix = (name: string, prefix: string): boolean => {
+  const base = prefix.endsWith('.') ? prefix.slice(0, -1) : prefix
+  return base === '' || name === base || name.startsWith(`${base}.`)
+}
+
+interface HelpInput {
+  command?: string
+  prefix: string
+  offset: number
+  limit: number
+}
+
+/** The fields `help` takes; a message when one is refused. */
+const readHelpInput = (input: unknown): HelpInput | string => {
+  if (input !== undefined && input !== null && !isRecord(input)) {
+    return 'input: expected object'
+  }
+  const { command, prefix, cursor, limit } = isRecord(input) ? input : {}
+  if (command !== undefined && typeof command !== 'string') {
+    return 'command: expected string'
+  }
+  if (prefix !== undefined && typeof prefix !== 'string') {
+    return 'prefix: expected string'
+  }
+  // The cursor is opaque to the agent; it is the offset of the next page.
+  const offset =
+    cursor === undefined
+      ? 0
+      : typeof cursor === 'string' && /^\d{1,9}$/.test(cursor)
+        ? Number(cursor)
+        : -1
+  if (offset < 0) {
+    return 'cursor: not a nextCursor that help returned'
+  }
+  if (
+    limit !== undefined &&
+    !(typeof limit === 'number' && Number.isInteger(limit) && limit >= 1)
+  ) {
+    return `limit: expected integer from 1 to ${helpPageMax}`
+  }
+  return {
+    ...(command === undefined ? {} : { command }),
+    prefix: prefix ?? '',
+    offset,
+    limit: Math.min(limit ?? helpPageSize, helpPageMax)
+  }
+}
 
 /**
  * The `context`, `help` and `run` tools of `console` (C-83). `run` calls
@@ -69,15 +143,9 @@ export function agentTools(
   options: AgentToolsOptions
 ): [AgentTool, AgentTool, AgentTool] {
   const commands = () => console.getCommands().filter(described)
-  const help = (input: unknown): JsonValue => {
-    const name = isRecord(input) ? input.command : undefined
-    if (name === undefined) {
-      return commands().map(spec =>
-        json({ name: spec.name, summary: spec.summary, danger: spec.danger })
-      )
-    }
-    const found = commands().find(
-      spec => spec.name === name || spec.aliases?.includes(name as string)
+  const describe = (all: CommandSpec[], name: string): JsonValue => {
+    const found = all.find(
+      spec => spec.name === name || spec.aliases?.includes(name)
     )
     if (!found) {
       return error('unknown-command')
@@ -89,6 +157,49 @@ export function agentTools(
       danger: found.danger,
       input: found.input
     })
+  }
+  /** One page of the list (C-92). */
+  const list = (all: CommandSpec[], read: HelpInput): JsonValue => {
+    const counts = new Map<string, number>()
+    for (const spec of all) {
+      const name = namespaceOf(spec.name)
+      counts.set(name, (counts.get(name) ?? 0) + 1)
+    }
+    const namespaces = [...counts].map(([name, count]) => ({ name, count }))
+    const matching = all.filter(spec => underPrefix(spec.name, read.prefix))
+    const page = matching
+      .slice(read.offset, read.offset + read.limit)
+      .map(spec =>
+        json({
+          name: spec.name,
+          summary:
+            spec.summary === undefined
+              ? undefined
+              : Array.from(spec.summary).slice(0, summaryLimit).join(''),
+          danger: spec.danger
+        })
+      )
+    const result = (count: number): JsonValue => {
+      const next = read.offset + count
+      return next < matching.length
+        ? { namespaces, commands: page.slice(0, count), nextCursor: `${next}` }
+        : { namespaces, commands: page.slice(0, count) }
+    }
+    // Commands leave the end of the page until it fits its bytes.
+    let count = page.length
+    while (count > 1 && bytes(result(count)) > helpPageMaxBytes) {
+      count--
+    }
+    return result(count)
+  }
+  const help = (input: unknown): JsonValue => {
+    const read = readHelpInput(input)
+    if (typeof read === 'string') {
+      return error('invalid-args', read)
+    }
+    return read.command === undefined
+      ? list(commands(), read)
+      : describe(commands(), read.command)
   }
   return [
     {
@@ -107,12 +218,25 @@ export function agentTools(
     },
     {
       name: 'help',
-      description:
-        'Without input: the commands you can run (name, summary, danger). With a command name: its usage and input schema. Call it before run.',
+      description: `With { command }: its usage and input schema. Otherwise one page of the commands you can run: { namespaces: [{ name, count }], commands: [{ name, summary, danger }], nextCursor? }; prefix keeps one namespace (dataview or dataview.), and nextCursor passed back as cursor gives the next page. Call it before run.`,
       inputSchema: {
         type: 'object',
         properties: {
-          command: { type: 'string', description: 'A command name.' }
+          command: { type: 'string', description: 'A command name.' },
+          prefix: {
+            type: 'string',
+            description: 'A namespace: dataview or dataview.'
+          },
+          cursor: {
+            type: 'string',
+            description: 'The nextCursor of the previous page.'
+          },
+          limit: {
+            type: 'integer',
+            minimum: 1,
+            maximum: helpPageMax,
+            description: `Commands per page, ${helpPageSize} when not given.`
+          }
         }
       },
       annotations: { readOnlyHint: true },
@@ -121,7 +245,7 @@ export function agentTools(
     {
       name: 'run',
       description:
-        'Runs a command: { line } as typed (name --field value), or { command, args, view? } with args matching its input schema. Returns { status, summary?, data? } or { status: "error", code }; data is the JSON result. Call help first.',
+        'Runs a command: { line } as typed (name --field value), or { command, args?, view? } with args matching its input schema (no args is {}; a string where the schema wants an array of strings is a list of that one string). Returns { status, summary?, data? } or { status: "error", code, message? }; data is the JSON result, message says what to fix. Call help first.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -139,20 +263,25 @@ export function agentTools(
             actor: 'external-agent'
           })
         }
-        if (
-          isRecord(input) &&
-          typeof input.command === 'string' &&
-          isRecord(input.args) &&
-          (input.view === undefined || typeof input.view === 'string')
-        ) {
-          return console.request({
-            command: input.command,
-            args: input.args,
-            ...(input.view === undefined ? {} : { view: input.view }),
-            actor: 'external-agent'
-          })
+        if (!isRecord(input) || typeof input.command !== 'string') {
+          return error(
+            'invalid-args',
+            'expected { line } or { command, args?, view? }'
+          )
         }
-        return error('invalid-args')
+        const { args } = input
+        if (args !== undefined && !isRecord(args)) {
+          return error('invalid-args', 'args: expected object')
+        }
+        if (input.view !== undefined && typeof input.view !== 'string') {
+          return error('invalid-args', 'view: expected string')
+        }
+        return console.request({
+          command: input.command,
+          args: args ?? {},
+          ...(input.view === undefined ? {} : { view: input.view }),
+          actor: 'external-agent'
+        })
       }
     }
   ]

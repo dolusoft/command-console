@@ -88,14 +88,32 @@ const checkDescription = (command: CommandDefinition) => {
   }
 }
 
+/**
+ * A command's summary as text (C-90): a function is called now; one that
+ * throws or returns anything but a string gives none.
+ */
+const summaryOf = (command: CommandDefinition): string | undefined => {
+  const { summary } = command
+  if (typeof summary !== 'function') {
+    return summary
+  }
+  try {
+    const text: unknown = summary()
+    return typeof text === 'string' ? text : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** The JSON spec of a command, without its functions (`getCommands`). */
 export const specOf = (command: CommandDefinition): CommandSpec => {
   const spec: CommandSpec = {
     name: command.name,
     aliases: [...(command.aliases ?? [])]
   }
-  if (command.summary !== undefined) {
-    spec.summary = command.summary
+  const summary = summaryOf(command)
+  if (summary !== undefined) {
+    spec.summary = summary
   }
   if (command.usage !== undefined) {
     spec.usage = command.usage

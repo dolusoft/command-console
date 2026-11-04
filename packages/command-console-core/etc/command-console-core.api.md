@@ -45,10 +45,11 @@ export interface AgentToolsOptions {
 export type BeforeRunResult = undefined | false | CommandResponse;
 
 // @public
-export interface CommandDefinition extends CommandSpec {
+export interface CommandDefinition extends Omit<CommandSpec, 'summary'> {
     complete?(request: CompletionRequest): CompletionResult;
     normalize?(input: Record<string, JsonValue>): Record<string, JsonValue>;
     run(request: CommandRequest, run: RunContext): CommandReturn | Promise<CommandReturn>;
+    summary?: string | (() => string);
 }
 
 // @public
@@ -295,7 +296,7 @@ export const recallFeature: RecallFeature;
 // @public
 export type RequestInput = {
     command: string;
-    args: Record<string, unknown>;
+    args?: Record<string, unknown>;
     view?: string;
     actor: Actor;
 } | {

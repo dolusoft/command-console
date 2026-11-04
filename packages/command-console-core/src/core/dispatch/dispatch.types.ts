@@ -37,7 +37,13 @@ export interface RunInfo {
 export type CommandReturn = void | string | OutputBlock[] | CommandResponse
 
 /** A command: its JSON spec plus the functions that run and complete it. */
-export interface CommandDefinition extends CommandSpec {
+export interface CommandDefinition extends Omit<CommandSpec, 'summary'> {
+  /**
+   * One line on what the command does. A function is called each time the
+   * spec is made (`getCommands`, the agent's `help`), so the text can come
+   * from a translation loaded after the command was defined (C-90).
+   */
+  summary?: string | (() => string)
   /**
    * Runs the command. A promise makes the run asynchronous; the console
    * stays locked until it settles or the run is cancelled.
