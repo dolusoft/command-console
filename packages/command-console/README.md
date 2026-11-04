@@ -53,7 +53,12 @@ const open = ref(true)
 - **Recall, completion and context** are always on. `entries`, `recall` and `context` are the console's own unless
   bound with `v-model:*`; `initialState` gives the first value of an unbound slice.
 - **Props:** `commands`, `prompt`, `initialState`, `createId`, `maxEntries`, `beforeRun`, `onError`, `formatError`,
-  `isSensitive`, `recallLimit`, `shouldRecord`, `labels`, `autofocus`, and `entries` / `recall` / `context`.
+  `isSensitive`, `recallLimit`, `shouldRecord`, `labels`, `autofocus`, `entries` / `recall` / `context`, and
+  `console`.
+- **A console that outlives the component:** `:console="pageConsole"` draws a console created elsewhere with every
+  optional feature, and never disposes it, so a panel mounted again shows the same entries and live input. Its options
+  are its creator's: with `console`, `commands` to `shouldRecord` and `entries` / `recall` / `context` throw a
+  `TypeError`; `labels` and `autofocus` apply.
 - **Events:** `update:entries`, `update:recall`, `update:context` (for `v-model`, each resolved against the value last
   emitted, so two changes in one tick are both kept), `close` (a command's `close` effect) and `submit`
   (`{ inputId, sensitive }`, never the line; for Enter and the exposed `run`).
@@ -97,7 +102,8 @@ there.
 `useCommandConsole(options)` gives the same console without markup: `{ console, state }`, where `state` is a read-only
 `ShallowRef` of the console's state. A value option (`commands`, `prompt`, `state`, `maxEntries`, `recallLimit`) takes
 a value, a ref or a getter; a function option takes the function or a ref to it. `features` and `initialState` are read
-once, and the console is disposed with the calling scope. The optional features come from
+once, and the console is disposed with the calling scope; `useCommandConsole({ console })` mirrors a console created
+elsewhere, takes no other option and never disposes it. The optional features come from
 `@dolusoft/command-console-core`:
 
 ```ts

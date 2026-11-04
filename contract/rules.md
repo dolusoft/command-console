@@ -461,3 +461,13 @@ lists the commands that have `input` and `danger` and are not `hidden` (`name`, 
 one of them (`name`, `summary`, `usage`, `danger`, `input`), or is `unknown-command`. `run` calls `request` as
 `external-agent` with `{ line }` or `{ command, args, view }`, and resolves its outcome; another input is
 `invalid-args`. No `execute` rejects.
+
+### C-84 External console (Vue)
+
+`useCommandConsole({ console })` and `<CommandConsole :console>` use a console they did not create: they subscribe to
+it and mirror its state, and never call its `setOptions` or `dispose`; the end of the effect scope, or the unmount,
+only unsubscribes. With `console`, any other option of the composable, and any console-option prop of the component
+(`commands`, `prompt`, `initialState`, `createId`, `maxEntries`, `beforeRun`, `onError`, `formatError`, `isSensitive`,
+`recallLimit`, `shouldRecord`) or controlled slice (`entries`, `recall`, `context`), throws a `TypeError`; so does a
+component with neither `commands` nor `console`. A component mounted again on the same console shows its entries and
+its live input.

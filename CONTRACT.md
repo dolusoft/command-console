@@ -10,7 +10,8 @@ This is the public contract of `@dolusoft/command-console`: the component surfac
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `commands` | `CommandDefinition[]` | yes |  | The commands; validated on every change (C-56). |
+| `console` | `Console<OptionalFeatures>` |  | `undefined` | A console created elsewhere, with every optional feature (C-84): the component draws it and never disposes it, so a remount shows the same entries and input. Read once. Its options are its creator's: with it, the console-option props (`commands` to `shouldRecord`) and the controlled slices throw; `labels` and `autofocus` apply. |
+| `commands` | `CommandDefinition[]` |  | `undefined` | The commands; validated on every change (C-56). Required without `console`. |
 | `prompt` | `string` |  | `undefined` | The root prompt. Default `'>'`. |
 | `initialState` | `Partial<ControllableState>` |  | `undefined` | The first value of each uncontrolled slice; read once. |
 | `createId` | `(() => string)` |  | `undefined` | Makes entry and run ids. Default: a per-console counter. |
@@ -69,7 +70,7 @@ Exported from the package entry point next to the component.
 
 | Name | Signature | Description |
 | --- | --- | --- |
-| `useCommandConsole` | `(options: UseCommandConsoleOptions<T>) => UseCommandConsoleReturn<T>` | Creates a console from `options` and keeps it in step with them. A value option (`commands`, `prompt`, `state`, `maxEntries`, `recallLimit`) may be a plain value, a ref or a getter. A function option (`beforeRun`, `onError`, …) may be the function or a ref that holds it: a bare function is the option itself, never a getter. `features` and `initialState` are read once. |
+| `useCommandConsole` | `(options: UseCommandConsoleOptions<T> \| UseExternalConsoleOptions<T>) => UseCommandConsoleReturn<T>` | Creates a console from `options` and keeps it in step with them; or, given `{ console }` alone, mirrors a console created elsewhere and leaves its options and its life to its creator (C-84). A value option (`commands`, `prompt`, `state`, `maxEntries`, `recallLimit`) may be a plain value, a ref or a getter. A function option (`beforeRun`, `onError`, …) may be the function or a ref that holds it: a bare function is the option itself, never a getter. `features` and `initialState` are read once. `console` with any other option throws a `TypeError`. |
 
 ## Types
 
@@ -194,8 +195,19 @@ export type ConsoleLabelsInput = Partial<Omit<ConsoleLabels, 'messages'>> & {
 
 /** The props of `<CommandConsole>`. */
 export interface ConsoleProps {
-  /** The commands; validated on every change (C-56). */
-  commands: CommandDefinition[]
+  /**
+   * A console created elsewhere, with every optional feature (C-84): the
+   * component draws it and never disposes it, so a remount shows the same
+   * entries and input. Read once. Its options are its creator's: with it,
+   * the console-option props (`commands` to `shouldRecord`) and the
+   * controlled slices throw; `labels` and `autofocus` apply.
+   */
+  console?: Console<OptionalFeatures>
+  /**
+   * The commands; validated on every change (C-56). Required without
+   * `console`.
+   */
+  commands?: CommandDefinition[]
   /** The root prompt. Default `'>'`. */
   prompt?: string
   /** The first value of each uncontrolled slice; read once. */
@@ -358,14 +370,33 @@ export type UseCommandConsoleOptions<
     commands: MaybeRefOrGetter<CommandDefinition[]>
     /** Read once, when the console is created. */
     initialState?: MaybeRefOrGetter<Partial<ControllableState> | undefined>
+    /** Only in `UseExternalConsoleOptions`, without the other options. */
+    console?: never
   }
+
+/**
+ * The options of `useCommandConsole` over a console created elsewhere
+ * (C-84): the console alone. Its options belong to whoever created it; the
+ * composable only mirrors its state and never disposes it.
+ */
+export type UseExternalConsoleOptions<
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  T extends Partial<OptionalFeatures> = {}
+> = {
+  console: Console<T>
+} & {
+  [K in Exclude<keyof UseCommandConsoleOptions<T>, 'console'>]?: never
+}
 
 /** What `useCommandConsole` returns. */
 export interface UseCommandConsoleReturn<
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   T extends Partial<OptionalFeatures> = {}
 > {
-  /** The console; disposed with the effect scope. */
+  /**
+   * The console; disposed with the effect scope when the composable created
+   * it.
+   */
   console: Console<T>
   /** The state after every action (C-68). */
   state: Readonly<ShallowRef<ConsoleState>>
@@ -1335,6 +1366,16 @@ lists the commands that have `input` and `danger` and are not `hidden` (`name`, 
 one of them (`name`, `summary`, `usage`, `danger`, `input`), or is `unknown-command`. `run` calls `request` as
 `external-agent` with `{ line }` or `{ command, args, view }`, and resolves its outcome; another input is
 `invalid-args`. No `execute` rejects.
+
+#### C-84 External console (Vue)
+
+`useCommandConsole({ console })` and `<CommandConsole :console>` use a console they did not create: they subscribe to
+it and mirror its state, and never call its `setOptions` or `dispose`; the end of the effect scope, or the unmount,
+only unsubscribes. With `console`, any other option of the composable, and any console-option prop of the component
+(`commands`, `prompt`, `initialState`, `createId`, `maxEntries`, `beforeRun`, `onError`, `formatError`, `isSensitive`,
+`recallLimit`, `shouldRecord`) or controlled slice (`entries`, `recall`, `context`), throws a `TypeError`; so does a
+component with neither `commands` nor `console`. A component mounted again on the same console shows its entries and
+its live input.
 
 ## DOM contract
 

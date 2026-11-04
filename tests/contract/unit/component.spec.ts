@@ -1,7 +1,7 @@
 // The component's props, events, slots, labels and expose (happy-dom). The
 // keyboard, focus, scroll and accessibility rules are in the browser specs.
 import { mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
 
 import {
@@ -10,6 +10,13 @@ import {
   type ConsoleExpose,
   type ContextFrame
 } from '@dolusoft/command-console'
+import {
+  completionFeature,
+  consoleFeatures,
+  contextFeature,
+  createConsole,
+  recallFeature
+} from '@dolusoft/command-console-core'
 
 import { makeCommands, settle } from '../../support/console-fixture'
 import { mountConsole, unmountAll } from '../../support/mount-console'
@@ -294,6 +301,79 @@ describe('C-66 context depth', () => {
     expect(texts(view.root, '.cc-entry[data-kind="input"] .cc-prompt')).toEqual(
       ['$', 'db>', 'users>']
     )
+  })
+})
+
+describe('C-84 external console (component)', () => {
+  const external = () =>
+    createConsole({
+      features: consoleFeatures({
+        recallFeature,
+        completionFeature,
+        contextFeature
+      }),
+      commands: makeCommands().commands
+    })
+  const mountOn = (props: Record<string, unknown>) =>
+    mount(CommandConsole as never, {
+      props: props as never,
+      attachTo: document.body
+    })
+
+  it('a remount on the same console keeps its entries and live input, and never disposes it', async () => {
+    const owned = external()
+    const dispose = vi.spyOn(owned, 'dispose')
+    const setOptions = vi.spyOn(owned, 'setOptions')
+    const first = mountOn({
+      console: owned,
+      labels: { log: 'Output' },
+      onSubmit: () => undefined
+    })
+    const api = first.vm as unknown as ConsoleExpose
+    expect(api.console.getState()).toBe(owned.getState())
+    await api.run('echo a')
+    owned.setInput('echo half')
+    await settle()
+    expect(first.emitted('submit')).toHaveLength(1)
+    const firstRoot = first.element as Element
+    expect(firstRoot.querySelector('.cc-log')?.getAttribute('aria-label')).toBe(
+      'Output'
+    )
+    first.unmount()
+    expect(dispose).not.toHaveBeenCalled()
+
+    // The console lives on while no component shows it.
+    await owned.run('echo b')
+    owned.setInput('echo half')
+    const second = mountOn({ console: owned })
+    await settle()
+    const root = second.element as Element
+    expect(texts(root, '.cc-entry[data-kind="input"] .cc-line')).toEqual([
+      'echo a',
+      'echo b'
+    ])
+    expect(root.querySelector<HTMLInputElement>('.cc-input')?.value).toBe(
+      'echo half'
+    )
+    second.unmount()
+    expect(dispose).not.toHaveBeenCalled()
+    expect(setOptions).not.toHaveBeenCalled()
+    owned.dispose()
+  })
+
+  it('console with a console-option prop or a controlled slice throws a TypeError', () => {
+    const owned = external()
+    const warn = vi
+      .spyOn(globalThis.console, 'warn')
+      .mockImplementation(() => undefined)
+    expect(() =>
+      mountOn({ console: owned, commands: makeCommands().commands })
+    ).toThrow(TypeError)
+    expect(() => mountOn({ console: owned, prompt: '$' })).toThrow(/prompt/)
+    expect(() => mountOn({ console: owned, entries: [] })).toThrow(/entries/)
+    expect(() => mountOn({})).toThrow(TypeError)
+    warn.mockRestore()
+    owned.dispose()
   })
 })
 

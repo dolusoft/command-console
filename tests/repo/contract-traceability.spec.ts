@@ -20,16 +20,16 @@ import { collectSuite, coveredIds, namedIds, rulesOf } from './test-names'
 // rule from the list (CONTRIBUTING.md, "Rule traceability").
 
 /**
- * The rules: C-01 to C-69 in 1.0, C-70 to C-83 for the envelope and the gate.
- * A later rule raises it.
+ * The rules: C-01 to C-69 in 1.0, C-70 to C-83 for the envelope and the gate,
+ * C-84 for the external console. A later rule raises it.
  */
-const ruleCount = 83
+const ruleCount = 84
 /**
  * The fewest runnable tests the specs must hold, so a broken reader that
  * finds none fails. Each piece raises it to about the count it leaves; 1.0 is
  * released with it set to the 1.0 count.
  */
-const minimumTests = 528
+const minimumTests = 534
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
