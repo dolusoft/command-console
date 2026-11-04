@@ -7,7 +7,8 @@
     "0.0.0 (recall, #1, 2026-10-26): core-all becomes a real console with recallFeature (record, browse, clear-recall); completion and context add theirs.",
     "0.0.0 (context, #1, 2026-10-26): core-all adds contextFeature (pushes, pops and resets frames) next to recallFeature; completion adds its own.",
     "0.0.0 (completion, #1, 2026-10-26): core-all adds completionFeature (token at the caret, filter, quoting, session keys) and completes a token; all three optional features are in.",
-    "1.0.1 (protocol, #13, 2026-11-04): the protocol fixture also checks an input schema, reads an option line, validates and formats the input, and builds, measures and parses an envelope: the schema checker, the validator, the option line and the envelope are new runtime code (ADR 0012)."
+    "1.0.1 (protocol, #13, 2026-11-04): the protocol fixture also checks an input schema, reads an option line, validates and formats the input, and builds, measures and parses an envelope: the schema checker, the validator, the option line and the envelope are new runtime code (ADR 0012).",
+    "1.0.1 (core, #13, 2026-11-04): dispatch reads schema lines (parseOptions, validateInput, formatCommandLine), checks schemas on registration (checkInputSchema), and runs the gate path (envelope, echo, closed ids) and request(); every console now bundles that protocol code, so core and core-all grow by about 4.6 KB."
   ],
   "fixtures": {
     "protocol": {
@@ -15,12 +16,12 @@
       "maxGzipBytes": 3899
     },
     "core": {
-      "measuredGzipBytes": 5736,
-      "maxGzipBytes": 6023
+      "measuredGzipBytes": 10418,
+      "maxGzipBytes": 10939
     },
     "core-all": {
-      "measuredGzipBytes": 8219,
-      "maxGzipBytes": 8630
+      "measuredGzipBytes": 12726,
+      "maxGzipBytes": 13363
     }
   }
 }
