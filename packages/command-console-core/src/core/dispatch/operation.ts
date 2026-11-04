@@ -92,7 +92,7 @@ export const checkGateOptions = (
     !(typeof ms === 'number' && Number.isFinite(ms) && ms > 0)
   ) {
     throw new TypeError(
-      `echoTimeoutMs must be a finite number above 0 (got ${String(ms)}).`
+      `echoTimeoutMs must be a finite number above 0 (got ${typeof ms === 'number' ? ms : typeof ms}).`
     )
   }
 }
