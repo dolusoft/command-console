@@ -28,6 +28,12 @@ export const renderEntry = (
   slots: EntrySlots
 ): VNode => {
   if (entry.kind === 'input') {
+    // C-85: a line from the assistant or an agent says so, as text before
+    // the prompt, so a screen reader reads it with the line.
+    const actor =
+      entry.actor === 'assistant' || entry.actor === 'external-agent'
+        ? entry.actor
+        : undefined
     return h(
       'div',
       {
@@ -35,9 +41,11 @@ export const renderEntry = (
         class: 'cc-entry',
         'data-kind': 'input',
         'data-status': entry.status,
-        'data-redacted': entry.redacted ? '' : undefined
+        'data-redacted': entry.redacted ? '' : undefined,
+        'data-actor': actor
       },
       [
+        actor ? h('span', { class: 'cc-actor' }, labels.actors[actor]) : null,
         renderPrompt(entry.prompt, slots),
         h(
           'span',

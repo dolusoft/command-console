@@ -65,8 +65,10 @@ const open = ref(true)
 - **Slots:** `block-text`, `block-json`, `block-table`, `block-list`, `block-message`, `block-custom` (`{ block, entry }`,
   inside a `div.cc-block`), `prompt`, `busy`, `completion`. A slot replaces content, never the element that carries the
   hooks.
-- **Labels:** every text the component shows is in `labels`, over English defaults; `messages` merges one level deep
-  and a message may be a function of its parameters.
+- **Labels:** every text the component shows is in `labels`, over English defaults; `messages` and `actors` merge one
+  level deep and a message may be a function of its parameters. A line from the assistant or an external agent
+  (`InputEntry.actor`) shows `labels.actors[actor]` (`AI`, `Agent`) in a `span.cc-actor` before its prompt, and its
+  entry has `data-actor`.
 - **Expose:** `focus()`, `run(line)`, `cancel()`, `reset()`, `clear()`, `console` and `state` (unwrapped by the
   template ref: `consoleRef.value.state.running`).
 

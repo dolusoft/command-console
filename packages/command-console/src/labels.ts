@@ -47,17 +47,22 @@ const defaultLabels: ConsoleLabels = {
         ? 'Invalid options.'
         : `Invalid option: ${params.path}.`,
     'operation-failed': params => operationTexts[params.code]
+  },
+  actors: {
+    assistant: 'AI',
+    'external-agent': 'Agent'
   }
 }
 
 /**
- * The defaults with `labels` over them; `messages` merges one level deep, so
- * overriding one message keeps the others.
+ * The defaults with `labels` over them; `messages` and `actors` merge one
+ * level deep, so overriding one message keeps the others.
  */
 export const resolveLabels = (labels?: ConsoleLabelsInput): ConsoleLabels => ({
   ...defaultLabels,
   ...labels,
-  messages: { ...defaultLabels.messages, ...labels?.messages }
+  messages: { ...defaultLabels.messages, ...labels?.messages },
+  actors: { ...defaultLabels.actors, ...labels?.actors }
 })
 
 /** The text of a message block, from `labels.messages`. */

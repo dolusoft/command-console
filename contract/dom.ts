@@ -50,6 +50,12 @@ export const domClasses: ClassEntry[] = [
       'One entry: an ended input line or the output of a command (`data-kind`).'
   },
   {
+    name: 'cc-actor',
+    on: '.cc-entry > span',
+    description:
+      'Before the prompt of a line from the assistant or an external agent: `labels.actors[actor]` (C-85).'
+  },
+  {
     name: 'cc-prompt',
     on: 'span',
     description:
@@ -152,6 +158,12 @@ export const domAttributes: AttributeEntry[] = [
     on: '.cc-entry',
     description:
       'Present on the input entry of a sensitive line, whose text is not kept (C-30).'
+  },
+  {
+    name: 'data-actor',
+    on: '.cc-entry',
+    description:
+      '`assistant` or `external-agent` on the input entry of a line from one of them; absent for the user’s own lines (C-85).'
   },
   {
     name: 'aria-live',

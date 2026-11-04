@@ -330,8 +330,8 @@ The component renders this tree. The classes, `data-*` attributes and ids are li
 div.cc-console [data-busy] data-context-depth=<frames>
 ├─ div.cc-log role="log" aria-label            the scroll container
 │  └─ div.cc-entries
-│     └─ div.cc-entry data-kind="input|output" data-tone data-status [data-redacted] [aria-live="off" when quiet]
-│        ├─ input:  span.cc-prompt, span.cc-line, span.cc-cancelled (after Ctrl+C)
+│     └─ div.cc-entry data-kind="input|output" data-tone data-status [data-redacted] [data-actor] [aria-live="off" when quiet]
+│        ├─ input:  span.cc-actor (a line from the assistant or an agent), span.cc-prompt, span.cc-line, span.cc-cancelled (after Ctrl+C)
 │        └─ output: one .cc-block data-type=… per block
 │           text, json, custom → pre · table → table/thead/th scope=col/tbody · list → ul/li · message → div
 ├─ div.cc-status role="status"                 busy text, or the recalled line
@@ -384,7 +384,7 @@ The library writes no `style` attribute, sets no size and no `overflow`. Give `.
 
 ## Labels
 
-Every text the component shows comes from the `labels` prop, over English defaults. `messages` merges one level deep, so overriding one message keeps the others. A message is a string or a function of its parameters.
+Every text the component shows comes from the `labels` prop, over English defaults. `messages` and `actors` merge one level deep, so overriding one message keeps the others. A message is a string or a function of its parameters.
 
 | Label                            | Default                                                                           |
 | -------------------------------- | --------------------------------------------------------------------------------- |
@@ -395,6 +395,8 @@ Every text the component shows comes from the `labels` prop, over English defaul
 | `cancelledMarker`                | `^C`                                                                              |
 | `completions`                    | `Suggestions` (the list's accessible name)                                        |
 | `busy`                           | `Running…`                                                                        |
+| `actors.assistant`               | `AI` (before the prompt of a line from the application's assistant)               |
+| `actors['external-agent']`       | `Agent` (before the prompt of a line from an agent outside the application)       |
 | `messages['command-not-found']`  | `` p => p.name === null ? 'command not found' : `${p.name}: command not found` `` |
 | `messages['command-failed']`     | `The command failed.`                                                             |
 | `messages['unterminated-quote']` | `Unterminated quote.`                                                             |

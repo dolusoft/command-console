@@ -471,3 +471,9 @@ only unsubscribes. With `console`, any other option of the composable, and any c
 `recallLimit`, `shouldRecord`) or controlled slice (`entries`, `recall`, `context`), throws a `TypeError`; so does a
 component with neither `commands` nor `console`. A component mounted again on the same console shows its entries and
 its live input.
+
+### C-85 Actor (Vue)
+
+An input entry whose `actor` is `assistant` or `external-agent` has `data-actor` with that value and, before its
+prompt, a `span.cc-actor` with `labels.actors[actor]`, so the label is read with the line; a line without `actor` or
+with `user` has neither. A partial `labels.actors` keeps the other defaults.

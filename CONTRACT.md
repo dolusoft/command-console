@@ -94,6 +94,7 @@ import type {
   RunningCommand
 } from '@dolusoft/command-console-core'
 import type {
+  Actor,
   CommandResponse,
   ConsoleEntry,
   ContextFrame,
@@ -130,6 +131,7 @@ export type {
   Updater
 } from '@dolusoft/command-console-core'
 export type {
+  Actor,
   CommandResponse,
   CommandSpec,
   ConsoleEffect,
@@ -180,14 +182,25 @@ export interface ConsoleLabels {
   busy: string
   /** The text of each library-made message block. */
   messages: MessageLabels
+  /**
+   * Shown before the prompt of a line that came from the assistant or an
+   * external agent (C-85). Default `'AI'` and `'Agent'`.
+   */
+  actors: ActorLabels
 }
 
+/** The label of each actor other than the user (C-85). */
+export type ActorLabels = Record<Exclude<Actor, 'user'>, string>
+
 /**
- * The `labels` prop: any part of `ConsoleLabels`. `messages` is merged one
- * level deep, so overriding one message keeps the others.
+ * The `labels` prop: any part of `ConsoleLabels`. `messages` and `actors`
+ * are merged one level deep, so overriding one message keeps the others.
  */
-export type ConsoleLabelsInput = Partial<Omit<ConsoleLabels, 'messages'>> & {
+export type ConsoleLabelsInput = Partial<
+  Omit<ConsoleLabels, 'messages' | 'actors'>
+> & {
   messages?: Partial<MessageLabels>
+  actors?: Partial<ActorLabels>
 }
 
 // ---------------------------------------------------------------------------
@@ -607,6 +620,14 @@ export interface InputEntry {
   /** Who the line came from, as a label for the history. */
   actor?: Actor
 }
+
+// packages/command-protocol/src/entry.ts
+/**
+ * Who a line or a request came from: the user, the application's own
+ * assistant, or an agent outside the application (such as a browser agent).
+ * A label, never a permission.
+ */
+export type Actor = 'user' | 'assistant' | 'external-agent'
 
 // packages/command-protocol/src/entry.ts
 /** What a command or the library wrote. */
@@ -1377,6 +1398,12 @@ only unsubscribes. With `console`, any other option of the composable, and any c
 component with neither `commands` nor `console`. A component mounted again on the same console shows its entries and
 its live input.
 
+#### C-85 Actor (Vue)
+
+An input entry whose `actor` is `assistant` or `external-agent` has `data-actor` with that value and, before its
+prompt, a `span.cc-actor` with `labels.actors[actor]`, so the label is read with the line; a line without `actor` or
+with `user` has neither. A partial `labels.actors` keeps the other defaults.
+
 ## DOM contract
 
 The classes and attributes below are the only hooks a skin can select (P6). The console writes no stylesheet and no inline style (P5); slot content is the consumer’s.
@@ -1389,6 +1416,7 @@ The classes and attributes below are the only hooks a skin can select (P6). The 
 | `cc-log` | `.cc-console > div` | The scrollback, a named `role="log"`. Make it scroll in your CSS (`overflow-y: auto` and a height); the console only writes its `scrollTop` to keep the newest output in view (C-58). |
 | `cc-entries` | `.cc-log > div` | The list of entries inside the log, observed for size changes to keep the log at the bottom (C-58). |
 | `cc-entry` | `.cc-entries > div` | One entry: an ended input line or the output of a command (`data-kind`). |
+| `cc-actor` | `.cc-entry > span` | Before the prompt of a line from the assistant or an external agent: `labels.actors[actor]` (C-85). |
 | `cc-prompt` | `span` | The prompt, in an input entry and before the live input. The `prompt` slot renders inside it (C-67). |
 | `cc-line` | `.cc-entry > span` | The text of an ended input line, or `labels.redacted` when the line was sensitive (C-30). |
 | `cc-cancelled` | `.cc-entry > span` | After a line ended with Ctrl+C: `labels.cancelledMarker` (C-15). |
@@ -1411,6 +1439,7 @@ The classes and attributes below are the only hooks a skin can select (P6). The 
 | `data-tone` | `.cc-entry` | The tone of an output entry as the command gave it (for example an error), for the skin to colour. |
 | `data-status` | `.cc-entry` | How an input line ended (for example `cancelled` or `failed`), for the skin to mark it. |
 | `data-redacted` | `.cc-entry` | Present on the input entry of a sensitive line, whose text is not kept (C-30). |
+| `data-actor` | `.cc-entry` | `assistant` or `external-agent` on the input entry of a line from one of them; absent for the user’s own lines (C-85). |
 | `aria-live` | `.cc-entry` | `off` on a quiet entry, which the log does not announce (C-48). |
 | `data-type` | `.cc-block` | The block type: `text`, `json`, `table`, `list`, `message` or `custom`. |
 | `scope` | `.cc-block th` | `col` on each header cell of a table block. |

@@ -15,6 +15,7 @@ import type {
   RunningCommand
 } from '@dolusoft/command-console-core'
 import type {
+  Actor,
   CommandResponse,
   ConsoleEntry,
   ContextFrame,
@@ -51,6 +52,7 @@ export type {
   Updater
 } from '@dolusoft/command-console-core'
 export type {
+  Actor,
   CommandResponse,
   CommandSpec,
   ConsoleEffect,
@@ -101,14 +103,25 @@ export interface ConsoleLabels {
   busy: string
   /** The text of each library-made message block. */
   messages: MessageLabels
+  /**
+   * Shown before the prompt of a line that came from the assistant or an
+   * external agent (C-85). Default `'AI'` and `'Agent'`.
+   */
+  actors: ActorLabels
 }
 
+/** The label of each actor other than the user (C-85). */
+export type ActorLabels = Record<Exclude<Actor, 'user'>, string>
+
 /**
- * The `labels` prop: any part of `ConsoleLabels`. `messages` is merged one
- * level deep, so overriding one message keeps the others.
+ * The `labels` prop: any part of `ConsoleLabels`. `messages` and `actors`
+ * are merged one level deep, so overriding one message keeps the others.
  */
-export type ConsoleLabelsInput = Partial<Omit<ConsoleLabels, 'messages'>> & {
+export type ConsoleLabelsInput = Partial<
+  Omit<ConsoleLabels, 'messages' | 'actors'>
+> & {
   messages?: Partial<MessageLabels>
+  actors?: Partial<ActorLabels>
 }
 
 // ---------------------------------------------------------------------------

@@ -8,7 +8,8 @@ import {
   CommandConsole,
   type ConsoleEntry,
   type ConsoleExpose,
-  type ContextFrame
+  type ContextFrame,
+  type InputEntry
 } from '@dolusoft/command-console'
 import {
   completionFeature,
@@ -301,6 +302,53 @@ describe('C-66 context depth', () => {
     expect(texts(view.root, '.cc-entry[data-kind="input"] .cc-prompt')).toEqual(
       ['$', 'db>', 'users>']
     )
+  })
+})
+
+describe('C-85 actor', () => {
+  const line = (id: string, actor?: InputEntry['actor']): InputEntry => ({
+    id,
+    kind: 'input',
+    prompt: '>',
+    text: `echo ${id}`,
+    redacted: false,
+    status: 'submitted',
+    ...(actor ? { actor } : {})
+  })
+  const lines = [
+    line('a'),
+    line('b', 'user'),
+    line('c', 'assistant'),
+    line('d', 'external-agent')
+  ]
+  const inputs = (root: Element) => [
+    ...root.querySelectorAll('.cc-entry[data-kind="input"]')
+  ]
+
+  it('an assistant or external-agent line shows its label before the prompt', () => {
+    const view = mountConsole({ model: { entries: lines } })
+    expect(
+      inputs(view.root).map(entry => entry.getAttribute('data-actor'))
+    ).toEqual([null, null, 'assistant', 'external-agent'])
+    expect(inputs(view.root).map(entry => entry.textContent)).toEqual([
+      '>echo a',
+      '>echo b',
+      'AI>echo c',
+      'Agent>echo d'
+    ])
+    for (const entry of inputs(view.root).slice(2)) {
+      expect(entry.firstElementChild?.className).toBe('cc-actor')
+      expect(entry.firstElementChild?.tagName).toBe('SPAN')
+    }
+    expect(view.root.querySelectorAll('.cc-actor')).toHaveLength(2)
+  })
+
+  it('a partial labels.actors keeps the other default', () => {
+    const view = mountConsole({
+      model: { entries: lines },
+      props: { labels: { actors: { assistant: 'Asistan' } } }
+    })
+    expect(texts(view.root, '.cc-actor')).toEqual(['Asistan', 'Agent'])
   })
 })
 

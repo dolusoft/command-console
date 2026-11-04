@@ -24,6 +24,18 @@ describe('C-45 DOM contract', () => {
     await view.api.run('login admin hunter2')
     await view.api.run('quiet')
     await view.api.run('fail')
+    // C-85: a line from an agent carries its actor.
+    view.api.console.appendEntries([
+      {
+        id: 'agent-line',
+        kind: 'input',
+        prompt: '>',
+        text: 'echo agent',
+        redacted: false,
+        status: 'submitted',
+        actor: 'external-agent'
+      }
+    ])
     view.api.console.setInput('echo half')
     view.api.cancel()
     void view.api.run('slow')
