@@ -3,16 +3,17 @@
   "history": [
     "0.0.0 (tooling, #1, 2026-10-26): first measurement on the empty packages. Each fixture imports the Vue package as a namespace and renders its export names, so the cost is the fixture's own code; the Vue piece replaces the fixtures with the composable and the component and sets the budgets from their first measure.",
     "0.0.0 (vue, #1, 2026-10-26): the fixtures become real use: `composable` draws its own markup from useCommandConsole (core features only), `component` renders <CommandConsole> with v-model:entries (recall, completion and context included).",
-    "1.0.1 (core, #13, 2026-11-04): the core bundles the schema line, the gate path and request() (with their protocol code: parseOptions, validateInput, formatCommandLine, checkInputSchema, parseEnvelope), about 4.6 KB in both fixtures."
+    "1.0.1 (core, #13, 2026-11-04): the core bundles the schema line, the gate path and request() (with their protocol code: parseOptions, validateInput, formatCommandLine, checkInputSchema, parseEnvelope), about 4.6 KB in both fixtures.",
+    "1.2.0 (core, #13, 2026-11-04): a response's `data` reaches request()'s outcome, read once inside a guard (isJsonValue, one JSON.stringify with a replacer, a UTF-8 byte count, a copy parsed from that text), about 100 B in both fixtures; the component was 30 B over the old budget after shortening."
   ],
   "fixtures": {
     "composable": {
-      "measuredGzipBytes": 10510,
-      "maxGzipBytes": 11036
+      "measuredGzipBytes": 11050,
+      "maxGzipBytes": 11603
     },
     "component": {
-      "measuredGzipBytes": 16824,
-      "maxGzipBytes": 17666
+      "measuredGzipBytes": 17696,
+      "maxGzipBytes": 18581
     }
   }
 }

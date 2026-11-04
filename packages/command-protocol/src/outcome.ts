@@ -1,3 +1,5 @@
+import type { JsonValue } from './json'
+
 /**
  * Why an operation ended without running its command, or why it failed:
  *
@@ -7,7 +9,8 @@
  * - `target-not-found`: the target tab or view does not exist.
  * - `id-conflict`: the echo of the operation differs from its local record.
  * - `unsupported-version`: an envelope version the receiver does not know.
- * - `too-large`: the envelope is larger than `envelopeMaxBytes`.
+ * - `too-large`: the envelope is larger than `envelopeMaxBytes`, or the
+ *   response's `data` is larger than `dataMaxBytes` or is not JSON.
  * - `busy`: the console is already running a command.
  * - `timeout`: the echo did not come in time.
  * - `failed`: the command threw or rejected.
@@ -28,10 +31,14 @@ export type ErrorCode =
   | 'connection-lost'
   | 'cancelled'
 
+/** The most bytes the UTF-8 JSON of a response's `data` may take. */
+export const dataMaxBytes = 32768
+
 /**
  * How an operation ended, as its caller sees it. `summary` is the command's
- * short result (`CommandResponse.summary`).
+ * short result (`CommandResponse.summary`), `data` its JSON result
+ * (`CommandResponse.data`).
  */
 export type CommandOutcome =
-  | { status: 'ok'; summary?: string }
+  | { status: 'ok'; summary?: string; data?: JsonValue }
   | { status: 'error'; code: ErrorCode; message?: string }

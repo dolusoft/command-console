@@ -11,10 +11,11 @@ import {
   type ConsoleOptions,
   type RunInfo
 } from '@dolusoft/command-console-core'
-import type {
-  CommandOutcome,
-  Envelope,
-  InputSchema
+import {
+  dataMaxBytes,
+  type CommandOutcome,
+  type Envelope,
+  type InputSchema
 } from '@dolusoft/command-protocol'
 
 import { command, ctrlC, deferred, enter, flush, outputs } from './helpers'
@@ -1436,5 +1437,258 @@ describe('C-87 Error response', () => {
     expect(
       await console.request({ line: 'text --ip a', actor: agent })
     ).toEqual({ status: 'ok' })
+  })
+})
+
+describe('C-88 Data', () => {
+  const agent = 'external-agent' as const
+  const ask = (
+    console: Pick<ReturnType<typeof createConsole>, 'request'>,
+    name = 'search'
+  ) => console.request({ line: `${name} --ip a`, actor: agent })
+
+  it('data reaches the ok outcome as a copy, next to the summary, and is never drawn', async () => {
+    const rows = [
+      { ip: 'a', hits: 3 },
+      { ip: 'b', hits: null }
+    ]
+    const console = createConsole({
+      commands: [
+        search(() => ({ output: 'two rows', summary: '2 rows', data: rows }))
+      ]
+    })
+    const outcome = await ask(console)
+    expect(outcome).toEqual({ status: 'ok', summary: '2 rows', data: rows })
+    rows[0].ip = 'z'
+    expect(outcome).toMatchObject({ data: [{ ip: 'a', hits: 3 }, {}] })
+    expect(outputs(console.getState().entries)).toMatchObject([
+      { tone: 'default', blocks: [{ type: 'text', text: 'two rows' }] }
+    ])
+    expect(JSON.stringify(console.getState())).not.toContain('hits')
+  })
+
+  it('a falsy JSON value is data; no data, or undefined, leaves it out', async () => {
+    const console = createConsole({
+      commands: [
+        search(() => ({ data: 0 })),
+        search(() => ({ data: null }), { name: 'nothing' }),
+        search(() => ({ summary: 's' }), { name: 'plain' }),
+        search(() => ({ data: undefined }), { name: 'undef' })
+      ]
+    })
+    expect(await ask(console)).toEqual({ status: 'ok', data: 0 })
+    expect(await ask(console, 'nothing')).toEqual({ status: 'ok', data: null })
+    const plain = await ask(console, 'plain')
+    expect(plain).toEqual({ status: 'ok', summary: 's' })
+    expect(plain).not.toHaveProperty('data')
+    const undef = await ask(console, 'undef')
+    expect(undef).toEqual({ status: 'ok' })
+    expect(undef).not.toHaveProperty('data')
+  })
+
+  it('data over dataMaxBytes is too-large, and the output is still drawn', async () => {
+    // 'ü' is two UTF-8 bytes: within the limit in code units, over it in bytes.
+    const limit = dataMaxBytes - 2
+    const console = createConsole({
+      commands: [
+        search(() => ({
+          output: 'big',
+          summary: 'big',
+          data: 'ü'.repeat(limit / 2 + 1)
+        })),
+        search(() => ({ data: 'a'.repeat(limit) }), { name: 'fits' })
+      ]
+    })
+    expect(await ask(console)).toEqual({ status: 'error', code: 'too-large' })
+    expect(outputs(console.getState().entries)).toMatchObject([
+      { tone: 'default', blocks: [{ type: 'text', text: 'big' }] }
+    ])
+    expect(await ask(console, 'fits')).toEqual({
+      status: 'ok',
+      data: 'a'.repeat(limit)
+    })
+  })
+
+  it('counts UTF-8 bytes: non-ASCII data at the limit fits, one byte over is too-large', async () => {
+    // A JSON string is its two quotes plus the text; 'ü' is two bytes.
+    const at = 'ü'.repeat((dataMaxBytes - 2) / 2)
+    const console = createConsole({
+      commands: [
+        search(() => ({ data: at })),
+        search(() => ({ data: `${at}a` }), { name: 'over' })
+      ]
+    })
+    expect(await ask(console)).toEqual({ status: 'ok', data: at })
+    expect(await ask(console, 'over')).toEqual({
+      status: 'error',
+      code: 'too-large'
+    })
+  })
+
+  it('-0 is data and reads back as 0', async () => {
+    const console = createConsole({ commands: [search(() => ({ data: -0 }))] })
+    const outcome = await ask(console)
+    expect(outcome.status).toBe('ok')
+    expect(Object.is((outcome as { data: unknown }).data, 0)).toBe(true)
+  })
+
+  it('a getter that changes between reads is too-large, the output is drawn, nothing rejects', async () => {
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    // Each value is JSON on its first read and something else after it.
+    const later: (() => unknown)[] = [
+      () => {
+        throw new Error('gone')
+      },
+      () => () => 1,
+      () => undefined,
+      () => Number.NaN,
+      () => 'x'.repeat(1_000_000)
+    ]
+    const reads: number[] = later.map(() => 0)
+    const changing = (i: number) => ({
+      get rows(): unknown {
+        reads[i]++
+        return reads[i] === 1 ? 1 : later[i]()
+      }
+    })
+    const console = createConsole({
+      commands: later.flatMap((_, i) => [
+        search(() => ({ output: `s${i}`, data: changing(i) }) as never, {
+          name: `s${i}`
+        }),
+        search(
+          () =>
+            Promise.resolve({ output: `a${i}`, data: changing(i) }) as never,
+          { name: `a${i}` }
+        )
+      ])
+    })
+    try {
+      for (let i = 0; i < later.length; i++) {
+        for (const name of [`s${i}`, `a${i}`]) {
+          reads[i] = 0
+          expect(await ask(console, name)).toEqual({
+            status: 'error',
+            code: 'too-large'
+          })
+          expect(reads[i]).toBeLessThanOrEqual(2)
+        }
+      }
+      await flush()
+      expect(
+        outputs(console.getState().entries).map(entry => entry.blocks)
+      ).toEqual(
+        later.flatMap((_, i) => [
+          [{ type: 'text', text: `s${i}` }],
+          [{ type: 'text', text: `a${i}` }]
+        ])
+      )
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
+  })
+
+  it('data that is not JSON is too-large', async () => {
+    const cycle: Record<string, unknown> = {}
+    cycle.self = cycle
+    const values: unknown[] = [
+      { a: undefined },
+      [1, undefined],
+      () => 1,
+      10n,
+      cycle,
+      new Date(0),
+      Number.NaN,
+      {
+        get a() {
+          throw new Error('x')
+        }
+      },
+      new Array<number>(3),
+      { toJSON: () => 1 }
+    ]
+    const console = createConsole({
+      commands: values.map((data, i) =>
+        search(() => ({ data }) as never, { name: `c${i}` })
+      )
+    })
+    for (let i = 0; i < values.length; i++) {
+      expect(await ask(console, `c${i}`)).toEqual({
+        status: 'error',
+        code: 'too-large'
+      })
+    }
+  })
+
+  it('the summary is still cut, and an error tone carries no data', async () => {
+    const console = createConsole({
+      commands: [
+        search(() => ({ summary: '😀'.repeat(250), data: [1] })),
+        search(() => ({ tone: 'error', data: [1] }), { name: 'bad' })
+      ]
+    })
+    expect(await ask(console)).toEqual({
+      status: 'ok',
+      summary: '😀'.repeat(200),
+      data: [1]
+    })
+    expect(await ask(console, 'bad')).toEqual({
+      status: 'error',
+      code: 'failed'
+    })
+  })
+
+  it('a gated command and beforeRun hand their data on', async () => {
+    const { console, fake } = gated({
+      commands: [search(() => Promise.resolve({ data: { n: 1 } }))]
+    })
+    const outcome = ask(console)
+    await flush()
+    fake.echo()
+    expect(await outcome).toEqual({ status: 'ok', data: { n: 1 } })
+    const before = createConsole({
+      commands: [search()],
+      beforeRun: () => ({ output: 'cached', data: ['c'] })
+    })
+    expect(await ask(before)).toEqual({ status: 'ok', data: ['c'] })
+  })
+
+  it('a line the user types never reads data, even data that is not JSON', async () => {
+    const read = vi.fn(() => 1)
+    const console = createConsole({
+      commands: [
+        search(() => ({
+          output: 'shown',
+          data: {
+            get rows() {
+              return read()
+            }
+          }
+        }))
+      ]
+    })
+    expect(await console.run('search --ip a')).toBe(true)
+    expect(read).not.toHaveBeenCalled()
+    expect(outputs(console.getState().entries)).toMatchObject([
+      { tone: 'default', blocks: [{ type: 'text', text: 'shown' }] }
+    ])
+  })
+
+  it('the agent tool run returns data', async () => {
+    const console = createConsole({
+      commands: [search(() => ({ summary: '1 row', data: [{ ip: 'a' }] }))]
+    })
+    const [, , run] = agentTools(console, { context: () => ({}) })
+    expect(run.description).toContain('data?')
+    expect(await run.execute({ line: 'search --ip a' })).toEqual({
+      status: 'ok',
+      summary: '1 row',
+      data: [{ ip: 'a' }]
+    })
+    expect(await run.execute({ command: 'search', args: { ip: 'a' } })).toEqual(
+      { status: 'ok', summary: '1 row', data: [{ ip: 'a' }] }
+    )
   })
 })

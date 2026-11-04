@@ -33,6 +33,7 @@ import type {
 } from './dispatch.types'
 import { blocksOf, isThenable, normalizeReturn, specOf } from './dispatch.utils'
 import {
+  checkData,
   cutSummary,
   describedCommand,
   envelopeIds,
@@ -234,18 +235,32 @@ const apply = (
   }
 }
 
-/** Ends `run` with what it returned; an `error` tone is `failed` (C-87). */
+/**
+ * Ends `run` with what it returned. An `error` tone is `failed` (C-87);
+ * `data` that is not JSON or is over `dataMaxBytes` is `too-large` (C-88). A
+ * typed line has no caller, so its `data` is not read. The command's value
+ * is read only inside `checkData`, and the outcome's `data` is parsed from
+ * the text it returns.
+ */
 const fulfil = (console: object, run: Run, value: CommandReturn) => {
   run.current = false
   try {
     const response = normalizeReturn(value)
+    const text =
+      run.onOutcome && response.data !== undefined
+        ? checkData(response.data)
+        : ''
     const summary = cutSummary(response.summary)
     run.outcome =
       response.tone === 'error'
         ? failure('failed')
-        : summary === undefined
-          ? { status: 'ok' }
-          : { status: 'ok', summary }
+        : text === undefined
+          ? failure('too-large')
+          : {
+              status: 'ok',
+              ...(summary !== undefined && { summary }),
+              ...(text && { data: JSON.parse(text) as JsonValue })
+            }
     apply(console, run, response, 'default')
   } finally {
     cleanup(console, run)

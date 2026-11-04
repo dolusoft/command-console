@@ -2,6 +2,7 @@ import type { OutputBlock } from './block'
 import type { ContextFrame } from './context'
 import type { OutputEntry } from './entry'
 import type { InputSchema } from './input/schema'
+import type { JsonValue } from './json'
 
 /**
  * The JSON part of a command: its names and how it is listed and redacted.
@@ -53,6 +54,11 @@ export interface CommandResponse {
    * as "342 rows"; at most 200 characters.
    */
   summary?: string
+  /**
+   * A JSON result for the caller of an operation (`CommandOutcome.data`);
+   * never drawn. At most `dataMaxBytes` UTF-8 bytes as JSON.
+   */
+  data?: JsonValue
 }
 
 /**
