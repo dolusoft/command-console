@@ -2,6 +2,12 @@
 
 The release notes of a version are on its GitHub Release. This file names what a consumer must change.
 
+## 1.4.1
+
+- **Changed: `run` of `help` or `context`.** Refused as `not-allowed` or `unknown-command`, the agent's `run` tool
+  said only the user could run it; its `message` now says to call the `help` or `context` tool instead (C-83). The
+  code stays. Nothing for a consumer to change.
+
 ## 1.4.0
 
 Which namespace, and why not (ADR 0012, second addendum of 2026-11-05).
