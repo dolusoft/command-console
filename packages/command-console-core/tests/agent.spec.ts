@@ -673,6 +673,36 @@ describe('C-93 Why not allowed', () => {
     })
   })
 
+  it('run of help or context points at the tool of that name', async () => {
+    const pointer = (name: string, code: string) => ({
+      status: 'error',
+      code,
+      message: `${name} is a tool of its own, not a command for run: call the ${name} tool.`
+    })
+    // The console's own help is not open to agents.
+    const withHelp = createConsole({
+      commands: [command('help', vi.fn())]
+    })
+    const run = agentTools(withHelp, { context: () => null })[2]
+    expect(await run.execute({ command: 'help' })).toEqual(
+      pointer('help', 'not-allowed')
+    )
+    expect(await run.execute({ line: '  help syslogs' })).toEqual(
+      pointer('help', 'not-allowed')
+    )
+    expect(await run.execute({ line: 'context' })).toEqual(
+      pointer('context', 'unknown-command')
+    )
+    // Any other refusal is the console's.
+    const other = agentTools(setup().console, { context: () => null })[2]
+    expect(await other.execute({ line: 'plain' })).toEqual({
+      status: 'error',
+      code: 'not-allowed',
+      message:
+        'plain is not open to agents; only the user can run it in the terminal.'
+    })
+  })
+
   it('the tools say what danger means', () => {
     const [, help, run] = agentTools(setup().console, { context: () => null })
     expect(help.description).toContain(

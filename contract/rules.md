@@ -473,7 +473,9 @@ carries no `actor`.
 `danger`, `input`), or is `unknown-command`; a line `isSensitive` would mark does not take a command off the list.
 `help` without `command` lists a page (C-92). `run` calls `request` as `external-agent` with `{ line }` or
 `{ command, args?, view? }` (no `args` is `{}`), and resolves its outcome; another input is `invalid-args` with a
-`message`. No `execute` rejects. The description of `help` says what `danger` means (`read` the agent runs, `change`
+`message`. A `run` of `help` or `context` (the command, or the first word of the line) that `request` refuses as
+`not-allowed` or `unknown-command` keeps its code, and its `message` says to call the tool of that name instead. No
+`execute` rejects. The description of `help` says what `danger` means (`read` the agent runs, `change`
 only the user runs by typing it), and that of `run` says not to try a `change` command but to suggest its line, and
 gives the outcome as `{ status: "error", code, message?, line? }`.
 

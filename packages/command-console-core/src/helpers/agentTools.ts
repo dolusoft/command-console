@@ -81,6 +81,25 @@ const error = (
 
 const failed: CommandOutcome = { status: 'error', code: 'failed' }
 
+/**
+ * A `run` of `help` or `context` that the console refuses points at the tool
+ * of that name: the console's own `help` is not open to agents, and its
+ * "only the user can run it" sent the agent away from a tool it has (C-83).
+ */
+const toolOwn = (
+  name: string | undefined,
+  outcome: CommandOutcome
+): CommandOutcome =>
+  (name === 'help' || name === 'context') &&
+  outcome.status === 'error' &&
+  (outcome.code === 'not-allowed' || outcome.code === 'unknown-command')
+    ? {
+        status: 'error',
+        code: outcome.code,
+        message: `${name} is a tool of its own, not a command for run: call the ${name} tool.`
+      }
+    : outcome
+
 const bytes = (value: JsonValue): number =>
   new TextEncoder().encode(JSON.stringify(value)).length
 
@@ -291,10 +310,13 @@ export function agentTools(
       annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute: async input => {
         if (isRecord(input) && typeof input.line === 'string') {
-          return console.request({
-            line: input.line,
-            actor: 'external-agent'
-          })
+          return toolOwn(
+            input.line.trim().split(/\s+/)[0],
+            await console.request({
+              line: input.line,
+              actor: 'external-agent'
+            })
+          )
         }
         if (!isRecord(input) || typeof input.command !== 'string') {
           return error(
@@ -309,12 +331,15 @@ export function agentTools(
         if (input.view !== undefined && typeof input.view !== 'string') {
           return error('invalid-args', 'view: expected string')
         }
-        return console.request({
-          command: input.command,
-          args: args ?? {},
-          ...(input.view === undefined ? {} : { view: input.view }),
-          actor: 'external-agent'
-        })
+        return toolOwn(
+          input.command,
+          await console.request({
+            command: input.command,
+            args: args ?? {},
+            ...(input.view === undefined ? {} : { view: input.view }),
+            actor: 'external-agent'
+          })
+        )
       }
     }
   ]
