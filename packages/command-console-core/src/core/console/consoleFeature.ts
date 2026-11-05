@@ -28,7 +28,10 @@ import {
   type KeyInput
 } from '../../shared'
 import { resolveUpdater, type Updater } from '../../store/action'
-import { validateCommands } from '../dispatch/dispatch.utils'
+import {
+  validateCommands,
+  validateNamespaces
+} from '../dispatch/dispatch.utils'
 import { checkGateOptions } from '../dispatch/operation'
 
 const controllable: readonly ControlledSlice[] = [
@@ -122,6 +125,7 @@ export const consoleFeature: ConsoleFeature = {
             throw new Error('setOptions cannot change the gate.')
           }
           validateCommands(given.commands)
+          validateNamespaces(given.namespaces)
           checkGateOptions(given)
           store.action(() => {
             const before = { ...store.read() }

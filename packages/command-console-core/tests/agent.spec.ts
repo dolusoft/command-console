@@ -521,3 +521,291 @@ describe('C-92 Help pages', () => {
     expect(await help.execute({ command: 'rows' })).toEqual(one)
   })
 })
+
+describe('C-93 Why not allowed', () => {
+  const stopInput: InputSchema = {
+    type: 'object',
+    properties: {
+      bucket: { type: 'string' },
+      token: { type: 'string' },
+      all: { type: 'boolean' }
+    }
+  }
+  const setup = () => {
+    const run = vi.fn(() => ({ summary: 'stopped' }))
+    const console = createConsole({
+      commands: [
+        command('tasks.stop', run, {
+          input: stopInput,
+          danger: 'change',
+          normalize: value => ({ ...value, bucket: 'normalized' })
+        }),
+        command('tasks.purge', run, {
+          input: stopInput,
+          danger: 'irreversible'
+        }),
+        command('plain', run),
+        rows()
+      ],
+      isSensitive: line => line.includes('--token')
+    })
+    return { console, run }
+  }
+  const userOnly =
+    'tasks.stop changes data; only the user can run it by typing it in the terminal.'
+
+  it('a change command gives the reason and its canonical line, before normalize', async () => {
+    const { console, run } = setup()
+    const expected = {
+      status: 'error',
+      code: 'not-allowed',
+      message: `${userOnly} Suggest this line to the user instead of retrying.`,
+      line: 'tasks.stop --bucket logs --all'
+    }
+    expect(
+      await console.request({
+        command: 'tasks.stop',
+        args: { bucket: 'logs', all: true },
+        actor: agent
+      })
+    ).toEqual(expected)
+    expect(
+      await console.request({
+        line: 'tasks.stop --all --bucket logs',
+        actor: agent
+      })
+    ).toEqual(expected)
+    expect(run).not.toHaveBeenCalled()
+    expect(console.getState().entries).toEqual([])
+  })
+
+  it('a sensitive line is never handed back', async () => {
+    const { console } = setup()
+    const outcomes = [
+      await console.request({
+        command: 'tasks.stop',
+        args: { token: 'hunter2' },
+        actor: agent
+      }),
+      await console.request({
+        line: 'tasks.stop --token hunter2',
+        actor: agent
+      })
+    ]
+    for (const outcome of outcomes) {
+      expect(outcome).toEqual({
+        status: 'error',
+        code: 'not-allowed',
+        message: userOnly
+      })
+      expect(JSON.stringify(outcome)).not.toContain('hunter2')
+    }
+  })
+
+  it('args that do not match give the reason and no line', async () => {
+    const { console } = setup()
+    expect(
+      await console.request({
+        command: 'tasks.stop',
+        args: { bucket: 1 },
+        actor: agent
+      })
+    ).toEqual({
+      status: 'error',
+      code: 'not-allowed',
+      message: `${userOnly} Its args do not match its input: bucket: expected string.`
+    })
+    expect(
+      await console.request({
+        line: 'tasks.stop --token x --nope',
+        actor: agent
+      })
+    ).toEqual({ status: 'error', code: 'not-allowed', message: userOnly })
+  })
+
+  it('every other not-allowed says why, without a line', async () => {
+    const { console } = setup()
+    expect(
+      await console.request({ command: 'tasks.purge', args: {}, actor: agent })
+    ).toEqual({
+      status: 'error',
+      code: 'not-allowed',
+      message:
+        'tasks.purge cannot be undone, so it never runs from the console, not even when the user types it.'
+    })
+    expect(await console.request({ line: 'plain', actor: agent })).toEqual({
+      status: 'error',
+      code: 'not-allowed',
+      message:
+        'plain is not open to agents; only the user can run it in the terminal.'
+    })
+    expect(
+      await console.request({ line: 'tasks.stop --all', actor: 'assistant' })
+    ).toEqual({
+      status: 'error',
+      code: 'not-allowed',
+      message: 'request runs commands for external-agent only.'
+    })
+    expect(
+      await console.request({
+        command: 'dataview.rows',
+        args: { last: '1h', columns: ['--token'] },
+        actor: agent
+      })
+    ).toEqual({
+      status: 'error',
+      code: 'not-allowed',
+      message:
+        'The line is sensitive; only the user can type it in the terminal.'
+    })
+  })
+
+  it('the run tool hands the reason and the line to the agent', async () => {
+    const { console } = setup()
+    const run = agentTools(console, { context: () => null })[2]
+    expect(
+      await run.execute({ command: 'tasks.stop', args: { all: true } })
+    ).toEqual({
+      status: 'error',
+      code: 'not-allowed',
+      message: `${userOnly} Suggest this line to the user instead of retrying.`,
+      line: 'tasks.stop --all'
+    })
+  })
+
+  it('the tools say what danger means', () => {
+    const [, help, run] = agentTools(setup().console, { context: () => null })
+    expect(help.description).toContain(
+      'danger: read you can run; change only the user can run'
+    )
+    expect(run.description).toContain('do not try it, suggest its line')
+    expect(run.description).toContain('message?, line?')
+  })
+})
+
+describe('C-94 Namespace summaries', () => {
+  const read = (name: string) =>
+    command(name, undefined, { input: { type: 'object' }, danger: 'read' })
+  const helpOf = (console: Parameters<typeof agentTools>[0]) =>
+    agentTools(console, { context: () => null })[1]
+
+  it('getNamespaces reads each summary now, a function each time', () => {
+    let language = 'en'
+    const console = createConsole({
+      commands: [read('syslogs.search')],
+      namespaces: [
+        {
+          name: 'syslogs',
+          summary: () =>
+            language === 'en' ? 'Service logs.' : 'Servis logları.'
+        },
+        { name: 'updater', summary: 'Images and restarts.' },
+        { name: 'nav' },
+        {
+          name: 'broken',
+          summary: () => {
+            throw new Error('x')
+          }
+        }
+      ]
+    })
+    expect(console.getNamespaces()).toEqual([
+      { name: 'syslogs', summary: 'Service logs.' },
+      { name: 'updater', summary: 'Images and restarts.' },
+      { name: 'nav' },
+      { name: 'broken' }
+    ])
+    language = 'tr'
+    expect(console.getNamespaces()[0]).toEqual({
+      name: 'syslogs',
+      summary: 'Servis logları.'
+    })
+    expect(createConsole({ commands: [] }).getNamespaces()).toEqual([])
+  })
+
+  it('help lists the summary of the namespaces that have one, cut to 160 code points', async () => {
+    const long = '\u{1F600}'.repeat(300)
+    const console = createConsole({
+      commands: [
+        read('syslogs.search'),
+        read('updater.status'),
+        read('nav.open')
+      ],
+      namespaces: [
+        { name: 'updater', summary: long },
+        { name: 'syslogs', summary: () => 'Service logs.' },
+        { name: 'unused', summary: 'No command.' }
+      ]
+    })
+    const page = (await helpOf(console).execute({ prefix: 'syslogs' })) as {
+      namespaces: { name: string; count: number; summary?: string }[]
+      commands: { name: string }[]
+    }
+    expect(page.namespaces).toEqual([
+      { name: 'syslogs', count: 1, summary: 'Service logs.' },
+      { name: 'updater', count: 1, summary: '\u{1F600}'.repeat(160) },
+      { name: 'nav', count: 1 }
+    ])
+    expect(page.commands.map(c => c.name)).toEqual(['syslogs.search'])
+  })
+
+  it('a console without getNamespaces lists no summaries', async () => {
+    const console = createConsole({
+      commands: [read('syslogs.search')],
+      namespaces: [{ name: 'syslogs', summary: 'Service logs.' }]
+    })
+    const help = helpOf({
+      getCommands: () => console.getCommands(),
+      request: input => console.request(input)
+    })
+    expect(await help.execute(undefined)).toEqual({
+      namespaces: [{ name: 'syslogs', count: 1 }],
+      commands: [{ name: 'syslogs.search', danger: 'read' }]
+    })
+  })
+
+  it('the page stays within 8 KB: commands leave first, then summaries from the last', async () => {
+    const names = Array.from({ length: 60 }, (_, i) => `n${i}`)
+    const console = createConsole({
+      commands: names.map(name => read(`${name}.go`)),
+      namespaces: names.map(name => ({ name, summary: 'ş'.repeat(160) }))
+    })
+    const page = (await helpOf(console).execute({ limit: 100 })) as {
+      namespaces: { name: string; summary?: string }[]
+      commands: unknown[]
+    }
+    expect(
+      new TextEncoder().encode(JSON.stringify(page)).length
+    ).toBeLessThanOrEqual(8192)
+    expect(page.commands).toHaveLength(1)
+    expect(page.namespaces).toHaveLength(60)
+    expect(page.namespaces[0].summary).toHaveLength(160)
+    expect(page.namespaces[59]).not.toHaveProperty('summary')
+  })
+
+  it('validates the namespaces at creation and in setOptions', () => {
+    for (const namespaces of [
+      'x',
+      [{ name: '' }],
+      [{ name: 'a.b' }],
+      [{ name: 'a b' }],
+      [{ name: 'a' }, { name: 'a' }],
+      [{ name: 'a', summary: 1 }]
+    ]) {
+      expect(() =>
+        createConsole({ commands: [], namespaces: namespaces as never })
+      ).toThrow()
+    }
+    const console = createConsole({ commands: [] })
+    expect(() =>
+      console.setOptions(old => ({ ...old, namespaces: [{ name: 'a.b' }] }))
+    ).toThrow()
+    console.setOptions(old => ({
+      ...old,
+      namespaces: [{ name: 'syslogs', summary: 'Service logs.' }]
+    }))
+    expect(console.getNamespaces()).toEqual([
+      { name: 'syslogs', summary: 'Service logs.' }
+    ])
+  })
+})

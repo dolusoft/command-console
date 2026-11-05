@@ -42,6 +42,8 @@ export type {
   CompletionRequest,
   CompletionResult,
   ConsoleGate,
+  NamespaceDefinition,
+  NamespaceSpec,
   RunContext,
   RunInfo
 } from './core/dispatch/dispatch.types'

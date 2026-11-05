@@ -6,7 +6,12 @@ import {
   type OutputBlock
 } from '@dolusoft/command-protocol'
 
-import type { CommandDefinition, CommandReturn } from './dispatch.types'
+import type {
+  CommandDefinition,
+  CommandReturn,
+  NamespaceDefinition,
+  NamespaceSpec
+} from './dispatch.types'
 
 const forbidden = /[\s'"]/
 
@@ -89,11 +94,55 @@ const checkDescription = (command: CommandDefinition) => {
 }
 
 /**
- * A command's summary as text (C-90): a function is called now; one that
- * throws or returns anything but a string gives none.
+ * Validates the namespaces (C-94): an array, or nothing; each name non-empty,
+ * without whitespace, quotes or a dot, and given once; a summary a string or a
+ * function. Throws on the first violation.
  */
-const summaryOf = (command: CommandDefinition): string | undefined => {
-  const { summary } = command
+export const validateNamespaces = (namespaces: unknown): void => {
+  if (namespaces === undefined) {
+    return
+  }
+  if (!Array.isArray(namespaces)) {
+    throw new Error('namespaces must be an array of namespace definitions.')
+  }
+  const seen = new Set<string>()
+  for (const namespace of namespaces as NamespaceDefinition[]) {
+    const name: unknown = namespace?.name
+    if (
+      typeof name !== 'string' ||
+      name === '' ||
+      forbidden.test(name) ||
+      name.includes('.')
+    ) {
+      throw new Error(
+        `a namespace name must be a non-empty string without whitespace, quotes or a dot (got ${JSON.stringify(name)}).`
+      )
+    }
+    if (seen.has(name)) {
+      throw new Error(`The namespace ${name} is given twice.`)
+    }
+    seen.add(name)
+    const { summary } = namespace
+    if (
+      summary !== undefined &&
+      typeof summary !== 'string' &&
+      typeof summary !== 'function'
+    ) {
+      throw new Error(
+        `namespace ${name}: summary must be a string or a function.`
+      )
+    }
+  }
+}
+
+/**
+ * A command's or a namespace's summary as text (C-90): a function is called
+ * now; one that throws or returns anything but a string gives none.
+ */
+const summaryOf = (
+  owner: Pick<CommandDefinition, 'summary'>
+): string | undefined => {
+  const { summary } = owner
   if (typeof summary !== 'function') {
     return summary
   }
@@ -103,6 +152,16 @@ const summaryOf = (command: CommandDefinition): string | undefined => {
   } catch {
     return undefined
   }
+}
+
+/** A namespace as text, its summary read now (C-94). */
+export const namespaceSpecOf = (
+  namespace: NamespaceDefinition
+): NamespaceSpec => {
+  const summary = summaryOf(namespace)
+  return summary === undefined
+    ? { name: namespace.name }
+    : { name: namespace.name, summary }
 }
 
 /** The JSON spec of a command, without its functions (`getCommands`). */

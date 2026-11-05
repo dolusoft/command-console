@@ -34,7 +34,7 @@ export interface AgentToolAnnotations {
 }
 
 // @public
-export function agentTools(console: Pick<CoreConsoleAPI, 'getCommands' | 'request'>, options: AgentToolsOptions): [AgentTool, AgentTool, AgentTool];
+export function agentTools(console: Pick<CoreConsoleAPI, 'getCommands' | 'request'> & Partial<Pick<CoreConsoleAPI, 'getNamespaces'>>, options: AgentToolsOptions): [AgentTool, AgentTool, AgentTool];
 
 // @public
 export interface AgentToolsOptions {
@@ -155,6 +155,7 @@ export interface ConsoleOptions<TFeatures extends Partial<OptionalFeatures> = {}
     initialState?: Partial<ControllableState>;
     isSensitive?: (line: string) => boolean;
     maxEntries?: number;
+    namespaces?: NamespaceDefinition[];
     onClose?: () => void;
     // (undocumented)
     onContextChange?: (updater: Updater<ContextFrame[]>) => void;
@@ -224,6 +225,7 @@ export interface CoreConsoleAPI<TFeatures extends Partial<OptionalFeatures> = {}
     dispose(): void;
     editInput(value: string, caret: number): void;
     getCommands(): CommandSpec[];
+    getNamespaces(): NamespaceSpec[];
     getPrompt(): string;
     getState(): ConsoleState;
     handleKey(input: KeyInput): boolean;
@@ -265,6 +267,20 @@ export interface KeyInput {
     selection: 'none' | 'input' | 'document';
     // (undocumented)
     shiftKey: boolean;
+}
+
+// @public
+export interface NamespaceDefinition {
+    name: string;
+    summary?: string | (() => string);
+}
+
+// @public
+export interface NamespaceSpec {
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    summary?: string;
 }
 
 // @public

@@ -17,7 +17,10 @@ import {
 } from './consoleFeature'
 import { createRecord, type SharedRecord } from '../../shared'
 import { createStore } from '../../store/createStore'
-import { validateCommands } from '../dispatch/dispatch.utils'
+import {
+  validateCommands,
+  validateNamespaces
+} from '../dispatch/dispatch.utils'
 import { checkGateOptions } from '../dispatch/operation'
 
 /** The keys of `options.features`, in construction order. */
@@ -69,6 +72,7 @@ export function constructConsole(
   ) as Partial<AnyConsoleOptions>
   const merged = mergeOptions(defaults, options)
   validateCommands(merged.commands)
+  validateNamespaces(merged.namespaces)
   checkGateOptions(merged)
 
   let initial = emptyState()

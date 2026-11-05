@@ -96,3 +96,33 @@ one flat `help` list does not hold the 15 to 30 commands that come next.
   commands, kept within 8 KB, with an opaque `nextCursor`; `prefix` keeps one namespace. The output of `help` without
   `command` changes from an array to that object; its one consumer is frontendx, and the change is in the release
   notes.
+
+## Addendum (2026-11-05): which namespace, and why not
+
+A pilot with frontendx (1.3.0, 24 tasks) lost four tasks for two reasons. The agent did not find the right module:
+`help` gave namespaces as names and counts, nothing said that `updater` knows images and restarts or that `syslogs`
+holds the services' own logs, and the agent answered that the tools could not do it. And the agent did not know what
+`danger` means: asked to stop every task it tried `tasks.stop`, got a bare `not-allowed` and told the user nothing;
+in another task it offered to start a command itself with `--yes`, which only the user may run.
+
+- **A `not-allowed` says why, and a `change` command's gives the line (C-93).** The outcome becomes
+  `{ status: 'error', code: 'not-allowed', message, line? }`. `line` is the canonical line of the input, the text
+  the input entry would hold (before `normalize`, the history's form), so what the agent suggests is what the user
+  will see in the history. It follows P16 as the rest of `request` does: a line that `isSensitive` marks, typed or
+  canonical, is never handed back, and options the schema refuses give no line (a wrong line is worse than none).
+  `irreversible` stays refused without a line: such work never runs from the console. A `beforeRun` refusal is the
+  consumer's and stays bare.
+- **The tools say what `danger` means.** The `help` and `run` descriptions tell the agent that it runs `read`
+  commands, that a `change` command is run only by the user typing it, and that it should suggest the line rather
+  than retry. A description is the one text every agent reads before its first call.
+- **A namespace may carry one line on what it is for (C-94).** It is a console option,
+  `namespaces: [{ name, summary? }]`, next to `commands`, and not a `registerNamespace()` call or a field on each
+  command: the console takes everything it knows as options (`commands`, `gate`, `activeView`), replaced whole by
+  `setOptions`, and has no registration method to copy; a field on each command would let two commands of one
+  namespace disagree. The summary may be a function, read when it is used, as a command's summary is (C-90).
+  `getNamespaces()` hands the summaries to the consumer's own `help` command, so the terminal and the agent read the
+  same text. The agent's `help` lists them in `namespaces` cut to 160 code points; the 8 KB page holds, with
+  commands leaving first and then summaries from the last namespace. The Vue composable does not take the option,
+  as it does not take `gate`: a console with agent tools is created with the core and handed to it (C-84).
+- **The terminal's `help` command and its table stay the consumer's.** The library ships no `help` command (README);
+  `help <namespace>` and the layout of its table are frontendx's.
