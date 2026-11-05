@@ -31,8 +31,14 @@ import type {
   RunContext,
   RunInfo
 } from './dispatch.types'
-import { blocksOf, isThenable, normalizeReturn, specOf } from './dispatch.utils'
-import { describeInputErrors, listsFromText } from './inputText'
+import {
+  blocksOf,
+  isThenable,
+  namespaceSpecOf,
+  normalizeReturn,
+  specOf
+} from './dispatch.utils'
+import { cutMessage, describeInputErrors, listsFromText } from './inputText'
 import {
   checkData,
   cutSummary,
@@ -812,13 +818,29 @@ const requestLine = (
   if (!command || command.hidden === true) {
     return refuse('unknown-command')
   }
-  if (
-    !describedCommand(command) ||
-    command.danger !== 'read' ||
-    input.actor !== 'external-agent'
-  ) {
-    return refuse('not-allowed')
+  // Every `not-allowed` says why; a `change` command's also gives the line
+  // the user may type (C-93).
+  const { name } = command
+  if (input.actor !== 'external-agent') {
+    return refuse(
+      'not-allowed',
+      'request runs commands for external-agent only.'
+    )
   }
+  if (!describedCommand(command)) {
+    return refuse(
+      'not-allowed',
+      `${name} is not open to agents; only the user can run it in the terminal.`
+    )
+  }
+  if (command.danger === 'irreversible') {
+    return refuse(
+      'not-allowed',
+      `${name} cannot be undone, so it never runs from the console, not even when the user types it.`
+    )
+  }
+  const change = command.danger === 'change'
+  const userOnly = `${name} changes data; only the user can run it by typing it in the terminal.`
   const schema = command.input!
   // No args is `{}`; a string for an array of strings is a list of one (C-91).
   const args = (input as { args?: unknown }).args
@@ -829,18 +851,43 @@ const requestLine = (
           listsFromText(schema, args === undefined ? {} : args)
         )
       : parseOptions(tokens, schema)
+  // A line the console would redact says nothing back (P16, C-89).
+  const typedSensitive = tokens !== null && lookup.isSensitive(text)
   if (!read.ok) {
-    // A line the console would redact says nothing back (P16, C-89).
-    return refuse(
-      'invalid-args',
-      tokens !== null && lookup.isSensitive(text)
-        ? undefined
-        : describeInputErrors(schema, read.errors)
-    )
+    const errors = typedSensitive
+      ? undefined
+      : describeInputErrors(schema, read.errors)
+    return change
+      ? refuse(
+          'not-allowed',
+          cutMessage(
+            errors === undefined
+              ? userOnly
+              : `${userOnly} Its args do not match its input: ${errors}.`
+          )
+        )
+      : refuse('invalid-args', errors)
   }
   const line = formatCommandLine(command.name, read.value, schema)
-  if (lookup.isSensitive(line)) {
-    return refuse('not-allowed')
+  const sensitive = lookup.isSensitive(line)
+  if (change) {
+    // A line the console would redact is never handed back (P16).
+    return Promise.resolve(
+      sensitive || typedSensitive
+        ? failure('not-allowed', userOnly)
+        : {
+            status: 'error',
+            code: 'not-allowed',
+            message: `${userOnly} Suggest this line to the user instead of retrying.`,
+            line
+          }
+    )
+  }
+  if (sensitive) {
+    return refuse(
+      'not-allowed',
+      'The line is sensitive; only the user can type it in the terminal.'
+    )
   }
   const inputId = addEntry(console, {
     kind: 'input',
@@ -938,14 +985,17 @@ export const dispatchFeature: ConsoleFeature = {
           }
         },
         isSensitive: (line: string) => lookupOf(console).isSensitive(line),
-        getCommands: () => lookupOf(console).visible().map(specOf)
+        getCommands: () => lookupOf(console).visible().map(specOf),
+        getNamespaces: () =>
+          (liveRecord(console).options.namespaces ?? []).map(namespaceSpecOf)
       },
       {
         submit: Promise.resolve(false),
         run: Promise.resolve(false),
         request: Promise.resolve(failure('cancelled')),
         isSensitive: false,
-        getCommands: []
+        getCommands: [],
+        getNamespaces: []
       }
     )
   },

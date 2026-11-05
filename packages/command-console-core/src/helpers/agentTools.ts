@@ -49,6 +49,12 @@ const helpPageMaxBytes = 8192
 /** The longest summary a `help` page lists, in code points. */
 const summaryLimit = 200
 
+/** The longest namespace summary a `help` page lists, in code points (C-94). */
+const namespaceSummaryLimit = 160
+
+const cut = (text: string, limit: number): string =>
+  Array.from(text).slice(0, limit).join('')
+
 /**
  * A command an agent can see: one with `input` and `danger` whose definition
  * is not `sensitive` (what `request` could run, C-82).
@@ -136,13 +142,25 @@ const readHelpInput = (input: unknown): HelpInput | string => {
 
 /**
  * The `context`, `help` and `run` tools of `console` (C-83). `run` calls
- * `console.request` as `external-agent`, so only `read` commands run.
+ * `console.request` as `external-agent`, so only `read` commands run. A
+ * console without `getNamespaces` lists namespaces without summaries.
  */
 export function agentTools(
-  console: Pick<CoreConsoleAPI, 'getCommands' | 'request'>,
+  console: Pick<CoreConsoleAPI, 'getCommands' | 'request'> &
+    Partial<Pick<CoreConsoleAPI, 'getNamespaces'>>,
   options: AgentToolsOptions
 ): [AgentTool, AgentTool, AgentTool] {
   const commands = () => console.getCommands().filter(described)
+  /** The summary of each namespace that has one, cut (C-94). */
+  const namespaceSummaries = (): Map<string, string> => {
+    const summaries = new Map<string, string>()
+    for (const { name, summary } of console.getNamespaces?.() ?? []) {
+      if (typeof summary === 'string' && summary !== '') {
+        summaries.set(name, cut(summary, namespaceSummaryLimit))
+      }
+    }
+    return summaries
+  }
   const describe = (all: CommandSpec[], name: string): JsonValue => {
     const found = all.find(
       spec => spec.name === name || spec.aliases?.includes(name)
@@ -165,7 +183,13 @@ export function agentTools(
       const name = namespaceOf(spec.name)
       counts.set(name, (counts.get(name) ?? 0) + 1)
     }
-    const namespaces = [...counts].map(([name, count]) => ({ name, count }))
+    const summaries = namespaceSummaries()
+    const namespaces: { name: string; count: number; summary?: string }[] = [
+      ...counts
+    ].map(([name, count]) => {
+      const summary = summaries.get(name)
+      return summary === undefined ? { name, count } : { name, count, summary }
+    })
     const matching = all.filter(spec => underPrefix(spec.name, read.prefix))
     const page = matching
       .slice(read.offset, read.offset + read.limit)
@@ -175,7 +199,7 @@ export function agentTools(
           summary:
             spec.summary === undefined
               ? undefined
-              : Array.from(spec.summary).slice(0, summaryLimit).join(''),
+              : cut(spec.summary, summaryLimit),
           danger: spec.danger
         })
       )
@@ -185,10 +209,19 @@ export function agentTools(
         ? { namespaces, commands: page.slice(0, count), nextCursor: `${next}` }
         : { namespaces, commands: page.slice(0, count) }
     }
-    // Commands leave the end of the page until it fits its bytes.
+    // Commands leave the end of the page until it fits its bytes; then the
+    // namespace summaries, from the last (C-94).
     let count = page.length
     while (count > 1 && bytes(result(count)) > helpPageMaxBytes) {
       count--
+    }
+    for (
+      let index = namespaces.length - 1;
+      index >= 0 && bytes(result(count)) > helpPageMaxBytes;
+      index--
+    ) {
+      const { name, count: commandCount } = namespaces[index]
+      namespaces[index] = { name, count: commandCount }
     }
     return result(count)
   }
@@ -218,7 +251,7 @@ export function agentTools(
     },
     {
       name: 'help',
-      description: `With { command }: its usage and input schema. Otherwise one page of the commands you can run: { namespaces: [{ name, count }], commands: [{ name, summary, danger }], nextCursor? }; prefix keeps one namespace (dataview or dataview.), and nextCursor passed back as cursor gives the next page. Call it before run.`,
+      description: `With { command }: its usage and input schema. Otherwise one page of the commands: { namespaces: [{ name, count, summary? }], commands: [{ name, summary, danger }], nextCursor? }; a namespace's summary says what its commands are for, so pick the namespace by it. prefix keeps one namespace (dataview or dataview.), and nextCursor passed back as cursor gives the next page. danger: read you can run; change only the user can run, by typing it in the terminal. Call it before run.`,
       inputSchema: {
         type: 'object',
         properties: {
@@ -245,7 +278,7 @@ export function agentTools(
     {
       name: 'run',
       description:
-        'Runs a command: { line } as typed (name --field value), or { command, args?, view? } with args matching its input schema (no args is {}; a string where the schema wants an array of strings is a list of that one string). Returns { status, summary?, data? } or { status: "error", code, message? }; data is the JSON result, message says what to fix. Call help first.',
+        'Runs a command whose danger is read: { line } as typed (name --field value), or { command, args?, view? } with args matching its input schema (no args is {}; a string where the schema wants an array of strings is a list of that one string). A change command only the user runs, by typing it in the terminal: do not try it, suggest its line to the user. Work that cannot be undone never runs as a command; the user does it in the application. Returns { status, summary?, data? } or { status: "error", code, message?, line? }; data is the JSON result, message says what to fix or why it may not run, and line (with not-allowed) is the line to suggest to the user. Call help first.',
       inputSchema: {
         type: 'object',
         properties: {

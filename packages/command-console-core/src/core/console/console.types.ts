@@ -13,6 +13,8 @@ import type {
   BeforeRunResult,
   CommandDefinition,
   ConsoleGate,
+  NamespaceDefinition,
+  NamespaceSpec,
   RunInfo
 } from '../dispatch/dispatch.types'
 
@@ -164,6 +166,12 @@ export interface ConsoleOptions<
   /** The optional features; fixed for the life of the console. */
   features?: TFeatures
   commands: CommandDefinition[]
+  /**
+   * One line on what each namespace's commands are for, for help texts and
+   * the agent's `help` (C-94). A namespace no command has is kept but not
+   * listed by the agent's `help`.
+   */
+  namespaces?: NamespaceDefinition[]
   /** The root prompt; default `'>'`. */
   prompt?: string
   /** The first value of each slice; ignored for a controlled slice. */
@@ -270,6 +278,8 @@ export interface CoreConsoleAPI<
   isSensitive(line: string): boolean
   /** The specs that are not hidden, in registration order. */
   getCommands(): CommandSpec[]
+  /** The `namespaces` option in its order, each summary read now (C-94). */
+  getNamespaces(): NamespaceSpec[]
   /**
    * Ends the live input as Enter does. Resolves `true` after the run's end
    * (at once when nothing runs), `false` without doing anything while a

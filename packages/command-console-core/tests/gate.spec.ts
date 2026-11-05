@@ -1195,9 +1195,10 @@ describe('C-83 Agent tools', () => {
     expect(
       await run.execute({ command: 'search', args: { ip: 'a' }, view: 'v1' })
     ).toEqual({ status: 'ok', summary: 'ok' })
-    expect(await run.execute({ line: 'change --ip a' })).toEqual({
+    expect(await run.execute({ line: 'change --ip a' })).toMatchObject({
       status: 'error',
-      code: 'not-allowed'
+      code: 'not-allowed',
+      line: 'change --ip a --limit 50'
     })
     expect(await run.execute({ line: 'hiddenone --ip a' })).toEqual({
       status: 'error',

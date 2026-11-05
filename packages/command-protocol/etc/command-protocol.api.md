@@ -40,6 +40,7 @@ export type CommandOutcome = {
     status: 'error';
     code: ErrorCode;
     message?: string;
+    line?: string;
 };
 
 // @public

@@ -65,6 +65,27 @@ export interface CommandDefinition extends Omit<CommandSpec, 'summary'> {
   normalize?(input: Record<string, JsonValue>): Record<string, JsonValue>
 }
 
+/**
+ * A namespace: the part of command names up to their first dot (`syslogs` of
+ * `syslogs.search`), with one line on what its commands are for (C-94).
+ */
+export interface NamespaceDefinition {
+  /** Non-empty, without whitespace, quotes or a dot. */
+  name: string
+  /**
+   * One line on what the namespace's commands are for. A function is called
+   * each time it is read (`getNamespaces`, the agent's `help`), as a command's
+   * summary is (C-90).
+   */
+  summary?: string | (() => string)
+}
+
+/** A namespace as `getNamespaces()` gives it: its summary read now. */
+export interface NamespaceSpec {
+  name: string
+  summary?: string
+}
+
 /** The parsed line a command runs with. */
 export interface CommandRequest {
   /** The name as typed (an alias stays an alias). */

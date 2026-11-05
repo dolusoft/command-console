@@ -38,8 +38,11 @@ export const dataMaxBytes = 32768
  * How an operation ended, as its caller sees it. `summary` is the command's
  * short result (`CommandResponse.summary`), `data` its JSON result
  * (`CommandResponse.data`). `message` tells the caller what to fix: which
- * field a refused input misses, or what the command said; it is never drawn.
+ * field a refused input misses, what the command said, or why the caller may
+ * not run it; it is never drawn. `line` comes only with `not-allowed`: the
+ * canonical line of a `change` command, which the caller hands to the user to
+ * type.
  */
 export type CommandOutcome =
   | { status: 'ok'; summary?: string; data?: JsonValue }
-  | { status: 'error'; code: ErrorCode; message?: string }
+  | { status: 'error'; code: ErrorCode; message?: string; line?: string }

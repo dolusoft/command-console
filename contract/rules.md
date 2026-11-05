@@ -454,7 +454,8 @@ a context change append `interrupted`).
 `request(input)` never rejects and resolves a `CommandOutcome`. While a run exists it is `busy`; an unparsable line
 is `invalid-args`; an unknown or `hidden` command is `unknown-command`; a command without `input` or `danger`, a
 sensitive one, an `irreversible` one, an actor other than `external-agent`, and a `danger` other than `read` are
-`not-allowed`; options that do not match the schema are `invalid-args`, with a `message` (C-89). `{ command }`
+`not-allowed`, with a `message` and, for a `change` command, a `line` (C-93); options that do not match the schema
+are `invalid-args`, with a `message` (C-89). `{ command }`
 without `args` is `{ command, args: {} }`, and a string given for an array of strings is a list of it (C-91). Nothing
 of these reaches the entries.
 Otherwise an input entry with the canonical line and the `actor` is appended and the line takes the path of C-77 to
@@ -472,7 +473,9 @@ carries no `actor`.
 `danger`, `input`), or is `unknown-command`; a line `isSensitive` would mark does not take a command off the list.
 `help` without `command` lists a page (C-92). `run` calls `request` as `external-agent` with `{ line }` or
 `{ command, args?, view? }` (no `args` is `{}`), and resolves its outcome; another input is `invalid-args` with a
-`message`. No `execute` rejects.
+`message`. No `execute` rejects. The description of `help` says what `danger` means (`read` the agent runs, `change`
+only the user runs by typing it), and that of `run` says not to try a `change` command but to suggest its line, and
+gives the outcome as `{ status: "error", code, message?, line? }`.
 
 ### C-84 External console (Vue)
 
@@ -521,7 +524,7 @@ The `error` outcome of a `request()` (C-82) and of the agent's `run` tool (C-83)
 caller, cut to 300 code points: the message of a `CommandError` thrown or rejected by the command's own `run` (C-86),
 when it differs from its code; and, for input the schema refuses, each error in words (`columns: expected array of
 string`, `last: one of 15m|1h|24h|7d`, `unknown field "time"`, with `(did you mean last?)` when a known field of the
-same object is near), joined by `; `. Any other error, a `CommandError` thrown by `beforeRun`, `normalize` or
+same object is near), joined by `; `; and, for `not-allowed` before the line is accepted, why (C-93). Any other error, a `CommandError` thrown by `beforeRun`, `normalize` or
 `createEnvelopeId`, and a refused line that `isSensitive` marks give no `message`. A message never repeats an input
 value and never reaches the entries.
 
@@ -540,10 +543,32 @@ Splitting it is the command's work (`normalize`). A string for an array of anoth
 ### C-92 Help pages
 
 The agent's `help` takes `{ command?, prefix?, cursor?, limit? }`. With `command` it describes that command (C-83).
-Without it, it returns `{ namespaces, commands, nextCursor? }`: `namespaces` is `{ name, count }` per namespace of the
-listed commands (a name up to its first dot), `commands` is a page of `{ name, summary, danger }` (summary cut to 200
-code points) in the order of the commands. `prefix` without one trailing dot keeps the commands whose name is it or
-starts with it and a dot. `limit` is 30 when not given and at most 100. A page's JSON takes at most 8192 UTF-8 bytes;
-commands leave its end until it fits (one always stays). `nextCursor` is there when commands follow; passed back as
+Without it, it returns `{ namespaces, commands, nextCursor? }`: `namespaces` is `{ name, count, summary? }` per
+namespace of the listed commands (a name up to its first dot; `summary` as C-94 says), `commands` is a page of
+`{ name, summary, danger }` (summary cut to 200 code points) in the order of the commands. `prefix` without one
+trailing dot keeps the commands whose name is it or starts with it and a dot. `limit` is 30 when not given and at most
+100. A page's JSON takes at most 8192 UTF-8 bytes; commands leave its end until it fits (one always stays), then
+namespace summaries leave, from the last namespace. `nextCursor` is there when commands follow; passed back as
 `cursor` it gives the next page. Another type for a field, a `cursor` `help` did not give or a `limit` below 1 or not
 an integer is `invalid-args` with a `message`.
+
+### C-93 Why not allowed
+
+Every `not-allowed` that `request()` gives before the line is accepted (C-82) has a `message` that says why: an actor
+other than `external-agent`; a command not open to agents (no `input` or `danger`, or `sensitive` in its definition);
+an `irreversible` one, which never runs from the console; a sensitive line. A `change` command's says that it changes
+data and only the user runs it, by typing it in the terminal, and gives `line`: the canonical line of the input
+(`formatCommandLine`, before `normalize`, as the input entry of an accepted line would show it), for the caller to
+suggest to the user instead of retrying. A line that `isSensitive` marks, typed or canonical, gives no `line` and no
+input value; options that do not match the schema give no `line`, and the message adds what is wrong as C-89 says
+(not for a typed sensitive line). The message is cut to 300 code points. `not-allowed` from `beforeRun` carries
+neither.
+
+### C-94 Namespace summaries
+
+The `namespaces` option is an array of `{ name, summary? }`: a name non-empty, without whitespace, quotes or a dot,
+given once; a summary a string or a function. A violation throws at creation and in `setOptions`. `getNamespaces()`
+returns them in their order as `{ name, summary? }`, a summary function called each time as C-90 says. The agent's
+`help` without `command` gives each listed namespace that has a non-empty summary its `summary`, cut to 160 code
+points; a namespace no listed command has is not listed. A console passed to `agentTools` without `getNamespaces`
+lists no summary.

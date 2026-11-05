@@ -42,8 +42,9 @@ check it. Functions (a command's `run` and `complete`, callbacks) live in the co
   `CommandResponse` is what a command may return (`output`, `tone`, `quiet`, `effects`, `summary`, a short result
   of at most 200 characters for the caller of an operation, and `data`, a JSON result for that caller that is never
   drawn, at most `dataMaxBytes` (32768) bytes as UTF-8 JSON).
-- **Outcomes** (`CommandOutcome`): `{ status: 'ok', summary?, data? }` or `{ status: 'error', code: ErrorCode, message? }`,
-  how an operation ended for its caller. `ErrorCode` is `invalid-args`, `unknown-command`, `not-allowed`,
+- **Outcomes** (`CommandOutcome`): `{ status: 'ok', summary?, data? }` or
+  `{ status: 'error', code: ErrorCode, message?, line? }`, how an operation ended for its caller; `line` comes only
+  with `not-allowed`, the line of a `change` command the user may type. `ErrorCode` is `invalid-args`, `unknown-command`, `not-allowed`,
   `target-not-found`, `id-conflict`, `unsupported-version`, `too-large`, `busy`, `timeout`, `failed`,
   `connection-lost` or `cancelled`.
 - **Effects** (`ConsoleEffect`): `clear`, `close`, `push-context` (`frame`), `pop-context` (`count?`, default 1),

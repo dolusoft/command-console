@@ -58,6 +58,7 @@ no optional method, in its type and at run time. The feature set is fixed for th
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
 | `features`                                             | the optional features, keyed `recallFeature` / `completionFeature` / `contextFeature`                      |
 | `commands`                                             | the `CommandDefinition`s; validated at creation and on every `setOptions` (a violation throws)             |
+| `namespaces`                                           | `{ name, summary? }` per namespace (`syslogs` of `syslogs.search`); `summary` a string or a function       |
 | `prompt`                                               | the root prompt; default `'>'`                                                                             |
 | `initialState`                                         | the first `entries`, `recall`, `context`; every other slice starts empty                                   |
 | `state`                                                | a slice given here is controlled (below); it wins over `initialState`                                      |
@@ -126,6 +127,8 @@ Every console has:
 - `getPrompt()`: the prompt of the next input entry. `isSensitive(line)`: whether `line` would be redacted.
 - `getCommands()`: the `CommandSpec` of each command that is not `hidden`, in registration order, each with `aliases`
   (`[]` when it has none).
+- `getNamespaces()`: the `namespaces` option in its order, each `{ name, summary? }` with a summary function called
+  now (one that throws or returns no string gives none).
 - `reset()`, `dispose()` (below).
 
 The optional features add:
@@ -248,7 +251,10 @@ and none of these throws on creation.
 `request({ command, args, view?, actor })` or `request({ line, actor })` runs a command for a caller other than the
 user's Enter (no `args` is `{}`). It resolves `busy` while a run exists, `unknown-command` (for a `hidden` command too), `invalid-args`,
 or `not-allowed` for a command without `input` or `danger`, a sensitive or `irreversible` one, and in this release
-for every actor other than `external-agent` and every `danger` other than `read`. These leave no entry. Otherwise an
+for every actor other than `external-agent` and every `danger` other than `read`. Each `not-allowed` of these has a
+`message` that says why; a `change` command's also has `line`, its canonical line (as the history would show it,
+before `normalize`), for the caller to suggest to the user, unless the line is sensitive or its options do not match
+(the message then says what is wrong). These leave no entry. Otherwise an
 input entry with the canonical line and the `actor` is appended and the line takes the path above. The outcome is
 `ok` with the response's `summary` (cut to 200 code points) and `data`, `failed`, `cancelled`, `not-allowed`
 (`beforeRun` returned `false`), the code of a `CommandError`, or the gate's code. A response with `tone: 'error'`
@@ -321,10 +327,23 @@ for (const tool of agentTools(console, { context: () => describeViews() })) {
 
 `help` sees the commands that have `input` and `danger` and are neither `hidden` nor `sensitive`. With
 `{ command }` it describes one (`name`, `summary`, `usage`, `danger`, `input`). Without it, it returns one page:
-`{ namespaces: [{ name, count }], commands: [{ name, summary, danger }], nextCursor? }`, where a namespace is a name up
-to its first dot. `prefix` (`dataview` or `dataview.`) keeps one namespace, `limit` is 30 by default and 100 at most,
-and `nextCursor` passed back as `cursor` gives the next page; a page stays within 8 KB of JSON. `run` takes `{ line }`
-or `{ command, args?, view? }` and calls `request` as `external-agent`. No `execute` rejects.
+`{ namespaces: [{ name, count, summary? }], commands: [{ name, summary, danger }], nextCursor? }`, where a namespace
+is a name up to its first dot and its `summary` (cut to 160 code points) comes from the `namespaces` option, so the
+agent can tell which namespace does what:
+
+```ts
+createConsole({
+  commands,
+  namespaces: [{ name: 'syslogs', summary: () => t('help.syslogs') }]
+})
+```
+
+`prefix` (`dataview` or `dataview.`) keeps one namespace, `limit` is 30 by default and 100 at most,
+and `nextCursor` passed back as `cursor` gives the next page; a page stays within 8 KB of JSON (commands leave its end
+first, then namespace summaries from the last). `run` takes `{ line }` or `{ command, args?, view? }` and calls
+`request` as `external-agent`. The descriptions of `help` and `run` tell the agent what `danger` means: it runs `read`
+commands; a `change` command only the user runs, by typing it, so the agent suggests the `line` of its `not-allowed`.
+No `execute` rejects.
 
 ## Contract
 
