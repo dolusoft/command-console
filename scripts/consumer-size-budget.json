@@ -5,7 +5,8 @@
     "0.0.0 (vue, #1, 2026-10-26): the fixtures become real use: `composable` draws its own markup from useCommandConsole (core features only), `component` renders <CommandConsole> with v-model:entries (recall, completion and context included).",
     "1.0.1 (core, #13, 2026-11-04): the core bundles the schema line, the gate path and request() (with their protocol code: parseOptions, validateInput, formatCommandLine, checkInputSchema, parseEnvelope), about 4.6 KB in both fixtures.",
     "1.2.0 (core, #13, 2026-11-04): a response's `data` reaches request()'s outcome, read once inside a guard (isJsonValue, one JSON.stringify with a replacer, a UTF-8 byte count, a copy parsed from that text), about 100 B in both fixtures; the component was 30 B over the old budget after shortening.",
-    "1.3.0 (core, #13, 2026-11-05): an error outcome says what to fix (the schema's refusal in words with the nearest known field, a CommandError's message), a string for a list of strings, a summary function; about 850 B in both fixtures. The component stays within its budget, so only the composable's is raised."
+    "1.3.0 (core, #13, 2026-11-05): an error outcome says what to fix (the schema's refusal in words with the nearest known field, a CommandError's message), a string for a list of strings, a summary function; about 850 B in both fixtures. The component stays within its budget, so only the composable's is raised.",
+    "1.4.0 (core, #13, 2026-11-05): a not-allowed outcome says why and gives a change command's line, and the console validates and reads namespace summaries (namespaces, getNamespaces); about 415 B in both fixtures (composable 11893 → 12308 B). The component goes over its budget, so its budget is raised; the composable stays within its own."
   ],
   "fixtures": {
     "composable": {
@@ -13,8 +14,8 @@
       "maxGzipBytes": 12488
     },
     "component": {
-      "measuredGzipBytes": 17696,
-      "maxGzipBytes": 18581
+      "measuredGzipBytes": 18943,
+      "maxGzipBytes": 19891
     }
   }
 }
