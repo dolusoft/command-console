@@ -60,4 +60,30 @@ describe('Agent skill', () => {
     expect(skill).toContain('never runs from the console')
     expect(skill).toContain('do not send them to `run`')
   })
+
+  it('C-95 says, as the tools do, that a change with confirm runs first as its preview', () => {
+    const [, help, run] = tools
+    expect(help.description).toContain('runs as its preview without that field')
+    expect(run.description).toContain(
+      'runs first as a preview, without its confirm field'
+    )
+    expect(skill).toContain(
+      'runs first as a preview, without its confirm field'
+    )
+  })
+
+  it('has a CLI part: help first, --json, --line -, stdout, exit codes 4 and 5', () => {
+    for (const text of [
+      '`gecko help`',
+      '`--json`',
+      '`--line -`',
+      '`stdout` carries only the result',
+      'Exit code 4',
+      'retry is safe',
+      'Exit code 5',
+      'do not retry, ask the user'
+    ]) {
+      expect(skill).toContain(text)
+    }
+  })
 })

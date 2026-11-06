@@ -21,6 +21,7 @@ import {
   keyPressed,
   lineCleared,
   liveRecord,
+  optionsChanged,
   recordOf,
   resetHooks,
   runKeyAction,
@@ -138,6 +139,9 @@ export const consoleFeature: ConsoleFeature = {
                   previous.state?.[slice] !== undefined
               )
             )
+            if (record.options.commands !== previous.commands) {
+              optionsChanged(console)
+            }
             const after = store.read()
             for (const slice of controllable) {
               if (before[slice] !== after[slice]) {

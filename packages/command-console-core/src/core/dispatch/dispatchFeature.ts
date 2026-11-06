@@ -77,6 +77,7 @@ import {
   liveRecord,
   onContextChange,
   onDispose,
+  onOptionsChange,
   onReset,
   provideCommandLookup,
   recordOf,
@@ -1561,6 +1562,20 @@ export const dispatchFeature: ConsoleFeature = {
         interrupt(console, run)
       } else if (run?.current && !run.controller.signal.aborted) {
         run.controller.abort()
+      }
+    })
+    // C-97: new commands, new capabilities for the bound CLI.
+    onOptionsChange(console, () => {
+      const holder = stateOf(console).remote
+      if (holder?.alive) {
+        reply(
+          console,
+          holder,
+          capabilitiesOf(
+            holder.binding.bindingId,
+            liveRecord(console).options.commands
+          )
+        )
       }
     })
     onReset(console, () => {

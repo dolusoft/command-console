@@ -29,6 +29,8 @@ export {
   onContextChange,
   onControlledChange,
   onInputChange,
+  onOptionsChange,
+  optionsChanged,
   onKey,
   onLineCleared,
   onLineSubmitted,

@@ -214,6 +214,10 @@ describe('C-95 Confirm field', () => {
       summary: 'would stop 1'
     })
     expect(run).toHaveBeenCalledTimes(1)
+    const helpTool = tools.find(tool => tool.name === 'help')!
+    expect(await helpTool.execute({ command: 'tasks.stop' })).toMatchObject({
+      confirm: 'yes'
+    })
     const refused = await runTool.execute({
       line: 'tasks.stop --id 8812 --yes'
     })
@@ -350,6 +354,26 @@ describe('C-97 Attach remote', () => {
     })
     t.deliver({ v: 1, kind: 'cli-request', id: 'x', line: 'search' })
     expect(t.of('finished')).toEqual([])
+  })
+
+  it('setOptions with new commands sends the capabilities again; other options do not', () => {
+    const t = setup({ commands: [search()] })
+    t.attach()
+    t.console.setOptions(options => ({ ...options, prompt: '$' }))
+    expect(t.of('capabilities')).toHaveLength(1)
+    t.console.setOptions(options => ({
+      ...options,
+      commands: [...options.commands, stop().definition]
+    }))
+    const sent = t.of('capabilities')
+    expect(sent).toHaveLength(2)
+    expect(sent[1].commands.map(spec => spec.name)).toEqual([
+      'search',
+      'tasks.stop'
+    ])
+    t.console.detachRemote()
+    t.console.setOptions(options => ({ ...options, commands: [search()] }))
+    expect(t.of('capabilities')).toHaveLength(2)
   })
 
   it('dispose unsubscribes and ends the binding', () => {

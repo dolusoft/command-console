@@ -27,6 +27,7 @@ const createHooks = (): Hooks => ({
   inputChanged: [],
   key: [],
   controlledChanged: [],
+  optionsChanged: [],
   contextChanged: [],
   reset: [],
   disposers: [],

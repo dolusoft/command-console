@@ -1664,7 +1664,7 @@ A command's `confirm` is `{ field }` naming a boolean property of its `input`, o
 else throws at creation and on `setOptions`, as does a `plan` that is not a function. `getCommands()` copies it into
 the spec. For an agent's `request()` (C-82) and a CLI request (C-98), a call whose field is not `true` is the
 command's preview and runs as `read`; one whose field is `true` is the change: `not-allowed` with its line for the
-agent (C-93), an approval plan for the CLI (C-99). Options the schema refuses are `invalid-args` for a command with
+agent (C-93), an approval plan for the CLI (C-99). The agent's `help` of such a command gives `confirm` (the field name), and the `help` and `run` descriptions and the skill say that it runs first as a preview, without its field. Options the schema refuses are `invalid-args` for a command with
 `confirm`. A line the user types is not changed by it.
 
 #### C-96 Remote envelopes
@@ -1686,7 +1686,7 @@ a finite `approvedAt` and a `send` function; otherwise it throws a `TypeError`. 
 puts `{ bindingId, approvedAt, approval: null }` in `state.remote`, replaces a binding already attached, and sends the
 `capabilities` reply: the commands that are neither `hidden` nor `irreversible` and have `input` and `danger` without
 `sensitive` (name, aliases, danger, confirm field), and the names and aliases of every sensitive command. A message
-whose `origin` is not the binding's is ignored. `detachRemote()` drops a waiting approval (C-99), sets
+whose `origin` is not the binding's is ignored. A `setOptions` that changes `commands` sends the `capabilities` again while a binding is attached; one that keeps them sends nothing. `detachRemote()` drops a waiting approval (C-99), sets
 `state.remote` to `null` and sends nothing more through the binding, not even the end of a command still running; so
 does `dispose()`. A `send` that throws or rejects goes to `onError` and changes nothing else.
 
