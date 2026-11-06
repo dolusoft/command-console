@@ -331,10 +331,13 @@ div.cc-console [data-busy] data-context-depth=<frames>
 ├─ div.cc-log role="log" aria-label            the scroll container
 │  └─ div.cc-entries
 │     └─ div.cc-entry data-kind="input|output" data-tone data-status [data-redacted] [data-actor] [aria-live="off" when quiet]
-│        ├─ input:  span.cc-actor (a line from the assistant or an agent), span.cc-prompt, span.cc-line, span.cc-cancelled (after Ctrl+C)
+│        ├─ input:  span.cc-actor (a line from the assistant, an agent or the CLI), span.cc-prompt, span.cc-line, span.cc-cancelled (after Ctrl+C)
 │        └─ output: one .cc-block data-type=… per block
 │           text, json, custom → pre · table → table/thead/th scope=col/tbody · list → ul/li · message → div
 ├─ div.cc-status role="status"                 busy text, or the recalled line
+├─ div.cc-pairing role="alertdialog"          only with the pairing prop: span.cc-pairing-text, button.cc-pair-accept, button.cc-pair-decline
+├─ div.cc-remote                               while a CLI is bound: span.cc-remote-text, button.cc-remote-detach
+├─ div.cc-approval role="alertdialog"         while a change from the CLI waits: span.cc-approval-source, span.cc-approval-preview, span.cc-approval-targets, button.cc-approve, button.cc-reject
 ├─ ul.cc-completions role="listbox"            only while a list is open
 │  └─ li.cc-completion role="option" aria-selected
 └─ div.cc-input-line                           never a form

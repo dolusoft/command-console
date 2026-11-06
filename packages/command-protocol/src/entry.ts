@@ -21,10 +21,11 @@ export interface InputEntry {
 
 /**
  * Who a line or a request came from: the user, the application's own
- * assistant, or an agent outside the application (such as a browser agent).
- * A label, never a permission.
+ * assistant, an agent outside the application (such as a browser agent), or
+ * a desktop CLI through the remote entry (ADR 0014). A label, never a
+ * permission.
  */
-export type Actor = 'user' | 'assistant' | 'external-agent'
+export type Actor = 'user' | 'assistant' | 'external-agent' | 'cli'
 
 /** What a command or the library wrote. */
 export interface OutputEntry {

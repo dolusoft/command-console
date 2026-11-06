@@ -246,6 +246,41 @@ Envelope ids come from `createEnvelopeId`, else `crypto.randomUUID()`, else a ve
 `crypto.getRandomValues` (a page served over plain `http` on a LAN address has only the latter). A console with a gate
 and none of these throws on creation.
 
+## The remote entry
+
+A desktop CLI reaches one tab through the hub (ADR 0014). The hub stamps each message of the CLI (`origin`,
+`stampedAt`, `expiresAt`) and delivers it through the same gate; the tab answers through the binding:
+
+```ts
+interface RemoteBinding {
+  bindingId: string
+  grantId: string
+  approvedAt: number
+  send(reply: CliReply): void | Promise<void>
+  status?(): { hidden: boolean; dataAgeMs?: number | null }
+  viewTitle?(view: string): string | undefined
+}
+
+const console = createConsole({ commands, gate, now: () => Date.now() })
+console.attachRemote(binding) // subscribes now, sends the capabilities
+console.detachRemote()
+```
+
+- **Accept.** A request runs once (an id seen before is ignored), not after its `expiresAt` (`expired`) nor when
+  stamped more than 30 s ahead of `now` (`clock-skew`). There is no queue: while a run exists it is `busy`. The line
+  takes the agent's path with `actor: 'cli'`: a sensitive command or line, an `irreversible` one and one without
+  `input` or `danger` are refused, and the history shows the canonical line marked CLI.
+- **Replies.** `received` (hidden, data age), `awaiting-approval` for a change, then `chunk` (at most three) and
+  `finished` with the outcome. The CLI gets what an agent gets (summary, data, code, message); the terminal's blocks
+  stay in the browser.
+- **Preview and change.** A `change` command declares `confirm: { field: 'yes' }`. Without `--yes` the call is its
+  preview and runs as `read`, for the CLI and for the agent's `run` alike; with it, it is the change.
+- **Approval.** A change from the CLI waits in `phase: 'approving'`. The command's optional `plan(input, signal)`
+  gives `targets` and a `preview`; `state.remote.approval` holds the plan for two minutes. `approve(id)` is refused in
+  the first second and runs the plan's input once; `reject(id)`, the timer, `suspendRemote()`, `detachRemote()` and a
+  cancel drop it.
+- **Cancel.** A `cancel` from the CLI answers `cancelled-before-start` or `cancel-requested` and interrupts the run.
+
 ## Requests and agent tools
 
 `request({ command, args, view?, actor })` or `request({ line, actor })` runs a command for a caller other than the

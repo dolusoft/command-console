@@ -49,3 +49,31 @@ export { formatCommandLine, parseOptions } from './syntax/options'
 
 export type { Envelope, EnvelopeErrorCode, EnvelopeResult } from './envelope'
 export { envelopeBytes, envelopeMaxBytes, parseEnvelope } from './envelope'
+
+export type {
+  AwaitingApprovalReply,
+  CancelReply,
+  CapabilitiesReply,
+  ChunkReply,
+  CliCancel,
+  CliMessage,
+  CliMessageResult,
+  CliReply,
+  CliRequest,
+  FinishedReply,
+  ReceivedReply,
+  RemoteCommandSpec,
+  RemoteOrigin,
+  RemoteOutcome,
+  RemoteStamp
+} from './remote'
+export {
+  chunkData,
+  isCliReply,
+  joinChunks,
+  parseCliMessage,
+  remoteBytes,
+  remoteChunksMax,
+  remoteLineMax,
+  remoteVersion
+} from './remote'

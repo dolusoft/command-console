@@ -12,8 +12,10 @@ import type { Updater } from '../../store/action'
 import type {
   BeforeRunResult,
   CommandDefinition,
+  ApprovalPlan,
   ConsoleGate,
   NamespaceDefinition,
+  RemoteBinding,
   NamespaceSpec,
   RunInfo
 } from '../dispatch/dispatch.types'
@@ -39,8 +41,20 @@ export interface RunningCommand {
   /** The canonical name of the command. */
   command: string
   inputId: string
-  /** `authorizing` while `beforeRun` has not answered. */
-  phase: 'authorizing' | 'running'
+  /**
+   * `authorizing` while `beforeRun` has not answered, `approving` while a
+   * change from the CLI waits for the user (C-99).
+   */
+  phase: 'authorizing' | 'approving' | 'running'
+}
+
+/** The bound CLI, while one is attached (ADR 0014). */
+export interface RemoteState {
+  bindingId: string
+  /** When the user approved the binding, in ms since the epoch. */
+  approvedAt: number
+  /** The change waiting for the user's approval, if any. */
+  approval: ApprovalPlan | null
 }
 
 /** An open completion (completion feature, README: Completion). */
@@ -69,6 +83,8 @@ export interface ConsoleState {
   completion: CompletionSession | null
   /** Bottom → top; the root is implicit (context feature). */
   context: ContextFrame[]
+  /** The bound CLI; `null` without one (C-97). */
+  remote: RemoteState | null
 }
 
 /** The slices a consumer may control (core README: Controlled slices). */
@@ -219,6 +235,11 @@ export interface ConsoleOptions<
   echoTimeoutMs?: number
   /** Makes envelope ids; default `crypto.randomUUID()`. */
   createEnvelopeId?: () => string
+  /**
+   * The page's clock in ms since the epoch, for the remote entry's stamps and
+   * approval windows (C-98, C-99); the core reads no clock of its own.
+   */
+  now?: () => number
 }
 
 /**
@@ -297,6 +318,26 @@ export interface CoreConsoleAPI<
   request(input: RequestInput): Promise<CommandOutcome>
   /** Applies the key map; `true` when the key was handled. */
   handleKey(input: KeyInput): boolean
+  /**
+   * Binds the console to a desktop CLI (C-97): subscribes to the gate now,
+   * sends the capabilities and runs the CLI's requests. Needs `gate` and
+   * `now`; replaces a binding already attached.
+   */
+  attachRemote(binding: RemoteBinding): void
+  /** Ends the binding: a waiting approval is dropped; nothing more is sent. */
+  detachRemote(): void
+  /**
+   * The bound tab lost its connection (C-99): a waiting approval is dropped,
+   * the binding stays.
+   */
+  suspendRemote(): void
+  /**
+   * Approves the waiting plan `requestId`; `false` when there is none, or in
+   * its first second (C-99).
+   */
+  approve(requestId: string): boolean
+  /** Rejects the waiting plan `requestId`; `false` when there is none. */
+  reject(requestId: string): boolean
 }
 
 /** A console with the core features and the optional ones in `TFeatures`. */

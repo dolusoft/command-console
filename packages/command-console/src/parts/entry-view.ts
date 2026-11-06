@@ -28,10 +28,12 @@ export const renderEntry = (
   slots: EntrySlots
 ): VNode => {
   if (entry.kind === 'input') {
-    // C-85: a line from the assistant or an agent says so, as text before
-    // the prompt, so a screen reader reads it with the line.
+    // C-85, C-102: a line from the assistant, an agent or the CLI says so, as
+    // text before the prompt, so a screen reader reads it with the line.
     const actor =
-      entry.actor === 'assistant' || entry.actor === 'external-agent'
+      entry.actor === 'assistant' ||
+      entry.actor === 'external-agent' ||
+      entry.actor === 'cli'
         ? entry.actor
         : undefined
     return h(

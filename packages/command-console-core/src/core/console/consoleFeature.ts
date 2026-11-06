@@ -49,7 +49,8 @@ export const emptyState = (): ConsoleState => ({
   recallCursor: null,
   recallDraft: null,
   completion: null,
-  context: []
+  context: [],
+  remote: null
 })
 
 /**

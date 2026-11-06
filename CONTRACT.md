@@ -27,6 +27,7 @@ This is the public contract of `@dolusoft/command-console`: the component surfac
 | `entries` | `ConsoleEntry[]` |  | `undefined` | The entries, for `v-model:entries`; controlled when bound (C-04). |
 | `recall` | `string[]` |  | `undefined` | The recall list, for `v-model:recall`; controlled when bound. |
 | `context` | `ContextFrame[]` |  | `undefined` | The context frames, for `v-model:context`; controlled when bound. |
+| `pairing` | `PairingRequest \| null` |  | `undefined` | A pairing to ask the user about (C-104): `.cc-pairing` shows its facts and answers with the `pair` event. Never the computer name the CLI declares. |
 
 ### Events
 
@@ -37,6 +38,8 @@ This is the public contract of `@dolusoft/command-console`: the component surfac
 | `update:context` | `[context: ContextFrame[]]` | The new context frames of a bound `v-model:context`. |
 | `close` | `[]` | A command returned the `close` effect (C-25). |
 | `submit` | `[submit: ConsoleSubmit]` | A line was submitted with Enter or the exposed `run` (C-64). |
+| `detach-remote` | `[]` | The user pressed "Disconnect" (C-102). The consumer ends the binding at the hub and calls `detachRemote()`. |
+| `pair` | `[accepted: boolean]` | The user answered the pairing question (C-104). |
 
 ### Slots
 
@@ -125,6 +128,9 @@ export type {
   InputState,
   KeyInput,
   OptionalFeatures,
+  ApprovalPlan,
+  RemoteBinding,
+  RemoteState,
   RunContext,
   RunInfo,
   RunningCommand,
@@ -187,20 +193,57 @@ export interface ConsoleLabels {
    * external agent (C-85). Default `'AI'` and `'Agent'`.
    */
   actors: ActorLabels
+  /** The texts of the bound CLI, its approval window and the pairing question. */
+  remote: RemoteLabels
+  /** A time in ms since the epoch as text. Default: its ISO 8601 form. */
+  formatTime: (time: number) => string
 }
 
-/** The label of each actor other than the user (C-85). */
+/** The label of each actor other than the user (C-85, C-102). */
 export type ActorLabels = Record<Exclude<Actor, 'user'>, string>
+
+/** The texts of the remote entry (C-102 to C-104). */
+export interface RemoteLabels {
+  /** In `.cc-remote` while a CLI is bound. */
+  connected: string
+  /** The button that ends the binding. */
+  detach: string
+  /** When the binding was approved, as `formatTime` wrote it. */
+  approvedAt: (time: string) => string
+  /** The approval window's accessible name. */
+  approval: string
+  /** Marks the approval as one that came from the CLI. */
+  fromCli: string
+  /** The plan's target ids. */
+  targets: (targets: string[]) => string
+  approve: string
+  reject: string
+  /** The pairing question's accessible name and text. */
+  pairing: string
+  /** The server's facts of the grant: when it was created and where. */
+  pairingDetails: (time: string, environment: string) => string
+  pairAccept: string
+  pairDecline: string
+}
+
+/** A pairing the user is asked to approve (C-104): the server's facts only. */
+export interface PairingRequest {
+  /** When the CLI grant was created, in ms since the epoch. */
+  createdAt: number
+  /** The environment the grant belongs to. */
+  environment: string
+}
 
 /**
  * The `labels` prop: any part of `ConsoleLabels`. `messages` and `actors`
  * are merged one level deep, so overriding one message keeps the others.
  */
 export type ConsoleLabelsInput = Partial<
-  Omit<ConsoleLabels, 'messages' | 'actors'>
+  Omit<ConsoleLabels, 'messages' | 'actors' | 'remote'>
 > & {
   messages?: Partial<MessageLabels>
   actors?: Partial<ActorLabels>
+  remote?: Partial<RemoteLabels>
 }
 
 // ---------------------------------------------------------------------------
@@ -257,6 +300,12 @@ export interface ConsoleProps {
   recall?: string[]
   /** The context frames, for `v-model:context`; controlled when bound. */
   context?: ContextFrame[]
+  /**
+   * A pairing to ask the user about (C-104): `.cc-pairing` shows its facts
+   * and answers with the `pair` event. Never the computer name the CLI
+   * declares.
+   */
+  pairing?: PairingRequest | null
 }
 
 /** What the `submit` event carries: never the line (C-64). */
@@ -282,6 +331,13 @@ export interface ConsoleEmits {
   close: []
   /** A line was submitted with Enter or the exposed `run` (C-64). */
   submit: [submit: ConsoleSubmit]
+  /**
+   * The user pressed "Disconnect" (C-102). The consumer ends the binding at
+   * the hub and calls `detachRemote()`.
+   */
+  'detach-remote': []
+  /** The user answered the pairing question (C-104). */
+  pair: [accepted: boolean]
 }
 
 /** What a `block-<type>` slot receives. */
@@ -546,6 +602,13 @@ export interface CommandSpec {
   input?: InputSchema
   /** What running the command does to the application. */
   danger?: Danger
+  /**
+   * The boolean field of `input` that turns the command's preview into the
+   * change (ADR 0014). Only for `danger: 'change'`: a call whose field is not
+   * `true` runs as `read` (the preview) for an agent and a CLI; one whose
+   * field is `true` is the change.
+   */
+  confirm?: { field: string }
 }
 
 // packages/command-protocol/src/command.ts
@@ -629,10 +692,11 @@ export interface InputEntry {
 // packages/command-protocol/src/entry.ts
 /**
  * Who a line or a request came from: the user, the application's own
- * assistant, or an agent outside the application (such as a browser agent).
- * A label, never a permission.
+ * assistant, an agent outside the application (such as a browser agent), or
+ * a desktop CLI through the remote entry (ADR 0014). A label, never a
+ * permission.
  */
-export type Actor = 'user' | 'assistant' | 'external-agent'
+export type Actor = 'user' | 'assistant' | 'external-agent' | 'cli'
 
 // packages/command-protocol/src/entry.ts
 /** What a command or the library wrote. */
@@ -682,8 +746,21 @@ export interface RunningCommand {
   /** The canonical name of the command. */
   command: string
   inputId: string
-  /** `authorizing` while `beforeRun` has not answered. */
-  phase: 'authorizing' | 'running'
+  /**
+   * `authorizing` while `beforeRun` has not answered, `approving` while a
+   * change from the CLI waits for the user (C-99).
+   */
+  phase: 'authorizing' | 'approving' | 'running'
+}
+
+// packages/command-console-core/src/core/console/console.types.ts
+/** The bound CLI, while one is attached (ADR 0014). */
+export interface RemoteState {
+  bindingId: string
+  /** When the user approved the binding, in ms since the epoch. */
+  approvedAt: number
+  /** The change waiting for the user's approval, if any. */
+  approval: ApprovalPlan | null
 }
 
 // packages/command-console-core/src/core/console/console.types.ts
@@ -714,6 +791,8 @@ export interface ConsoleState {
   completion: CompletionSession | null
   /** Bottom → top; the root is implicit (context feature). */
   context: ContextFrame[]
+  /** The bound CLI; `null` without one (C-97). */
+  remote: RemoteState | null
 }
 
 // packages/command-console-core/src/core/console/console.types.ts
@@ -803,6 +882,11 @@ export interface ConsoleOptions<
   echoTimeoutMs?: number
   /** Makes envelope ids; default `crypto.randomUUID()`. */
   createEnvelopeId?: () => string
+  /**
+   * The page's clock in ms since the epoch, for the remote entry's stamps and
+   * approval windows (C-98, C-99); the core reads no clock of its own.
+   */
+  now?: () => number
 }
 
 // packages/command-console-core/src/core/console/console.types.ts
@@ -871,6 +955,62 @@ export interface CommandDefinition extends Omit<CommandSpec, 'summary'> {
    * against the schema.
    */
   normalize?(input: Record<string, JsonValue>): Record<string, JsonValue>
+  /**
+   * What the user approves before a change from the remote entry runs
+   * (ADR 0014, C-99): the ids the change acts on and a preview to show. Gets
+   * the normalized input; may read fresh data. A throw or rejection ends the
+   * request as failed, nothing changed.
+   */
+  plan?(
+    input: Record<string, JsonValue>,
+    signal: AbortSignal
+  ): ApprovalDetails | Promise<ApprovalDetails>
+}
+
+// packages/command-console-core/src/core/dispatch/dispatch.types.ts
+/**
+ * One tab's binding to a desktop CLI, as the consumer's hub client holds it
+ * (ADR 0014). The console sends its replies through it; the requests come
+ * through the gate.
+ */
+export interface RemoteBinding {
+  /** The binding the hub made when the user approved it in this tab. */
+  bindingId: string
+  /** The CLI grant bound. */
+  grantId: string
+  /** When the user approved the binding, in ms since the epoch. */
+  approvedAt: number
+  /** Sends a reply to the bound CLI (the hub's `SendToCli`). */
+  send(reply: CliReply): void | Promise<void>
+  /**
+   * Whether the page is hidden now and how old the data is, for `received`.
+   * Default `{ hidden: false, dataAgeMs: null }`.
+   */
+  status?(): { hidden: boolean; dataAgeMs?: number | null }
+  /** The title of a view instance, for `finished`. */
+  viewTitle?(view: string): string | undefined
+}
+
+// packages/command-console-core/src/core/dispatch/dispatch.types.ts
+/** A change from the CLI that waits for the user (ADR 0014, C-99). */
+export interface ApprovalPlan {
+  /** The CLI request's id. */
+  requestId: string
+  /** The canonical name of the command. */
+  command: string
+  /** The canonical line of the normalized input. */
+  line: string
+  /** The normalized input the command will run with. */
+  input: Record<string, JsonValue>
+  targets: string[]
+  preview?: string
+  view?: string
+  /** When the window opened, in ms since the epoch (the console's `now`). */
+  openedAt: number
+  /** Before this an approval is refused (one second after `openedAt`). */
+  acceptsAt: number
+  /** After this the plan is dropped (two minutes after `openedAt`). */
+  expiresAt: number
 }
 
 // packages/command-console-core/src/core/dispatch/dispatch.types.ts
@@ -1360,7 +1500,7 @@ request has no `view` and the envelope no `target.view`. Without a gate, or for 
 #### C-78 Gate
 
 `gate` is fixed for the life of the console (`setOptions` with another gate throws). The console subscribes to it on
-its first envelope, never on creation, and `dispose()` unsubscribes and cancels what it scheduled. With a gate, an
+its first envelope or when a remote binding is attached (C-97), never on creation, and `dispose()` unsubscribes and cancels what it scheduled. With a gate, an
 envelope id comes from `createEnvelopeId`, else `crypto.randomUUID()`, else an RFC 4122 version 4 UUID made from
 `crypto.getRandomValues` (a page on an insecure origin has only that); creating a console with a gate and none of them
 throws, and a `createEnvelopeId` that throws or returns a closed id ends the run as failed (C-18). An `echoTimeoutMs`
@@ -1396,7 +1536,7 @@ a context change append `interrupted`).
 
 `request(input)` never rejects and resolves a `CommandOutcome`. While a run exists it is `busy`; an unparsable line
 is `invalid-args`; an unknown or `hidden` command is `unknown-command`; a command without `input` or `danger`, a
-sensitive one, an `irreversible` one, an actor other than `external-agent`, and a `danger` other than `read` are
+sensitive one, an `irreversible` one, an actor other than `external-agent`, and a `danger` other than `read` (a `change` command whose `confirm` field is not `true` counts as `read`, C-95) are
 `not-allowed`, with a `message` and, for a `change` command, a `line` (C-93); options that do not match the schema
 are `invalid-args`, with a `message` (C-89). `{ command }`
 without `args` is `{ command, args: {} }`, and a string given for an array of strings is a list of it (C-91). Nothing
@@ -1434,7 +1574,7 @@ its live input.
 
 #### C-85 Actor (Vue)
 
-An input entry whose `actor` is `assistant` or `external-agent` has `data-actor` with that value and, before its
+An input entry whose `actor` is `assistant`, `external-agent` or `cli` (C-102) has `data-actor` with that value and, before its
 prompt, a `span.cc-actor` with `labels.actors[actor]`, so the label is read with the line; a line without `actor` or
 with `user` has neither. A partial `labels.actors` keeps the other defaults.
 
@@ -1518,6 +1658,100 @@ returns them in their order as `{ name, summary? }`, a summary function called e
 points; a namespace no listed command has is not listed. A console passed to `agentTools` without `getNamespaces`
 lists no summary.
 
+#### C-95 Confirm field
+
+A command's `confirm` is `{ field }` naming a boolean property of its `input`, on a `change` command only; anything
+else throws at creation and on `setOptions`, as does a `plan` that is not a function. `getCommands()` copies it into
+the spec. For an agent's `request()` (C-82) and a CLI request (C-98), a call whose field is not `true` is the
+command's preview and runs as `read`; one whose field is `true` is the change: `not-allowed` with its line for the
+agent (C-93), an approval plan for the CLI (C-99). Options the schema refuses are `invalid-args` for a command with
+`confirm`. A line the user types is not changed by it.
+
+#### C-96 Remote envelopes
+
+`parseCliMessage(raw)` accepts a version 1 `cli-request` (`id`, `line` of at most `remoteLineMax` code points, an
+optional `view`) or `cancel` (`id`), each with the hub's stamp: `origin` `{ kind: 'cli', grantId, bindingId }`,
+`stampedAt` and `expiresAt` finite numbers at or above 0, `expiresAt` after `stampedAt`. It returns a new message
+with only the known fields and never changes `raw`; another `v` is `unsupported-version`, a JSON over
+`envelopeMaxBytes` is `too-large`, anything else `invalid`, and a `null` `view` is no view. `chunkData(id, text)` cuts
+a JSON text into at most `remoteChunksMax` (3) chunk replies, each within `envelopeMaxBytes` with its UTF-8 `bytes`,
+cut between code points, or returns `undefined`; `joinChunks(finished, chunks)` gives the text back only when every
+part from 0 to `chunks - 1` is there once, of that request, and the byte counts hold. `isCliReply` checks a reply's
+shape.
+
+#### C-97 Attach remote
+
+`attachRemote(binding)` needs the `gate` and `now` options and a binding with a non-empty `bindingId` and `grantId`,
+a finite `approvedAt` and a `send` function; otherwise it throws a `TypeError`. It subscribes to the gate at once,
+puts `{ bindingId, approvedAt, approval: null }` in `state.remote`, replaces a binding already attached, and sends the
+`capabilities` reply: the commands that are neither `hidden` nor `irreversible` and have `input` and `danger` without
+`sensitive` (name, aliases, danger, confirm field), and the names and aliases of every sensitive command. A message
+whose `origin` is not the binding's is ignored. `detachRemote()` drops a waiting approval (C-99), sets
+`state.remote` to `null` and sends nothing more through the binding, not even the end of a command still running; so
+does `dispose()`. A `send` that throws or rejects goes to `onError` and changes nothing else.
+
+#### C-98 Remote accept
+
+A `cli-request` of the bound CLI is its own action. An id seen before is ignored. By the `now` option, one stamped
+more than 30 s ahead is `clock-skew` and one after its `expiresAt` is `expired`, each with a `message`; while a run
+exists it is `busy` (no queue). Then, as for an agent (C-82, C-89, C-93): an unparsable or empty line is
+`invalid-args`, an unknown or `hidden` command `unknown-command`; a sensitive command, a line `isSensitive` marks,
+typed or canonical, an `irreversible` command and one without `input` or `danger` are `not-allowed`, and the
+`message` repeats no part of a sensitive line; options the schema refuses are `invalid-args` with a `message`. Each
+of these sends only `finished`, and adds no entry. Otherwise the tab sends `received` (`hidden` and `dataAgeMs` from
+the binding's `status`, else `false` and `null`), appends an input entry with the canonical line and
+`actor: 'cli'`, and starts the run without an envelope: `beforeRun`, then a `read` command or a preview (C-95) runs,
+and a change waits for approval (C-99). The view is the request's, else `activeView()` on accept.
+
+#### C-99 Approval plan
+
+A change from the CLI is in `phase: 'approving'` while it waits. The command's `plan(input, signal)`, when it has
+one, is called with the normalized input and may return a promise; a throw or rejection fails the request and
+nothing runs. Then `state.remote.approval` holds the plan (the request id, the command, the canonical line, the
+normalized input, the `targets` strings, the `preview` string, the view, `openedAt` by `now`, `acceptsAt` one second
+later and `expiresAt` two minutes later), the CLI gets `awaiting-approval` with `expiresAt`, and a timer of two
+minutes is set through `gate.schedule`. `approve(id)` returns `false` and does nothing for another id or before
+`acceptsAt`; after `expiresAt` it ends the request. Otherwise it clears the plan, cancels its timer and calls the
+command's `run` once with the plan's input; the line is not read again. `reject(id)`, the timer, `suspendRemote()`,
+`detachRemote()`, `cancel()`, Ctrl+C and a CLI `cancel` drop the plan: the request ends `not-allowed` (with a
+`message` that says why) or `cancelled`, and nothing runs. A schedule that throws ends it `connection-lost`.
+
+#### C-100 Remote result
+
+The end of a CLI request sends its outcome as the agent's `request()` would give it (C-82, C-86 to C-89): when it has
+`data`, first its JSON in at most three `chunk` replies (C-96), then `finished` with the outcome without `data`,
+`chunks`, `bytes`, `view` (`{ id, title? }`, the title from the binding's `viewTitle`) and `preview: true` for a
+preview that ended `ok`. Data that does not fit in three chunks makes the outcome `too-large` without chunks. The
+terminal's blocks never go to the CLI, nor the text of an error other than C-89's.
+
+#### C-101 Remote cancel
+
+A `cancel` of the bound CLI for the current run's request interrupts it as `cancel()` does (C-57): the CLI gets
+`cancelled-before-start` when the command's `run` was not called yet (an approval waiting included) and
+`cancel-requested` when it was, then `finished` with `cancelled`. A `cancel` of another id, or after the end, is
+ignored.
+
+#### C-102 CLI marker (Vue)
+
+An input entry with `actor: 'cli'` has `data-actor="cli"` and `span.cc-actor` with `labels.actors.cli` (default
+`CLI`), as C-85 says. While `state.remote` is set, `div.cc-remote` shows `labels.remote.connected` and the approval
+time of the binding (`labels.formatTime`) and a `button.cc-remote-detach` that emits `detach-remote`; the consumer
+ends the binding at the hub and calls `detachRemote()`.
+
+#### C-103 Approval window (Vue)
+
+While `state.remote.approval` is set, `div.cc-approval` (a `role="alertdialog"` named by `labels.remote.approval`)
+shows `labels.remote.fromCli` with the approval time of the binding, the plan's `preview` (else its line), its
+targets when it has any, and the buttons `cc-approve` and `cc-reject`, which call `approve()` and `reject()`. It never
+shows a computer name.
+
+#### C-104 Pairing question (Vue)
+
+With the `pairing` prop, `div.cc-pairing` (a `role="alertdialog"` named by `labels.remote.pairing`) shows the question
+and the server's facts (`createdAt` through `labels.formatTime`, `environment`) and the buttons `cc-pair-accept` and
+`cc-pair-decline`, which emit `pair` with `true` and `false`. A click on any of the library's buttons does not move
+the focus to the input (C-51).
+
 ## DOM contract
 
 The classes and attributes below are the only hooks a skin can select (P6). The console writes no stylesheet and no inline style (P5); slot content is the consumer’s.
@@ -1530,7 +1764,7 @@ The classes and attributes below are the only hooks a skin can select (P6). The 
 | `cc-log` | `.cc-console > div` | The scrollback, a named `role="log"`. Make it scroll in your CSS (`overflow-y: auto` and a height); the console only writes its `scrollTop` to keep the newest output in view (C-58). |
 | `cc-entries` | `.cc-log > div` | The list of entries inside the log, observed for size changes to keep the log at the bottom (C-58). |
 | `cc-entry` | `.cc-entries > div` | One entry: an ended input line or the output of a command (`data-kind`). |
-| `cc-actor` | `.cc-entry > span` | Before the prompt of a line from the assistant or an external agent: `labels.actors[actor]` (C-85). |
+| `cc-actor` | `.cc-entry > span` | Before the prompt of a line from the assistant, an external agent or the CLI: `labels.actors[actor]` (C-85, C-102). |
 | `cc-prompt` | `span` | The prompt, in an input entry and before the live input. The `prompt` slot renders inside it (C-67). |
 | `cc-line` | `.cc-entry > span` | The text of an ended input line, or `labels.redacted` when the line was sensitive (C-30). |
 | `cc-cancelled` | `.cc-entry > span` | After a line ended with Ctrl+C: `labels.cancelledMarker` (C-15). |
@@ -1538,6 +1772,19 @@ The classes and attributes below are the only hooks a skin can select (P6). The 
 | `cc-status` | `.cc-console > div` | A `role="status"` element: `labels.busy` (or the `busy` slot) while a command runs, the recalled line after a recall, else empty (C-44, C-48). |
 | `cc-completions` | `.cc-console > ul` | The completion candidates, a named `role="listbox"`, rendered only while a completion session is open (C-41). |
 | `cc-completion` | `.cc-completions > li` | One candidate, a `role="option"`. The `completion` slot renders inside it (C-67). |
+| `cc-remote` | `.cc-console > div` | While a CLI is bound to the console (`state.remote`): its text and the "Disconnect" button (C-102). |
+| `cc-remote-text` | `.cc-remote > span` | `labels.remote.connected` and when the binding was approved (C-102). |
+| `cc-remote-detach` | `.cc-remote > button` | `labels.remote.detach`; emits `detach-remote`, the consumer ends the binding (C-102). |
+| `cc-approval` | `.cc-console > div` | A named `role="alertdialog"` while a change from the CLI waits for the user (C-103). |
+| `cc-approval-source` | `.cc-approval > span` | `labels.remote.fromCli` and when the binding was approved; never a computer name (C-103). |
+| `cc-approval-preview` | `.cc-approval > span` | The plan’s preview, else its canonical line (C-103). |
+| `cc-approval-targets` | `.cc-approval > span` | The plan’s target ids, when it has any (C-103). |
+| `cc-approve` | `.cc-approval > button` | `labels.remote.approve`; calls `approve()`, which refuses in the window’s first second (C-99, C-103). |
+| `cc-reject` | `.cc-approval > button` | `labels.remote.reject`; calls `reject()` (C-103). |
+| `cc-pairing` | `.cc-console > div` | A named `role="alertdialog"` while the `pairing` prop is set: "connect this tab to the CLI?" (C-104). |
+| `cc-pairing-text` | `.cc-pairing > span` | The question and the server’s facts of the grant: when it was created and its environment (C-104). |
+| `cc-pair-accept` | `.cc-pairing > button` | `labels.remote.pairAccept`; emits `pair` with `true` (C-104). |
+| `cc-pair-decline` | `.cc-pairing > button` | `labels.remote.pairDecline`; emits `pair` with `false` (C-104). |
 | `cc-input-line` | `.cc-console > div` | The live line: its prompt and the input. Never a `<form>` (C-69). |
 | `cc-input` | `input` | The text input, a named and described combobox. It is replaced by a new element after a sensitive line, on `reset()` and after a programmatic clear (C-54). |
 
@@ -1547,19 +1794,19 @@ The classes and attributes below are the only hooks a skin can select (P6). The 
 | --- | --- | --- |
 | `data-busy` | `.cc-console` | Present while a command runs (C-44). |
 | `data-context-depth` | `.cc-console` | The number of context frames, `0` at the root (C-66). A skin may change the look of a nested context with it. |
-| `role` | `.cc-log, .cc-status, .cc-completions, .cc-completion, .cc-input` | `log` on the log, `status` on the status element, `listbox` on the list, `option` on a candidate, `combobox` on the input (C-48). |
-| `aria-label` | `.cc-log, .cc-completions, .cc-input` | From `labels.log`, `labels.completions` and `labels.input` (C-47). |
+| `role` | `.cc-log, .cc-status, .cc-completions, .cc-completion, .cc-input, .cc-approval, .cc-pairing` | `log` on the log, `status` on the status element, `listbox` on the list, `option` on a candidate, `combobox` on the input (C-48), `alertdialog` on the approval window and the pairing question (C-103, C-104). |
+| `aria-label` | `.cc-log, .cc-completions, .cc-input, .cc-approval, .cc-pairing` | From `labels.log`, `labels.completions`, `labels.input`, `labels.remote.approval` and `labels.remote.pairing` (C-47). |
 | `data-kind` | `.cc-entry` | `input` for an ended line, `output` for what a command returned. |
 | `data-tone` | `.cc-entry` | The tone of an output entry as the command gave it (for example an error), for the skin to colour. |
 | `data-status` | `.cc-entry` | How an input line ended (for example `cancelled` or `failed`), for the skin to mark it. |
 | `data-redacted` | `.cc-entry` | Present on the input entry of a sensitive line, whose text is not kept (C-30). |
-| `data-actor` | `.cc-entry` | `assistant` or `external-agent` on the input entry of a line from one of them; absent for the user’s own lines (C-85). |
+| `data-actor` | `.cc-entry` | `assistant`, `external-agent` or `cli` on the input entry of a line from one of them; absent for the user’s own lines (C-85, C-102). |
 | `aria-live` | `.cc-entry` | `off` on a quiet entry, which the log does not announce (C-48). |
 | `data-type` | `.cc-block` | The block type: `text`, `json`, `table`, `list`, `message` or `custom`. |
 | `scope` | `.cc-block th` | `col` on each header cell of a table block. |
 | `id` | `.cc-completions, .cc-completion` | From Vue’s `useId()`: the list id, and `<list id>-<n>` per candidate, unique per console (C-08). |
 | `aria-selected` | `.cc-completion` | `true` on the selected candidate, `false` on the others. |
-| `type` | `.cc-input` | `text`. |
+| `type` | `.cc-input, .cc-remote-detach, .cc-approve, .cc-reject, .cc-pair-accept, .cc-pair-decline` | `text` on the input, `button` on a button. |
 | `aria-autocomplete` | `.cc-input` | `list`. |
 | `aria-expanded` | `.cc-input` | `true` while the completion list is open, else `false`. |
 | `aria-controls` | `.cc-input` | The list id, only while the list is open (C-48). |
