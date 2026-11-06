@@ -25,7 +25,13 @@ const operationTexts: Record<ErrorCode, string> = {
   timeout: 'No answer in time; the command did not run.',
   failed: 'The command failed.',
   'connection-lost': 'No connection; the command did not run.',
-  cancelled: 'The command was cancelled.'
+  cancelled: 'The command was cancelled.',
+  expired: 'The request came too late; the command did not run.',
+  'clock-skew': 'The clock of this computer is off; the command did not run.',
+  'not-delivered': 'The request did not arrive; the command did not run.',
+  'tab-unreachable': 'The tab cannot be reached; the command did not run.',
+  gone: 'The connection to the tab ended; the command did not run.',
+  'unknown-outcome': 'Whether the command ran is not known.'
 }
 
 /** What is wrong with an option, after `Invalid option <path>: `. */
@@ -83,19 +89,37 @@ const defaultLabels: ConsoleLabels = {
   },
   actors: {
     assistant: 'AI',
-    'external-agent': 'Agent'
-  }
+    'external-agent': 'Agent',
+    cli: 'CLI'
+  },
+  remote: {
+    connected: 'A CLI is connected to this tab.',
+    detach: 'Disconnect',
+    approvedAt: time => `Connection approved at ${time}.`,
+    approval: 'Approve a change from the CLI',
+    fromCli: 'From the CLI.',
+    targets: targets => `Targets: ${targets.join(', ')}.`,
+    approve: 'Approve',
+    reject: 'Reject',
+    pairing: 'Connect this tab to the CLI?',
+    pairingDetails: (time, environment) =>
+      `CLI access created at ${time} for ${environment}.`,
+    pairAccept: 'Connect',
+    pairDecline: 'Cancel'
+  },
+  formatTime: time => new Date(time).toISOString()
 }
 
 /**
- * The defaults with `labels` over them; `messages` and `actors` merge one
+ * The defaults with `labels` over them; `messages`, `actors` and `remote` merge one
  * level deep, so overriding one message keeps the others.
  */
 export const resolveLabels = (labels?: ConsoleLabelsInput): ConsoleLabels => ({
   ...defaultLabels,
   ...labels,
   messages: { ...defaultLabels.messages, ...labels?.messages },
-  actors: { ...defaultLabels.actors, ...labels?.actors }
+  actors: { ...defaultLabels.actors, ...labels?.actors },
+  remote: { ...defaultLabels.remote, ...labels?.remote }
 })
 
 /** The text of a message block, from `labels.messages`. */

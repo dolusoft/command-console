@@ -2,6 +2,23 @@
 
 The release notes of a version are on its GitHub Release. This file names what a consumer must change.
 
+## 1.6.0
+
+The remote entry of a desktop CLI (ADR 0014).
+
+- **New: `attachRemote(binding)`, `detachRemote()`, `suspendRemote()`, `approve(id)`, `reject(id)`** in the core,
+  with the `now` option, `state.remote` and a command's `plan(input, signal)` (C-97 to C-101). The protocol gains
+  the remote envelopes (`parseCliMessage`, `CliReply`, `chunkData`, `joinChunks`, `isCliReply`; C-96).
+- **New: `CommandSpec.confirm: { field }`** (C-95). A `change` command that declares it runs its preview as `read`
+  when the field is not `true`. **Changed:** for such a command, the agent's `run` without the field now runs the
+  preview instead of answering `not-allowed`. Commands without `confirm` are unchanged.
+- **Changed: types that grow.** `ConsoleState.remote` (`null` without a binding), `RunningCommand.phase` adds
+  `approving`, `Actor` adds `cli`, `ErrorCode` adds `expired`, `clock-skew`, `not-delivered`, `tab-unreachable`,
+  `gone` and `unknown-outcome`. A consumer that compares the whole state, or switches over every phase, actor or code
+  without a default, adds them.
+- **New in the component:** `.cc-remote`, `.cc-approval`, `.cc-pairing`, the `pairing` prop, the `detach-remote`
+  and `pair` events, `labels.remote`, `labels.formatTime` and `labels.actors.cli` (C-102 to C-104).
+
 ## 1.5.0
 
 - **New: an agent skill in `@dolusoft/command-console-core`.** `skills/command-console/SKILL.md` (Agent Skills

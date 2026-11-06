@@ -1,4 +1,5 @@
 import type {
+  CliReply,
   CommandResponse,
   CommandSpec,
   ContextFrame,
@@ -63,6 +64,68 @@ export interface CommandDefinition extends Omit<CommandSpec, 'summary'> {
    * against the schema.
    */
   normalize?(input: Record<string, JsonValue>): Record<string, JsonValue>
+  /**
+   * What the user approves before a change from the remote entry runs
+   * (ADR 0014, C-99): the ids the change acts on and a preview to show. Gets
+   * the normalized input; may read fresh data. A throw or rejection ends the
+   * request as failed, nothing changed.
+   */
+  plan?(
+    input: Record<string, JsonValue>,
+    signal: AbortSignal
+  ): ApprovalDetails | Promise<ApprovalDetails>
+}
+
+/** What a command's `plan` adds to an approval. */
+export interface ApprovalDetails {
+  /** The ids of what the change acts on (task ids, …). */
+  targets?: string[]
+  /** One short text of what will happen, for the approval window. */
+  preview?: string
+}
+
+/**
+ * One tab's binding to a desktop CLI, as the consumer's hub client holds it
+ * (ADR 0014). The console sends its replies through it; the requests come
+ * through the gate.
+ */
+export interface RemoteBinding {
+  /** The binding the hub made when the user approved it in this tab. */
+  bindingId: string
+  /** The CLI grant bound. */
+  grantId: string
+  /** When the user approved the binding, in ms since the epoch. */
+  approvedAt: number
+  /** Sends a reply to the bound CLI (the hub's `SendToCli`). */
+  send(reply: CliReply): void | Promise<void>
+  /**
+   * Whether the page is hidden now and how old the data is, for `received`.
+   * Default `{ hidden: false, dataAgeMs: null }`.
+   */
+  status?(): { hidden: boolean; dataAgeMs?: number | null }
+  /** The title of a view instance, for `finished`. */
+  viewTitle?(view: string): string | undefined
+}
+
+/** A change from the CLI that waits for the user (ADR 0014, C-99). */
+export interface ApprovalPlan {
+  /** The CLI request's id. */
+  requestId: string
+  /** The canonical name of the command. */
+  command: string
+  /** The canonical line of the normalized input. */
+  line: string
+  /** The normalized input the command will run with. */
+  input: Record<string, JsonValue>
+  targets: string[]
+  preview?: string
+  view?: string
+  /** When the window opened, in ms since the epoch (the console's `now`). */
+  openedAt: number
+  /** Before this an approval is refused (one second after `openedAt`). */
+  acceptsAt: number
+  /** After this the plan is dropped (two minutes after `openedAt`). */
+  expiresAt: number
 }
 
 /**

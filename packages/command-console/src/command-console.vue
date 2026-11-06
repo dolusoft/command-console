@@ -38,6 +38,11 @@ import { useStickToBottom } from './dom/scroll'
 import { resolveLabels } from './labels'
 import { renderCompletions, optionId } from './parts/completions-view'
 import { renderEntry, renderPrompt } from './parts/entry-view'
+import {
+  renderApproval,
+  renderPairing,
+  renderRemote
+} from './parts/remote-view'
 import { useCommandConsole } from './use-command-console'
 
 defineOptions({ name: 'CommandConsole' })
@@ -59,7 +64,8 @@ const props = withDefaults(defineProps<ConsoleProps>(), {
   autofocus: false,
   entries: undefined,
   recall: undefined,
-  context: undefined
+  context: undefined,
+  pairing: undefined
 })
 
 const emit = defineEmits<ConsoleEmits>()
@@ -211,6 +217,29 @@ const completionsView: FunctionalComponent = () =>
     ? renderCompletions(session.value, listId, labels.value.completions, slots)
     : null
 const promptView: FunctionalComponent = () => renderPrompt(prompt.value, slots)
+// C-102 to C-104: the bound CLI, its approval window, the pairing question.
+const remoteView: FunctionalComponent = () => {
+  const remote = state.value.remote
+  return [
+    props.pairing
+      ? renderPairing(props.pairing, labels.value, accepted =>
+          emit('pair', accepted)
+        )
+      : null,
+    remote
+      ? renderRemote(remote, labels.value, () => emit('detach-remote'))
+      : null,
+    remote
+      ? renderApproval(remote, labels.value, (requestId, approved) => {
+          if (approved) {
+            instance.approve(requestId)
+          } else {
+            instance.reject(requestId)
+          }
+        })
+      : null
+  ]
+}
 
 // --- Elements ---------------------------------------------------------------
 
@@ -415,6 +444,7 @@ defineExpose(exposed)
         ><slot name="busy" :running="running">{{ labels.busy }}</slot></template
       ><template v-else>{{ recalled }}</template>
     </div>
+    <component :is="remoteView" />
     <component :is="completionsView" />
     <div class="cc-input-line">
       <component :is="promptView" />

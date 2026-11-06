@@ -5,7 +5,7 @@
 ```ts
 
 // @public
-export type Actor = 'user' | 'assistant' | 'external-agent';
+export type Actor = 'user' | 'assistant' | 'external-agent' | 'cli';
 
 // @public
 export interface ArrayInputSchema {
@@ -19,6 +19,17 @@ export interface ArrayInputSchema {
 }
 
 // @public
+export interface AwaitingApprovalReply {
+    expiresAt: number;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    kind: 'awaiting-approval';
+    // (undocumented)
+    v: 1;
+}
+
+// @public
 export interface BooleanInputSchema {
     // (undocumented)
     default?: boolean;
@@ -29,7 +40,83 @@ export interface BooleanInputSchema {
 }
 
 // @public
+export interface CancelReply {
+    // (undocumented)
+    id: string;
+    kind: 'cancelled-before-start' | 'cancel-requested';
+    // (undocumented)
+    v: 1;
+}
+
+// @public
+export interface CapabilitiesReply {
+    // (undocumented)
+    bindingId: string;
+    commands: RemoteCommandSpec[];
+    envelope: 1;
+    // (undocumented)
+    kind: 'capabilities';
+    sensitive: string[];
+    // (undocumented)
+    v: 1;
+}
+
+// @public
 export function checkInputSchema(schema: unknown): asserts schema is InputSchema;
+
+// @public
+export function chunkData(id: string, text: string): ChunkReply[] | undefined;
+
+// @public
+export interface ChunkReply {
+    bytes: number;
+    data: string;
+    // (undocumented)
+    id: string;
+    index: number;
+    // (undocumented)
+    kind: 'chunk';
+    // (undocumented)
+    total: number;
+    // (undocumented)
+    v: 1;
+}
+
+// @public
+export interface CliCancel extends RemoteStamp {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    kind: 'cancel';
+    // (undocumented)
+    v: 1;
+}
+
+// @public
+export type CliMessage = CliRequest | CliCancel;
+
+// @public
+export type CliMessageResult = {
+    ok: true;
+    message: CliMessage;
+} | {
+    ok: false;
+    code: EnvelopeErrorCode;
+};
+
+// @public
+export type CliReply = CapabilitiesReply | ReceivedReply | AwaitingApprovalReply | ChunkReply | FinishedReply | CancelReply;
+
+// @public
+export interface CliRequest extends RemoteStamp {
+    id: string;
+    // (undocumented)
+    kind: 'cli-request';
+    line: string;
+    // (undocumented)
+    v: 1;
+    view?: string;
+}
 
 // @public
 export type CommandOutcome = {
@@ -56,6 +143,9 @@ export interface CommandResponse {
 // @public
 export interface CommandSpec {
     aliases?: string[];
+    confirm?: {
+        field: string;
+    };
     danger?: Danger;
     hidden?: boolean;
     input?: InputSchema;
@@ -147,7 +237,28 @@ export type EnvelopeResult = {
 };
 
 // @public
-export type ErrorCode = 'invalid-args' | 'unknown-command' | 'not-allowed' | 'target-not-found' | 'id-conflict' | 'unsupported-version' | 'too-large' | 'busy' | 'timeout' | 'failed' | 'connection-lost' | 'cancelled';
+export type ErrorCode = 'invalid-args' | 'unknown-command' | 'not-allowed' | 'target-not-found' | 'id-conflict' | 'unsupported-version' | 'too-large' | 'busy' | 'timeout' | 'failed' | 'connection-lost' | 'cancelled' | 'expired' | 'clock-skew' | 'not-delivered' | 'tab-unreachable' | 'gone' | 'unknown-outcome';
+
+// @public
+export interface FinishedReply {
+    // (undocumented)
+    bytes: number;
+    // (undocumented)
+    chunks: number;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    kind: 'finished';
+    // (undocumented)
+    outcome: RemoteOutcome;
+    preview?: true;
+    // (undocumented)
+    v: 1;
+    view?: {
+        id: string;
+        title?: string;
+    };
+}
 
 // @public
 export function formatCommandLine(command: string, value: Record<string, JsonValue>, schema: InputSchema): string;
@@ -212,7 +323,13 @@ export interface InputSchema {
 export type InputSchemaNode = StringInputSchema | NumberInputSchema | BooleanInputSchema | ArrayInputSchema | InputSchema;
 
 // @public
+export function isCliReply(raw: unknown): raw is CliReply;
+
+// @public
 export function isJsonValue(value: unknown): value is JsonValue;
+
+// @public
+export function joinChunks(finished: FinishedReply, chunks: readonly ChunkReply[]): string | undefined;
 
 // @public
 export interface JsonBlock {
@@ -307,6 +424,9 @@ export interface OutputEntry {
 }
 
 // @public
+export function parseCliMessage(raw: unknown): CliMessageResult;
+
+// @public
 export function parseEnvelope(raw: unknown): EnvelopeResult;
 
 // @public
@@ -314,6 +434,68 @@ export function parseOptions(args: readonly string[], schema: InputSchema): Inpu
 
 // @public
 export function quoteArgument(value: string): string;
+
+// @public
+export interface ReceivedReply {
+    dataAgeMs: number | null;
+    hidden: boolean;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    kind: 'received';
+    // (undocumented)
+    v: 1;
+}
+
+// @public
+export function remoteBytes(value: CliMessage | CliReply): number;
+
+// @public
+export const remoteChunksMax = 3;
+
+// @public
+export interface RemoteCommandSpec {
+    // (undocumented)
+    aliases: string[];
+    confirm?: string;
+    // (undocumented)
+    danger: Exclude<Danger, 'irreversible'>;
+    // (undocumented)
+    name: string;
+}
+
+// @public
+export const remoteLineMax = 4000;
+
+// @public
+export interface RemoteOrigin {
+    bindingId: string;
+    grantId: string;
+    // (undocumented)
+    kind: 'cli';
+}
+
+// @public
+export type RemoteOutcome = {
+    status: 'ok';
+    summary?: string;
+} | {
+    status: 'error';
+    code: ErrorCode;
+    message?: string;
+    line?: string;
+};
+
+// @public
+export interface RemoteStamp {
+    expiresAt: number;
+    // (undocumented)
+    origin: RemoteOrigin;
+    stampedAt: number;
+}
+
+// @public
+export const remoteVersion = 1;
 
 // @public
 export interface StringInputSchema {

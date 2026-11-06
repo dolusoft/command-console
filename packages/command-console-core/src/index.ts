@@ -31,10 +31,13 @@ export type {
   OptionalFeatures,
   RecallAPI,
   RecallFeature,
+  RemoteState,
   RequestInput,
   RunningCommand
 } from './core/console/console.types'
 export type {
+  ApprovalDetails,
+  ApprovalPlan,
   BeforeRunResult,
   CommandDefinition,
   CommandRequest,
@@ -44,6 +47,7 @@ export type {
   ConsoleGate,
   NamespaceDefinition,
   NamespaceSpec,
+  RemoteBinding,
   RunContext,
   RunInfo
 } from './core/dispatch/dispatch.types'

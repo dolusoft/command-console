@@ -19,5 +19,6 @@ Changing a record, or adding one, needs the approval of a code owner (`.github/C
 | [0011](0011-choices-settled-in-1-0.md)            | Choices settled while 1.0 was built         | Accepted |
 | [0012](0012-envelope-and-gate.md)                 | The envelope and the gate                   | Accepted |
 | [0013](0013-agent-skill.md)                       | The agent skill ships with the core         | Accepted |
+| [0014](0014-remote-entry.md)                      | The remote entry of a desktop CLI           | Accepted |
 
 0001 to 0010 were decided on 2026-10-26 with the 1.0 specification, after two independent reviews; 0011 records where the finished code differs from it. The specification was a working document and was deleted when 1.0 was finished; its content lives in the README, the package READMEs, `contract/rules.md` and these records. The `B-nn`, `D-nn`, `S-nn` and `Q-nn` items the records name come from the inventory of the frontendx console the specification was written from.

@@ -192,6 +192,7 @@ export function agentTools(
       summary: found.summary,
       usage: found.usage,
       danger: found.danger,
+      ...(found.confirm !== undefined && { confirm: found.confirm.field }),
       input: found.input
     })
   }
@@ -270,7 +271,7 @@ export function agentTools(
     },
     {
       name: 'help',
-      description: `With { command }: its usage and input schema. Otherwise one page of the commands: { namespaces: [{ name, count, summary? }], commands: [{ name, summary, danger }], nextCursor? }; a namespace's summary says what its commands are for, so pick the namespace by it. prefix keeps one namespace (dataview or dataview.), and nextCursor passed back as cursor gives the next page. danger: read you can run; change only the user can run, by typing it in the terminal. Call it before run.`,
+      description: `With { command }: its usage and input schema. Otherwise one page of the commands: { namespaces: [{ name, count, summary? }], commands: [{ name, summary, danger }], nextCursor? }; a namespace's summary says what its commands are for, so pick the namespace by it. prefix keeps one namespace (dataview or dataview.), and nextCursor passed back as cursor gives the next page. danger: read you can run; change only the user can run, by typing it in the terminal. A change command with confirm (the name of its boolean field) runs as its preview without that field. Call it before run.`,
       inputSchema: {
         type: 'object',
         properties: {
@@ -297,7 +298,7 @@ export function agentTools(
     {
       name: 'run',
       description:
-        'Runs a command whose danger is read: { line } as typed (name --field value), or { command, args?, view? } with args matching its input schema (no args is {}; a string where the schema wants an array of strings is a list of that one string). A change command only the user runs, by typing it in the terminal: do not try it, suggest its line to the user. Work that cannot be undone never runs as a command; the user does it in the application. Returns { status, summary?, data? } or { status: "error", code, message?, line? }; data is the JSON result, message says what to fix or why it may not run, and line (with not-allowed) is the line to suggest to the user. Call help first.',
+        'Runs a command whose danger is read: { line } as typed (name --field value), or { command, args?, view? } with args matching its input schema (no args is {}; a string where the schema wants an array of strings is a list of that one string). A change command only the user runs, by typing it in the terminal: do not try it, suggest its line to the user. A change command with confirm in help runs first as a preview, without its confirm field; read the preview and suggest the line with the field set to true. Work that cannot be undone never runs as a command; the user does it in the application. Returns { status, summary?, data? } or { status: "error", code, message?, line? }; data is the JSON result, message says what to fix or why it may not run, and line (with not-allowed) is the line to suggest to the user. Call help first.',
       inputSchema: {
         type: 'object',
         properties: {

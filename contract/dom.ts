@@ -53,7 +53,7 @@ export const domClasses: ClassEntry[] = [
     name: 'cc-actor',
     on: '.cc-entry > span',
     description:
-      'Before the prompt of a line from the assistant or an external agent: `labels.actors[actor]` (C-85).'
+      'Before the prompt of a line from the assistant, an external agent or the CLI: `labels.actors[actor]` (C-85, C-102).'
   },
   {
     name: 'cc-prompt',
@@ -98,6 +98,80 @@ export const domClasses: ClassEntry[] = [
       'One candidate, a `role="option"`. The `completion` slot renders inside it (C-67).'
   },
   {
+    name: 'cc-remote',
+    on: '.cc-console > div',
+    description:
+      'While a CLI is bound to the console (`state.remote`): its text and the "Disconnect" button (C-102).'
+  },
+  {
+    name: 'cc-remote-text',
+    on: '.cc-remote > span',
+    description:
+      '`labels.remote.connected` and when the binding was approved (C-102).'
+  },
+  {
+    name: 'cc-remote-detach',
+    on: '.cc-remote > button',
+    description:
+      '`labels.remote.detach`; emits `detach-remote`, the consumer ends the binding (C-102).'
+  },
+  {
+    name: 'cc-approval',
+    on: '.cc-console > div',
+    description:
+      'A named `role="alertdialog"` while a change from the CLI waits for the user (C-103).'
+  },
+  {
+    name: 'cc-approval-source',
+    on: '.cc-approval > span',
+    description:
+      '`labels.remote.fromCli` and when the binding was approved; never a computer name (C-103).'
+  },
+  {
+    name: 'cc-approval-preview',
+    on: '.cc-approval > span',
+    description: 'The plan’s preview, else its canonical line (C-103).'
+  },
+  {
+    name: 'cc-approval-targets',
+    on: '.cc-approval > span',
+    description: 'The plan’s target ids, when it has any (C-103).'
+  },
+  {
+    name: 'cc-approve',
+    on: '.cc-approval > button',
+    description:
+      '`labels.remote.approve`; calls `approve()`, which refuses in the window’s first second (C-99, C-103).'
+  },
+  {
+    name: 'cc-reject',
+    on: '.cc-approval > button',
+    description: '`labels.remote.reject`; calls `reject()` (C-103).'
+  },
+  {
+    name: 'cc-pairing',
+    on: '.cc-console > div',
+    description:
+      'A named `role="alertdialog"` while the `pairing` prop is set: "connect this tab to the CLI?" (C-104).'
+  },
+  {
+    name: 'cc-pairing-text',
+    on: '.cc-pairing > span',
+    description:
+      'The question and the server’s facts of the grant: when it was created and its environment (C-104).'
+  },
+  {
+    name: 'cc-pair-accept',
+    on: '.cc-pairing > button',
+    description: '`labels.remote.pairAccept`; emits `pair` with `true` (C-104).'
+  },
+  {
+    name: 'cc-pair-decline',
+    on: '.cc-pairing > button',
+    description:
+      '`labels.remote.pairDecline`; emits `pair` with `false` (C-104).'
+  },
+  {
     name: 'cc-input-line',
     on: '.cc-console > div',
     description:
@@ -125,15 +199,15 @@ export const domAttributes: AttributeEntry[] = [
   },
   {
     name: 'role',
-    on: '.cc-log, .cc-status, .cc-completions, .cc-completion, .cc-input',
+    on: '.cc-log, .cc-status, .cc-completions, .cc-completion, .cc-input, .cc-approval, .cc-pairing',
     description:
-      '`log` on the log, `status` on the status element, `listbox` on the list, `option` on a candidate, `combobox` on the input (C-48).'
+      '`log` on the log, `status` on the status element, `listbox` on the list, `option` on a candidate, `combobox` on the input (C-48), `alertdialog` on the approval window and the pairing question (C-103, C-104).'
   },
   {
     name: 'aria-label',
-    on: '.cc-log, .cc-completions, .cc-input',
+    on: '.cc-log, .cc-completions, .cc-input, .cc-approval, .cc-pairing',
     description:
-      'From `labels.log`, `labels.completions` and `labels.input` (C-47).'
+      'From `labels.log`, `labels.completions`, `labels.input`, `labels.remote.approval` and `labels.remote.pairing` (C-47).'
   },
   {
     name: 'data-kind',
@@ -163,7 +237,7 @@ export const domAttributes: AttributeEntry[] = [
     name: 'data-actor',
     on: '.cc-entry',
     description:
-      '`assistant` or `external-agent` on the input entry of a line from one of them; absent for the user’s own lines (C-85).'
+      '`assistant`, `external-agent` or `cli` on the input entry of a line from one of them; absent for the user’s own lines (C-85, C-102).'
   },
   {
     name: 'aria-live',
@@ -195,8 +269,8 @@ export const domAttributes: AttributeEntry[] = [
   },
   {
     name: 'type',
-    on: '.cc-input',
-    description: '`text`.'
+    on: '.cc-input, .cc-remote-detach, .cc-approve, .cc-reject, .cc-pair-accept, .cc-pair-decline',
+    description: '`text` on the input, `button` on a button.'
   },
   {
     name: 'aria-autocomplete',

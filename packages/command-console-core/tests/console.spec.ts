@@ -597,7 +597,8 @@ describe('C-24 Initial state', () => {
       recallCursor: null,
       recallDraft: null,
       completion: null,
-      context
+      context,
+      remote: null
     })
   })
 

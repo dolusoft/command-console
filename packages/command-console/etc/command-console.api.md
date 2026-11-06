@@ -5,6 +5,7 @@
 ```ts
 
 import { Actor } from '@dolusoft/command-protocol';
+import { ApprovalPlan } from '@dolusoft/command-console-core';
 import { BeforeRunResult } from '@dolusoft/command-console-core';
 import { CommandDefinition } from '@dolusoft/command-console-core';
 import { CommandRequest } from '@dolusoft/command-console-core';
@@ -41,6 +42,8 @@ import { OptionalFeatures } from '@dolusoft/command-console-core';
 import { OutputBlock } from '@dolusoft/command-protocol';
 import { OutputEntry } from '@dolusoft/command-protocol';
 import { PublicProps } from 'vue';
+import { RemoteBinding } from '@dolusoft/command-console-core';
+import { RemoteState } from '@dolusoft/command-console-core';
 import { RunContext } from '@dolusoft/command-console-core';
 import { RunInfo } from '@dolusoft/command-console-core';
 import { RunningCommand } from '@dolusoft/command-console-core';
@@ -54,6 +57,8 @@ export { Actor }
 
 // @public
 export type ActorLabels = Record<Exclude<Actor, 'user'>, string>;
+
+export { ApprovalPlan }
 
 export { BeforeRunResult }
 
@@ -96,10 +101,12 @@ export { ConsoleEffect }
 
 // @public
 export interface ConsoleEmits {
+    'detach-remote': [];
     'update:context': [context: ContextFrame[]];
     'update:entries': [entries: ConsoleEntry[]];
     'update:recall': [recall: string[]];
     close: [];
+    pair: [accepted: boolean];
     submit: [submit: ConsoleSubmit];
 }
 
@@ -122,17 +129,20 @@ export interface ConsoleLabels {
     busy: string;
     cancelledMarker: string;
     completions: string;
+    formatTime: (time: number) => string;
     input: string;
     inputDescription: string;
     log: string;
     messages: MessageLabels;
     redacted: string;
+    remote: RemoteLabels;
 }
 
 // @public
-export type ConsoleLabelsInput = Partial<Omit<ConsoleLabels, 'messages' | 'actors'>> & {
+export type ConsoleLabelsInput = Partial<Omit<ConsoleLabels, 'messages' | 'actors' | 'remote'>> & {
     messages?: Partial<MessageLabels>;
     actors?: Partial<ActorLabels>;
+    remote?: Partial<RemoteLabels>;
 };
 
 export { ConsoleOptions }
@@ -152,6 +162,7 @@ export interface ConsoleProps {
     labels?: ConsoleLabelsInput;
     maxEntries?: number;
     onError?: (error: unknown, info: RunInfo | null) => void;
+    pairing?: PairingRequest | null;
     prompt?: string;
     recall?: string[];
     recallLimit?: number;
@@ -226,6 +237,36 @@ export { OptionalFeatures }
 export { OutputBlock }
 
 export { OutputEntry }
+
+// @public
+export interface PairingRequest {
+    createdAt: number;
+    environment: string;
+}
+
+export { RemoteBinding }
+
+// @public
+export interface RemoteLabels {
+    approval: string;
+    // (undocumented)
+    approve: string;
+    approvedAt: (time: string) => string;
+    connected: string;
+    detach: string;
+    fromCli: string;
+    // (undocumented)
+    pairAccept: string;
+    // (undocumented)
+    pairDecline: string;
+    pairing: string;
+    pairingDetails: (time: string, environment: string) => string;
+    // (undocumented)
+    reject: string;
+    targets: (targets: string[]) => string;
+}
+
+export { RemoteState }
 
 export { RunContext }
 

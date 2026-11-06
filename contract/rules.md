@@ -417,7 +417,7 @@ request has no `view` and the envelope no `target.view`. Without a gate, or for 
 ### C-78 Gate
 
 `gate` is fixed for the life of the console (`setOptions` with another gate throws). The console subscribes to it on
-its first envelope, never on creation, and `dispose()` unsubscribes and cancels what it scheduled. With a gate, an
+its first envelope or when a remote binding is attached (C-97), never on creation, and `dispose()` unsubscribes and cancels what it scheduled. With a gate, an
 envelope id comes from `createEnvelopeId`, else `crypto.randomUUID()`, else an RFC 4122 version 4 UUID made from
 `crypto.getRandomValues` (a page on an insecure origin has only that); creating a console with a gate and none of them
 throws, and a `createEnvelopeId` that throws or returns a closed id ends the run as failed (C-18). An `echoTimeoutMs`
@@ -453,7 +453,7 @@ a context change append `interrupted`).
 
 `request(input)` never rejects and resolves a `CommandOutcome`. While a run exists it is `busy`; an unparsable line
 is `invalid-args`; an unknown or `hidden` command is `unknown-command`; a command without `input` or `danger`, a
-sensitive one, an `irreversible` one, an actor other than `external-agent`, and a `danger` other than `read` are
+sensitive one, an `irreversible` one, an actor other than `external-agent`, and a `danger` other than `read` (a `change` command whose `confirm` field is not `true` counts as `read`, C-95) are
 `not-allowed`, with a `message` and, for a `change` command, a `line` (C-93); options that do not match the schema
 are `invalid-args`, with a `message` (C-89). `{ command }`
 without `args` is `{ command, args: {} }`, and a string given for an array of strings is a list of it (C-91). Nothing
@@ -491,7 +491,7 @@ its live input.
 
 ### C-85 Actor (Vue)
 
-An input entry whose `actor` is `assistant` or `external-agent` has `data-actor` with that value and, before its
+An input entry whose `actor` is `assistant`, `external-agent` or `cli` (C-102) has `data-actor` with that value and, before its
 prompt, a `span.cc-actor` with `labels.actors[actor]`, so the label is read with the line; a line without `actor` or
 with `user` has neither. A partial `labels.actors` keeps the other defaults.
 
@@ -574,3 +574,97 @@ returns them in their order as `{ name, summary? }`, a summary function called e
 `help` without `command` gives each listed namespace that has a non-empty summary its `summary`, cut to 160 code
 points; a namespace no listed command has is not listed. A console passed to `agentTools` without `getNamespaces`
 lists no summary.
+
+### C-95 Confirm field
+
+A command's `confirm` is `{ field }` naming a boolean property of its `input`, on a `change` command only; anything
+else throws at creation and on `setOptions`, as does a `plan` that is not a function. `getCommands()` copies it into
+the spec. For an agent's `request()` (C-82) and a CLI request (C-98), a call whose field is not `true` is the
+command's preview and runs as `read`; one whose field is `true` is the change: `not-allowed` with its line for the
+agent (C-93), an approval plan for the CLI (C-99). The agent's `help` of such a command gives `confirm` (the field name), and the `help` and `run` descriptions and the skill say that it runs first as a preview, without its field. Options the schema refuses are `invalid-args` for a command with
+`confirm`. A line the user types is not changed by it.
+
+### C-96 Remote envelopes
+
+`parseCliMessage(raw)` accepts a version 1 `cli-request` (`id`, `line` of at most `remoteLineMax` code points, an
+optional `view`) or `cancel` (`id`), each with the hub's stamp: `origin` `{ kind: 'cli', grantId, bindingId }`,
+`stampedAt` and `expiresAt` finite numbers at or above 0, `expiresAt` after `stampedAt`. It returns a new message
+with only the known fields and never changes `raw`; another `v` is `unsupported-version`, a JSON over
+`envelopeMaxBytes` is `too-large`, anything else `invalid`, and a `null` `view` is no view. `chunkData(id, text)` cuts
+a JSON text into at most `remoteChunksMax` (3) chunk replies, each within `envelopeMaxBytes` with its UTF-8 `bytes`,
+cut between code points, or returns `undefined`; `joinChunks(finished, chunks)` gives the text back only when every
+part from 0 to `chunks - 1` is there once, of that request, and the byte counts hold. `isCliReply` checks a reply's
+shape.
+
+### C-97 Attach remote
+
+`attachRemote(binding)` needs the `gate` and `now` options and a binding with a non-empty `bindingId` and `grantId`,
+a finite `approvedAt` and a `send` function; otherwise it throws a `TypeError`. It subscribes to the gate at once,
+puts `{ bindingId, approvedAt, approval: null }` in `state.remote`, replaces a binding already attached, and sends the
+`capabilities` reply: the commands that are neither `hidden` nor `irreversible` and have `input` and `danger` without
+`sensitive` (name, aliases, danger, confirm field), and the names and aliases of every sensitive command. A message
+whose `origin` is not the binding's is ignored. A `setOptions` that changes `commands` sends the `capabilities` again while a binding is attached; one that keeps them sends nothing. `detachRemote()` drops a waiting approval (C-99), sets
+`state.remote` to `null` and sends nothing more through the binding, not even the end of a command still running; so
+does `dispose()`. A `send` that throws or rejects goes to `onError` and changes nothing else.
+
+### C-98 Remote accept
+
+A `cli-request` of the bound CLI is its own action. An id seen before is ignored. By the `now` option, one stamped
+more than 30 s ahead is `clock-skew` and one after its `expiresAt` is `expired`, each with a `message`; while a run
+exists it is `busy` (no queue). Then, as for an agent (C-82, C-89, C-93): an unparsable or empty line is
+`invalid-args`, an unknown or `hidden` command `unknown-command`; a sensitive command, a line `isSensitive` marks,
+typed or canonical, an `irreversible` command and one without `input` or `danger` are `not-allowed`, and the
+`message` repeats no part of a sensitive line; options the schema refuses are `invalid-args` with a `message`. Each
+of these sends only `finished`, and adds no entry. Otherwise the tab sends `received` (`hidden` and `dataAgeMs` from
+the binding's `status`, else `false` and `null`), appends an input entry with the canonical line and
+`actor: 'cli'`, and starts the run without an envelope: `beforeRun`, then a `read` command or a preview (C-95) runs,
+and a change waits for approval (C-99). The view is the request's, else `activeView()` on accept.
+
+### C-99 Approval plan
+
+A change from the CLI is in `phase: 'approving'` while it waits. The command's `plan(input, signal)`, when it has
+one, is called with the normalized input and may return a promise; a throw or rejection fails the request and
+nothing runs. Then `state.remote.approval` holds the plan (the request id, the command, the canonical line, the
+normalized input, the `targets` strings, the `preview` string, the view, `openedAt` by `now`, `acceptsAt` one second
+later and `expiresAt` two minutes later), the CLI gets `awaiting-approval` with `expiresAt`, and a timer of two
+minutes is set through `gate.schedule`. `approve(id)` returns `false` and does nothing for another id or before
+`acceptsAt`; after `expiresAt` it ends the request. Otherwise it clears the plan, cancels its timer and calls the
+command's `run` once with the plan's input; the line is not read again. `reject(id)`, the timer, `suspendRemote()`,
+`detachRemote()`, `cancel()`, Ctrl+C and a CLI `cancel` drop the plan: the request ends `not-allowed` (with a
+`message` that says why) or `cancelled`, and nothing runs. A schedule that throws ends it `connection-lost`.
+
+### C-100 Remote result
+
+The end of a CLI request sends its outcome as the agent's `request()` would give it (C-82, C-86 to C-89): when it has
+`data`, first its JSON in at most three `chunk` replies (C-96), then `finished` with the outcome without `data`,
+`chunks`, `bytes`, `view` (`{ id, title? }`, the title from the binding's `viewTitle`) and `preview: true` for a
+preview that ended `ok`. Data that does not fit in three chunks makes the outcome `too-large` without chunks. The
+terminal's blocks never go to the CLI, nor the text of an error other than C-89's.
+
+### C-101 Remote cancel
+
+A `cancel` of the bound CLI for the current run's request interrupts it as `cancel()` does (C-57): the CLI gets
+`cancelled-before-start` when the command's `run` was not called yet (an approval waiting included) and
+`cancel-requested` when it was, then `finished` with `cancelled`. A `cancel` of another id, or after the end, is
+ignored.
+
+### C-102 CLI marker (Vue)
+
+An input entry with `actor: 'cli'` has `data-actor="cli"` and `span.cc-actor` with `labels.actors.cli` (default
+`CLI`), as C-85 says. While `state.remote` is set, `div.cc-remote` shows `labels.remote.connected` and the approval
+time of the binding (`labels.formatTime`) and a `button.cc-remote-detach` that emits `detach-remote`; the consumer
+ends the binding at the hub and calls `detachRemote()`.
+
+### C-103 Approval window (Vue)
+
+While `state.remote.approval` is set, `div.cc-approval` (a `role="alertdialog"` named by `labels.remote.approval`)
+shows `labels.remote.fromCli` with the approval time of the binding, the plan's `preview` (else its line), its
+targets when it has any, and the buttons `cc-approve` and `cc-reject`, which call `approve()` and `reject()`. It never
+shows a computer name.
+
+### C-104 Pairing question (Vue)
+
+With the `pairing` prop, `div.cc-pairing` (a `role="alertdialog"` named by `labels.remote.pairing`) shows the question
+and the server's facts (`createdAt` through `labels.formatTime`, `environment`) and the buttons `cc-pair-accept` and
+`cc-pair-decline`, which emit `pair` with `true` and `false`. A click on any of the library's buttons does not move
+the focus to the input (C-51).

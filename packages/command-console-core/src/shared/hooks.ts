@@ -92,6 +92,8 @@ export interface Hooks {
   inputChanged: ((change: InputChange) => void)[]
   key: ((input: KeyInput) => void)[]
   controlledChanged: ((change: ControlledChange) => void)[]
+  /** `setOptions` replaced the options (dispatch: resend the capabilities). */
+  optionsChanged: (() => void)[]
   contextChanged: (() => void)[]
   reset: (() => void)[]
   disposers: (() => void)[]
@@ -295,3 +297,12 @@ export const provideCommandLookup = (
  */
 export const lookupOf = (console: object): CommandLookup =>
   liveRecord(console).hooks.commandLookup!
+
+/** Registered by dispatch; called by `setOptions` inside its action. */
+export const onOptionsChange = (console: object, hook: () => void): void => {
+  liveRecord(console).hooks.optionsChanged.push(hook)
+}
+
+/** Called by `setOptions`; see `onOptionsChange`. */
+export const optionsChanged = (console: object): void =>
+  call(recordOf(console)?.hooks.optionsChanged)

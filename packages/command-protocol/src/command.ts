@@ -31,6 +31,13 @@ export interface CommandSpec {
   input?: InputSchema
   /** What running the command does to the application. */
   danger?: Danger
+  /**
+   * The boolean field of `input` that turns the command's preview into the
+   * change (ADR 0014). Only for `danger: 'change'`: a call whose field is not
+   * `true` runs as `read` (the preview) for an agent and a CLI; one whose
+   * field is `true` is the change.
+   */
+  confirm?: { field: string }
 }
 
 /**

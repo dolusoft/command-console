@@ -16,6 +16,17 @@ import type { JsonValue } from './json'
  * - `failed`: the command threw or rejected.
  * - `connection-lost`: the transport failed.
  * - `cancelled`: the run was cancelled.
+ *
+ * The remote entry (ADR 0014) adds:
+ *
+ * - `expired`: the request came after its `expiresAt`; it did not run.
+ * - `clock-skew`: the request was stamped more than 30 s ahead of the tab's
+ *   clock; it did not run.
+ * - `not-delivered`: no `received` came before the request expired; it did
+ *   not run.
+ * - `tab-unreachable`: the bound tab's connection is down; it did not run.
+ * - `gone`: the binding ended; it did not run.
+ * - `unknown-outcome`: a change was accepted but its end never came.
  */
 export type ErrorCode =
   | 'invalid-args'
@@ -30,6 +41,12 @@ export type ErrorCode =
   | 'failed'
   | 'connection-lost'
   | 'cancelled'
+  | 'expired'
+  | 'clock-skew'
+  | 'not-delivered'
+  | 'tab-unreachable'
+  | 'gone'
+  | 'unknown-outcome'
 
 /** The most bytes the UTF-8 JSON of a response's `data` may take. */
 export const dataMaxBytes = 32768

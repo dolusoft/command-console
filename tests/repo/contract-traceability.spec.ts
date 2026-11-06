@@ -24,9 +24,10 @@ import { collectSuite, coveredIds, namedIds, rulesOf } from './test-names'
  * C-84 and C-85 for the external console and the actor, C-86 and C-87 for a
  * command's own outcome, C-88 for its data, C-89 to C-92 for what an agent
  * reads back, C-93 and C-94 for why it may not run and which namespace does
- * what. A later rule raises it.
+ * what, C-95 to C-104 for the remote entry of a desktop CLI. A later rule
+ * raises it.
  */
-const ruleCount = 94
+const ruleCount = 104
 /**
  * The fewest runnable tests the specs must hold, so a broken reader that
  * finds none fails. Each piece raises it to about the count it leaves; 1.0 is

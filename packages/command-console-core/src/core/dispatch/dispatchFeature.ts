@@ -14,9 +14,12 @@ import {
   type JsonValue,
   type MessageBlock,
   type OutputEntry,
+  type CliReply,
+  type CliRequest,
   envelopeBytes,
   envelopeMaxBytes,
   formatCommandLine,
+  parseCliMessage,
   parseEnvelope,
   parseOptions,
   tokenize,
@@ -25,9 +28,12 @@ import {
 
 import { commandFailure } from './commandError'
 import type {
+  ApprovalDetails,
+  ApprovalPlan,
   CommandDefinition,
   CommandRequest,
   CommandReturn,
+  RemoteBinding,
   RunContext,
   RunInfo
 } from './dispatch.types'
@@ -48,6 +54,14 @@ import {
   sameJson
 } from './operation'
 import {
+  approvalHoldMs,
+  approvalMs,
+  capabilitiesOf,
+  checkBinding,
+  finishedReplies,
+  stampRefusal
+} from './remote'
+import {
   isLineSensitive,
   matchesPredicate,
   sensitiveFrom,
@@ -63,6 +77,7 @@ import {
   liveRecord,
   onContextChange,
   onDispose,
+  onOptionsChange,
   onReset,
   provideCommandLookup,
   recordOf,
@@ -119,6 +134,27 @@ interface Run {
   outcome: CommandOutcome
   resolve(result: boolean): void
   onOutcome?: (outcome: CommandOutcome) => void
+  /** Set for a request of the bound CLI (ADR 0014). */
+  remote: RemoteRun | null
+}
+
+/** A binding as the console holds it; `alive` is false once it ended. */
+interface Holder {
+  binding: RemoteBinding
+  alive: boolean
+}
+
+/** What a run of a CLI request carries. */
+interface RemoteRun {
+  requestId: string
+  holder: Holder
+  /** The command needs the user's approval before it runs (C-99). */
+  change: boolean
+  /** The command runs as its preview (C-95). */
+  preview: boolean
+  /** True once the command's `run` was called. */
+  started: boolean
+  approval: ApprovalPlan | null
 }
 
 interface DispatchState {
@@ -128,6 +164,10 @@ interface DispatchState {
   unsubscribe: (() => void) | null
   /** The newest closed envelope ids, oldest first (C-81). */
   closed: Set<string>
+  /** The bound CLI (C-97). */
+  remote: Holder | null
+  /** The newest CLI request ids seen (C-98). */
+  seen: Set<string>
 }
 
 const states = new WeakMap<object, DispatchState>()
@@ -212,11 +252,54 @@ const cleanup = (console: object, run: Run) => {
       reportCallbackError(console, error)
     }
   }
-  recordOf(console)?.store.update('running', running =>
+  const record = recordOf(console)
+  record?.store.update('running', running =>
     running?.runId === run.id ? null : running
   )
+  if (run.remote?.approval) {
+    const { requestId } = run.remote
+    run.remote.approval = null
+    record?.store.update('remote', remote =>
+      remote?.approval?.requestId === requestId
+        ? { ...remote, approval: null }
+        : remote
+    )
+  }
   run.resolve(true)
   run.onOutcome?.(run.outcome)
+}
+
+// --- Replies to the bound CLI (ADR 0014) --------------------------------------
+
+/**
+ * Sends `replies` through the binding after the open action's commit, in
+ * order; nothing once the binding ended. A `send` that throws or rejects is
+ * reported to `onError` and changes nothing else.
+ */
+const reply = (console: object, holder: Holder, ...replies: CliReply[]) => {
+  const record = recordOf(console)
+  if (!record || !holder.alive) {
+    return
+  }
+  const deliver = () => {
+    for (const item of replies) {
+      if (!holder.alive) {
+        return
+      }
+      try {
+        Promise.resolve(holder.binding.send(item)).then(undefined, error =>
+          reportCallbackError(console, error)
+        )
+      } catch (error) {
+        reportCallbackError(console, error)
+      }
+    }
+  }
+  if (record.store.inAction()) {
+    record.store.afterCommit(deliver)
+  } else {
+    deliver()
+  }
 }
 
 /** Effects in order, then the output (README: Running a line, B-29). */
@@ -326,9 +409,15 @@ const stop = (console: object, run: Run, abort: boolean, code: ErrorCode) => {
  * Ends an operation that did not run its command with an `operation-failed`
  * entry (C-79, C-80); `error` goes to `onError` with the run's info.
  */
-const close = (console: object, run: Run, code: ErrorCode, error?: Error) => {
+const close = (
+  console: object,
+  run: Run,
+  code: ErrorCode,
+  error?: Error,
+  text?: string
+) => {
   run.current = false
-  run.outcome = failure(code)
+  run.outcome = failure(code, text)
   run.controller.abort()
   try {
     if (error) {
@@ -390,6 +479,9 @@ const toRunning = (console: object, run: Run) =>
 /** Calls the command's `run`. */
 const go = (console: object, run: Run) => {
   toRunning(console, run)
+  if (run.remote) {
+    run.remote.started = true
+  }
   const context: RunContext = {
     runId: run.id,
     inputId: run.inputId,
@@ -431,6 +523,14 @@ const receive = (console: object, raw: unknown) => {
   const record = recordOf(console)
   const gate = record?.options.gate
   if (!record || !gate) {
+    return
+  }
+  const kind = (raw as { kind?: unknown } | null)?.kind
+  if (
+    typeof raw === 'object' &&
+    (kind === 'cli-request' || kind === 'cancel')
+  ) {
+    receiveRemote(console, raw)
     return
   }
   const parsed = parseEnvelope(raw)
@@ -540,9 +640,90 @@ const send = (console: object, run: Run) => {
   })
 }
 
+/**
+ * A change from the CLI waits for the user (C-99): the command's `plan`
+ * gives the targets and the preview, the window opens for `approvalMs`, and
+ * only `approve()` runs the command, with the input the plan shows.
+ */
+const askApproval = (console: object, run: Run, remote: RemoteRun) => {
+  liveRecord(console).store.update('running', running =>
+    running?.runId === run.id ? { ...running, phase: 'approving' } : running
+  )
+  let details: ApprovalDetails | Promise<ApprovalDetails> | undefined
+  try {
+    details = run.command.plan?.(
+      structuredCopy(run.request.input!),
+      run.controller.signal
+    )
+  } catch (error) {
+    fail(console, run, error)
+    return
+  }
+  whenSettled(console, run, details, given => {
+    const { store, options } = liveRecord(console)
+    const now = options.now!()
+    const targets = Array.isArray(given?.targets)
+      ? given.targets.filter(
+          (target): target is string => typeof target === 'string'
+        )
+      : []
+    const preview =
+      typeof given?.preview === 'string' ? given.preview : undefined
+    const approval: ApprovalPlan = {
+      requestId: remote.requestId,
+      command: run.command.name,
+      line: run.request.line,
+      input: structuredCopy(run.request.input!),
+      targets,
+      ...(preview !== undefined && { preview }),
+      ...(run.request.view !== undefined && { view: run.request.view }),
+      openedAt: now,
+      acceptsAt: now + approvalHoldMs,
+      expiresAt: now + approvalMs
+    }
+    remote.approval = approval
+    store.update('remote', state => state && { ...state, approval })
+    reply(console, remote.holder, {
+      v: 1,
+      kind: 'awaiting-approval',
+      id: remote.requestId,
+      expiresAt: approval.expiresAt
+    })
+    store.afterCommit(() => {
+      if (!remote.approval || !run.current) {
+        return
+      }
+      try {
+        run.cancelTimer = options.gate!.schedule(approvalMs, () =>
+          settle(console, run, () => {
+            if (remote.approval) {
+              close(
+                console,
+                run,
+                'not-allowed',
+                undefined,
+                'The approval expired; nothing changed.'
+              )
+            }
+          })
+        )
+      } catch {
+        settle(console, run, () => {
+          close(console, run, 'connection-lost')
+        })
+      }
+    })
+  })
+}
+
+const structuredCopy = <T>(value: T): T =>
+  JSON.parse(JSON.stringify(value)) as T
+
 /** After `beforeRun` lets the run go: the gate, or the command at once. */
 const proceed = (console: object, run: Run) => {
-  if (run.gated) {
+  if (run.remote?.change) {
+    askApproval(console, run, run.remote)
+  } else if (run.gated) {
     send(console, run)
   } else {
     go(console, run)
@@ -587,7 +768,8 @@ const start = (
   inputId: string,
   sensitive: boolean,
   plan: Plan | null,
-  onOutcome?: (outcome: CommandOutcome) => void
+  onOutcome?: (outcome: CommandOutcome) => void,
+  remote: RemoteRun | null = null
 ): Promise<boolean> => {
   const { store, options } = liveRecord(console)
   const provider = contextOf(console)
@@ -612,7 +794,9 @@ const start = (
     command,
     controller: new AbortController(),
     contextRevision: provider?.revision() ?? null,
+    // A CLI request has no echo: the hub sent it to this tab only.
     gated:
+      remote === null &&
       plan !== null &&
       options.gate !== undefined &&
       !sensitive &&
@@ -625,7 +809,8 @@ const start = (
     cancelTimer: null,
     outcome: failure('cancelled'),
     resolve,
-    onOutcome
+    onOutcome,
+    remote
   }
   stateOf(console).run = run
   const { beforeRun } = options
@@ -839,7 +1024,8 @@ const requestLine = (
       `${name} cannot be undone, so it never runs from the console, not even when the user types it.`
     )
   }
-  const change = command.danger === 'change'
+  // A command with `confirm` is a preview until its field is `true` (C-95).
+  let change = command.danger === 'change' && command.confirm === undefined
   const userOnly = `${name} changes data; only the user can run it by typing it in the terminal.`
   const schema = command.input!
   // No args is `{}`; a string for an array of strings is a list of one (C-91).
@@ -868,6 +1054,7 @@ const requestLine = (
         )
       : refuse('invalid-args', errors)
   }
+  change = command.danger === 'change' && !isPreview(command, read.value)
   const line = formatCommandLine(command.name, read.value, schema)
   const sensitive = lookup.isSensitive(line)
   if (change) {
@@ -908,6 +1095,336 @@ const requestLine = (
       resolve
     )
   })
+}
+
+/** Whether `value` asks a command with `confirm` for its preview (C-95). */
+const isPreview = (command: CommandDefinition, value: Input): boolean =>
+  command.confirm !== undefined && value[command.confirm.field] !== true
+
+// --- The remote entry (ADR 0014) ----------------------------------------------
+
+/**
+ * A message the gate delivered with a CLI `kind` (C-98): read with
+ * `parseCliMessage`; one it refuses, one without a live binding, and one
+ * whose `origin` is not the binding's is ignored.
+ */
+const receiveRemote = (console: object, raw: unknown) => {
+  const parsed = parseCliMessage(raw)
+  const state = stateOf(console)
+  const holder = state.remote
+  if (!parsed.ok || !holder?.alive || isDisposed(console)) {
+    return
+  }
+  const { message: received } = parsed
+  const { binding } = holder
+  if (
+    received.origin.bindingId !== binding.bindingId ||
+    received.origin.grantId !== binding.grantId
+  ) {
+    return
+  }
+  liveRecord(console).store.action(() => {
+    if (!holder.alive) {
+      return
+    }
+    if (received.kind === 'cancel') {
+      cancelRemote(console, received.id)
+    } else {
+      acceptRemote(console, holder, received)
+    }
+  })
+}
+
+/** Ends CLI request `id` before it is accepted: only `finished`. */
+const refuseRemote = (
+  console: object,
+  holder: Holder,
+  id: string,
+  code: ErrorCode,
+  text?: string
+) => {
+  reply(console, holder, {
+    v: 1,
+    kind: 'finished',
+    id,
+    outcome:
+      text === undefined
+        ? { status: 'error', code }
+        : { status: 'error', code, message: cutMessage(text) },
+    chunks: 0,
+    bytes: 0
+  })
+}
+
+/**
+ * A stamped request (C-98): its id seen once, its stamp checked with `now`,
+ * then the path of an agent's line with `actor: 'cli'`: no queue (`busy`), a
+ * sensitive, `irreversible` or undescribed command refused, the options
+ * read; a preview runs as `read`, a change waits for approval (C-99).
+ */
+const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
+  const state = stateOf(console)
+  const { id } = request
+  if (state.seen.has(id) || state.closed.has(id)) {
+    return
+  }
+  rememberClosed(state.seen, id)
+  const { store, options } = liveRecord(console)
+  const refuse = (code: ErrorCode, text?: string) =>
+    refuseRemote(console, holder, id, code, text)
+  const stamp = stampRefusal(request, options.now!())
+  if (stamp) {
+    refuse(stamp.code, stamp.message)
+    return
+  }
+  if (store.read().running !== null) {
+    refuse(
+      'busy',
+      'The terminal is running another command; nothing was queued.'
+    )
+    return
+  }
+  const lookup = lookupOf(console)
+  const text = request.line.trim()
+  const parsed = tokenize(text)
+  if (!parsed.ok) {
+    refuse('invalid-args', 'unterminated quote')
+    return
+  }
+  if (parsed.tokens.length === 0) {
+    refuse('invalid-args', 'empty line')
+    return
+  }
+  const command = lookup.find(parsed.tokens[0].value)
+  if (!command || command.hidden === true) {
+    refuse('unknown-command')
+    return
+  }
+  const { name } = command
+  // A sensitive command or line never runs from the CLI and says nothing
+  // back of its line (P16).
+  if (
+    (command.sensitive !== undefined && command.sensitive !== false) ||
+    lookup.isSensitive(text)
+  ) {
+    refuse(
+      'not-allowed',
+      'The line is sensitive; it never runs from the CLI. Type it in the browser.'
+    )
+    return
+  }
+  if (command.danger === 'irreversible') {
+    refuse(
+      'not-allowed',
+      `${name} cannot be undone, so it never runs from the console.`
+    )
+    return
+  }
+  if (!describedCommand(command)) {
+    refuse(
+      'not-allowed',
+      `${name} is not open to the CLI; only the user can run it in the browser.`
+    )
+    return
+  }
+  const schema = command.input!
+  const read = parseOptions(
+    parsed.tokens.slice(1).map(token => token.value),
+    schema
+  )
+  if (!read.ok) {
+    refuse('invalid-args', describeInputErrors(schema, read.errors))
+    return
+  }
+  const line = formatCommandLine(command.name, read.value, schema)
+  if (lookup.isSensitive(line)) {
+    refuse(
+      'not-allowed',
+      'The line is sensitive; it never runs from the CLI. Type it in the browser.'
+    )
+    return
+  }
+  const preview = isPreview(command, read.value)
+  const remote: RemoteRun = {
+    requestId: id,
+    holder,
+    change: command.danger === 'change' && !preview,
+    preview: command.confirm !== undefined && preview,
+    started: false,
+    approval: null
+  }
+  let status: { hidden: boolean; dataAgeMs?: number | null } | undefined
+  try {
+    status = holder.binding.status?.()
+  } catch (error) {
+    reportCallbackError(console, error)
+  }
+  const age = status?.dataAgeMs
+  reply(console, holder, {
+    v: 1,
+    kind: 'received',
+    id,
+    hidden: status?.hidden === true,
+    dataAgeMs:
+      typeof age === 'number' && Number.isFinite(age) && age >= 0 ? age : null
+  })
+  const inputId = addEntry(console, {
+    kind: 'input',
+    prompt: currentPrompt(console),
+    text: line,
+    redacted: false,
+    status: 'submitted',
+    actor: 'cli'
+  })
+  // The view is fixed on accept: the request's, else the active one.
+  let view: string | undefined
+  try {
+    view = request.view ?? options.activeView?.()
+  } catch (error) {
+    reportCallbackError(console, error)
+  }
+  const shown = typeof view === 'string' && view !== '' ? view : undefined
+  void start(
+    console,
+    command,
+    { name: command.name, command: command.name, args: [], rest: '', line },
+    inputId,
+    false,
+    { value: read.value, view: () => shown, actor: 'cli' },
+    outcome =>
+      reply(
+        console,
+        holder,
+        ...finishedReplies(id, outcome, shown, holder.binding, remote.preview)
+      ),
+    remote
+  )
+}
+
+/**
+ * A `cancel` of the bound CLI (C-101): the run of request `id`, if it is the
+ * current one, is interrupted, and the CLI hears whether its command had
+ * started. Another id is ignored.
+ */
+const cancelRemote = (console: object, id: string) => {
+  const run = stateOf(console).run
+  const remote = run?.remote
+  if (!run || !remote || remote.requestId !== id || !run.current) {
+    return
+  }
+  reply(console, remote.holder, {
+    v: 1,
+    kind: remote.started ? 'cancel-requested' : 'cancelled-before-start',
+    id
+  })
+  interrupt(console, run)
+}
+
+/**
+ * Drops the waiting approval of the current run (detach, suspend; C-99): the
+ * run ends `not-allowed` with `text`, nothing changed.
+ */
+const dropApproval = (console: object, text: string) => {
+  const run = stateOf(console).run
+  if (run?.current && run.remote?.approval) {
+    close(console, run, 'not-allowed', undefined, text)
+  }
+}
+
+/** Ends the binding (C-97): nothing more is sent through it. */
+const detach = (console: object) => {
+  const state = stateOf(console)
+  const holder = state.remote
+  if (!holder) {
+    return
+  }
+  dropApproval(console, 'The CLI was disconnected; nothing changed.')
+  holder.alive = false
+  state.remote = null
+  liveRecord(console).store.update('remote', () => null)
+}
+
+const attach = (console: object, given: RemoteBinding) => {
+  const binding = checkBinding(given)
+  const record = liveRecord(console)
+  const { gate, now } = record.options
+  if (!gate || typeof now !== 'function') {
+    throw new TypeError('attachRemote needs the gate and now options.')
+  }
+  const state = stateOf(console)
+  // Subscribed now, not on the first envelope (C-78, C-97): a bound tab
+  // that never sent anything still hears its CLI.
+  if (state.unsubscribe === null) {
+    state.unsubscribe = gate.subscribe(raw => receive(console, raw))
+  }
+  record.store.action(() => {
+    detach(console)
+    const holder: Holder = { binding, alive: true }
+    state.remote = holder
+    record.store.update('remote', () => ({
+      bindingId: binding.bindingId,
+      approvedAt: binding.approvedAt,
+      approval: null
+    }))
+    reply(
+      console,
+      holder,
+      capabilitiesOf(binding.bindingId, record.options.commands)
+    )
+  })
+}
+
+/** `approve()` (C-99): the plan runs once, after its first second. */
+const approve = (console: object, requestId: string): boolean => {
+  const run = stateOf(console).run
+  const approval = run?.remote?.approval
+  if (!run?.current || approval?.requestId !== requestId) {
+    return false
+  }
+  const now = liveRecord(console).options.now!()
+  if (now < approval.acceptsAt) {
+    return false
+  }
+  if (now > approval.expiresAt) {
+    close(
+      console,
+      run,
+      'not-allowed',
+      undefined,
+      'The approval expired; nothing changed.'
+    )
+    return false
+  }
+  run.remote!.approval = null
+  liveRecord(console).store.update(
+    'remote',
+    state => state && { ...state, approval: null }
+  )
+  const cancelTimer = run.cancelTimer
+  run.cancelTimer = null
+  try {
+    cancelTimer?.()
+  } catch (error) {
+    reportCallbackError(console, error)
+  }
+  go(console, run)
+  return true
+}
+
+/** `reject()` (C-99): the run ends `not-allowed`, nothing changed. */
+const reject = (console: object, requestId: string): boolean => {
+  const run = stateOf(console).run
+  if (!run?.current || run.remote?.approval?.requestId !== requestId) {
+    return false
+  }
+  close(
+    console,
+    run,
+    'not-allowed',
+    undefined,
+    'The user rejected the change in the browser; nothing changed.'
+  )
+  return true
 }
 
 /**
@@ -954,8 +1471,11 @@ export const dispatchFeature: ConsoleFeature = {
       run: null,
       lookup: null,
       unsubscribe: null,
-      closed: new Set()
+      closed: new Set(),
+      remote: null,
+      seen: new Set()
     })
+    const inAction = <T>(fn: () => T): T => liveRecord(console).store.action(fn)
     const locked = <T>(fn: () => Promise<T>, otherwise: T): Promise<T> => {
       const { store } = liveRecord(console)
       return store.action(() =>
@@ -987,7 +1507,25 @@ export const dispatchFeature: ConsoleFeature = {
         isSensitive: (line: string) => lookupOf(console).isSensitive(line),
         getCommands: () => lookupOf(console).visible().map(specOf),
         getNamespaces: () =>
-          (liveRecord(console).options.namespaces ?? []).map(namespaceSpecOf)
+          (liveRecord(console).options.namespaces ?? []).map(namespaceSpecOf),
+        attachRemote(binding: RemoteBinding) {
+          attach(console, binding)
+        },
+        detachRemote() {
+          inAction(() => detach(console))
+        },
+        suspendRemote() {
+          inAction(() =>
+            dropApproval(
+              console,
+              'The tab lost its connection; the approval was dropped and nothing changed.'
+            )
+          )
+        },
+        approve: (requestId: string) =>
+          inAction(() => approve(console, requestId)),
+        reject: (requestId: string) =>
+          inAction(() => reject(console, requestId))
       },
       {
         submit: Promise.resolve(false),
@@ -995,7 +1533,9 @@ export const dispatchFeature: ConsoleFeature = {
         request: Promise.resolve(failure('cancelled')),
         isSensitive: false,
         getCommands: [],
-        getNamespaces: []
+        getNamespaces: [],
+        approve: false,
+        reject: false
       }
     )
   },
@@ -1024,6 +1564,20 @@ export const dispatchFeature: ConsoleFeature = {
         run.controller.abort()
       }
     })
+    // C-97: new commands, new capabilities for the bound CLI.
+    onOptionsChange(console, () => {
+      const holder = stateOf(console).remote
+      if (holder?.alive) {
+        reply(
+          console,
+          holder,
+          capabilitiesOf(
+            holder.binding.bindingId,
+            liveRecord(console).options.commands
+          )
+        )
+      }
+    })
     onReset(console, () => {
       const run = stateOf(console).run
       if (run) {
@@ -1034,6 +1588,10 @@ export const dispatchFeature: ConsoleFeature = {
       const state = stateOf(console)
       const run = state.run
       const unsubscribe = state.unsubscribe
+      if (state.remote) {
+        state.remote.alive = false
+        state.remote = null
+      }
       state.run = null
       state.unsubscribe = null
       if (run) {

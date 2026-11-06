@@ -46,6 +46,9 @@ export type {
   InputState,
   KeyInput,
   OptionalFeatures,
+  ApprovalPlan,
+  RemoteBinding,
+  RemoteState,
   RunContext,
   RunInfo,
   RunningCommand,
@@ -108,20 +111,57 @@ export interface ConsoleLabels {
    * external agent (C-85). Default `'AI'` and `'Agent'`.
    */
   actors: ActorLabels
+  /** The texts of the bound CLI, its approval window and the pairing question. */
+  remote: RemoteLabels
+  /** A time in ms since the epoch as text. Default: its ISO 8601 form. */
+  formatTime: (time: number) => string
 }
 
-/** The label of each actor other than the user (C-85). */
+/** The label of each actor other than the user (C-85, C-102). */
 export type ActorLabels = Record<Exclude<Actor, 'user'>, string>
+
+/** The texts of the remote entry (C-102 to C-104). */
+export interface RemoteLabels {
+  /** In `.cc-remote` while a CLI is bound. */
+  connected: string
+  /** The button that ends the binding. */
+  detach: string
+  /** When the binding was approved, as `formatTime` wrote it. */
+  approvedAt: (time: string) => string
+  /** The approval window's accessible name. */
+  approval: string
+  /** Marks the approval as one that came from the CLI. */
+  fromCli: string
+  /** The plan's target ids. */
+  targets: (targets: string[]) => string
+  approve: string
+  reject: string
+  /** The pairing question's accessible name and text. */
+  pairing: string
+  /** The server's facts of the grant: when it was created and where. */
+  pairingDetails: (time: string, environment: string) => string
+  pairAccept: string
+  pairDecline: string
+}
+
+/** A pairing the user is asked to approve (C-104): the server's facts only. */
+export interface PairingRequest {
+  /** When the CLI grant was created, in ms since the epoch. */
+  createdAt: number
+  /** The environment the grant belongs to. */
+  environment: string
+}
 
 /**
  * The `labels` prop: any part of `ConsoleLabels`. `messages` and `actors`
  * are merged one level deep, so overriding one message keeps the others.
  */
 export type ConsoleLabelsInput = Partial<
-  Omit<ConsoleLabels, 'messages' | 'actors'>
+  Omit<ConsoleLabels, 'messages' | 'actors' | 'remote'>
 > & {
   messages?: Partial<MessageLabels>
   actors?: Partial<ActorLabels>
+  remote?: Partial<RemoteLabels>
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +218,12 @@ export interface ConsoleProps {
   recall?: string[]
   /** The context frames, for `v-model:context`; controlled when bound. */
   context?: ContextFrame[]
+  /**
+   * A pairing to ask the user about (C-104): `.cc-pairing` shows its facts
+   * and answers with the `pair` event. Never the computer name the CLI
+   * declares.
+   */
+  pairing?: PairingRequest | null
 }
 
 /** What the `submit` event carries: never the line (C-64). */
@@ -203,6 +249,13 @@ export interface ConsoleEmits {
   close: []
   /** A line was submitted with Enter or the exposed `run` (C-64). */
   submit: [submit: ConsoleSubmit]
+  /**
+   * The user pressed "Disconnect" (C-102). The consumer ends the binding at
+   * the hub and calls `detachRemote()`.
+   */
+  'detach-remote': []
+  /** The user answered the pairing question (C-104). */
+  pair: [accepted: boolean]
 }
 
 /** What a `block-<type>` slot receives. */

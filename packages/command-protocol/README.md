@@ -175,6 +175,29 @@ measured on the raw value), `invalid` for a missing or mistyped field, another `
 object within the input limits. A `null` `target.view`, which a typed transport may write back, is no view and is
 left out. `envelopeBytes(envelope)` is the UTF-8 length of its JSON, for a sender to measure before it sends.
 
+## Remote envelopes
+
+A desktop CLI sends a `cli-request` (or a `cancel`) through the hub to the one tab it is bound to (ADR 0014); the hub
+writes the stamp:
+
+```json
+{
+  "v": 1,
+  "kind": "cli-request",
+  "id": "r-1",
+  "line": "tasks.stop --id 8812 --yes",
+  "origin": { "kind": "cli", "grantId": "g-1", "bindingId": "b-1" },
+  "stampedAt": 1793957400000,
+  "expiresAt": 1793957430000
+}
+```
+
+`parseCliMessage(raw)` checks it as `parseEnvelope` checks an envelope. The tab answers with `capabilities`,
+`received`, `awaiting-approval`, `chunk`, `finished`, `cancelled-before-start` and `cancel-requested` (`CliReply`,
+`isCliReply`). A result's `data` travels as its JSON text in at most `remoteChunksMax` (3) chunks of at most
+`envelopeMaxBytes` each: `chunkData(id, text)` cuts it, `joinChunks(finished, chunks)` joins it or gives `undefined`
+when a part is missing. `CommandSpec.confirm` names the boolean field that turns a preview into the change.
+
 ## License
 
 MIT, see [LICENSE.md](./LICENSE.md).

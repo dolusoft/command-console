@@ -91,6 +91,34 @@ const checkDescription = (command: CommandDefinition) => {
   ) {
     throw new Error(`command ${command.name}: normalize must be a function.`)
   }
+  if (command.plan !== undefined && typeof command.plan !== 'function') {
+    throw new Error(`command ${command.name}: plan must be a function.`)
+  }
+  checkConfirm(command)
+}
+
+/**
+ * `confirm` (C-95): only on a `change` command with `input`, naming one of
+ * its boolean properties.
+ */
+const checkConfirm = (command: CommandDefinition) => {
+  const { confirm } = command
+  if (confirm === undefined) {
+    return
+  }
+  const field: unknown =
+    typeof confirm === 'object' && confirm !== null ? confirm.field : undefined
+  const node =
+    typeof field === 'string' && command.input?.properties !== undefined
+      ? Object.hasOwn(command.input.properties, field)
+        ? command.input.properties[field]
+        : undefined
+      : undefined
+  if (command.danger !== 'change' || node?.type !== 'boolean') {
+    throw new Error(
+      `command ${command.name}: confirm must be { field } naming a boolean property of input, on a change command.`
+    )
+  }
 }
 
 /**
@@ -188,6 +216,9 @@ export const specOf = (command: CommandDefinition): CommandSpec => {
   }
   if (command.danger !== undefined) {
     spec.danger = command.danger
+  }
+  if (command.confirm !== undefined) {
+    spec.confirm = { field: command.confirm.field }
   }
   return spec
 }
