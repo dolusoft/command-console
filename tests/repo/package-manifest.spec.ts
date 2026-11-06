@@ -52,6 +52,7 @@ const packages = [
     dir: 'command-protocol',
     name: '@dolusoft/command-protocol',
     entry: 'command-protocol.js',
+    files: ['dist', 'README.md', 'LICENSE.md'],
     dependencies: {},
     peers: {}
   },
@@ -59,6 +60,8 @@ const packages = [
     dir: 'command-console-core',
     name: '@dolusoft/command-console-core',
     entry: 'command-console-core.js',
+    // The agent skill ships with the agent tools it describes (ADR 0013).
+    files: ['dist', 'skills', 'README.md', 'LICENSE.md'],
     dependencies: { '@dolusoft/command-protocol': 'workspace:*' },
     peers: {}
   },
@@ -66,6 +69,7 @@ const packages = [
     dir: 'command-console',
     name: '@dolusoft/command-console',
     entry: 'command-console.js',
+    files: ['dist', 'README.md', 'LICENSE.md'],
     dependencies: {
       '@dolusoft/command-protocol': 'workspace:*',
       '@dolusoft/command-console-core': 'workspace:*'
@@ -76,7 +80,7 @@ const packages = [
 
 describe.each(packages)(
   'C-49 Packaging: $name manifest',
-  ({ dir, name, entry, dependencies, peers }) => {
+  ({ dir, name, entry, files, dependencies, peers }) => {
     const pkg = read('packages', dir, 'package.json')
 
     it('has its name and the version of the workspace', () => {
@@ -94,7 +98,7 @@ describe.each(packages)(
     })
 
     it('publishes dist, its README and its license, ESM only, without side effects', () => {
-      expect(pkg.files).toEqual(['dist', 'README.md', 'LICENSE.md'])
+      expect(pkg.files).toEqual(files)
       for (const file of ['README.md', 'LICENSE.md']) {
         expect(existsSync(join(root, 'packages', dir, file)), file).toBe(true)
       }

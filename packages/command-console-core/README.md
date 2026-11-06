@@ -345,6 +345,20 @@ first, then namespace summaries from the last). `run` takes `{ line }` or `{ com
 commands; a `change` command only the user runs, by typing it, so the agent suggests the `line` of its `not-allowed`.
 No `execute` rejects.
 
+### Agent skill
+
+The package ships a skill for agents that read the Agent Skills format (Claude Code and others):
+`skills/command-console/SKILL.md`. It says how to work with the three tools (their order, what an agent never does,
+how to read a result) and names no command; `help` does that. Copy it into the agent's skills directory, for Claude
+Code:
+
+```bash
+cp -r node_modules/@dolusoft/command-console-core/skills/command-console ~/.claude/skills/
+```
+
+It is updated with the tools, so copy it again after an upgrade. A browser agent reads no skill; the tool descriptions
+carry the same rules (ADR 0013).
+
 ## Contract
 
 The behavior rules are in [`contract/rules.md`](https://github.com/dolusoft/command-console/blob/main/contract/rules.md);
