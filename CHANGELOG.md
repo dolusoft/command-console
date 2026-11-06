@@ -2,6 +2,12 @@
 
 The release notes of a version are on its GitHub Release. This file names what a consumer must change.
 
+## 1.5.0
+
+- **New: an agent skill in `@dolusoft/command-console-core`.** `skills/command-console/SKILL.md` (Agent Skills
+  format) says how an agent works with `context`, `help` and `run` (ADR 0013). Nothing for a consumer to change; to
+  use it, copy it into the agent's skills directory.
+
 ## 1.4.1
 
 - **Changed: `run` of `help` or `context`.** Refused as `not-allowed` or `unknown-command`, the agent's `run` tool
