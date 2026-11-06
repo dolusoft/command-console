@@ -5,6 +5,7 @@
 ```ts
 
 import type { Actor } from '@dolusoft/command-protocol';
+import type { CliReply } from '@dolusoft/command-protocol';
 import type { CommandOutcome } from '@dolusoft/command-protocol';
 import type { CommandResponse } from '@dolusoft/command-protocol';
 import type { CommandSpec } from '@dolusoft/command-protocol';
@@ -42,12 +43,36 @@ export interface AgentToolsOptions {
 }
 
 // @public
+export interface ApprovalDetails {
+    preview?: string;
+    targets?: string[];
+}
+
+// @public
+export interface ApprovalPlan {
+    acceptsAt: number;
+    command: string;
+    expiresAt: number;
+    input: Record<string, JsonValue>;
+    line: string;
+    openedAt: number;
+    // (undocumented)
+    preview?: string;
+    requestId: string;
+    // (undocumented)
+    targets: string[];
+    // (undocumented)
+    view?: string;
+}
+
+// @public
 export type BeforeRunResult = undefined | false | CommandResponse;
 
 // @public
 export interface CommandDefinition extends Omit<CommandSpec, 'summary'> {
     complete?(request: CompletionRequest): CompletionResult;
     normalize?(input: Record<string, JsonValue>): Record<string, JsonValue>;
+    plan?(input: Record<string, JsonValue>, signal: AbortSignal): ApprovalDetails | Promise<ApprovalDetails>;
     run(request: CommandRequest, run: RunContext): CommandReturn | Promise<CommandReturn>;
     summary?: string | (() => string);
 }
@@ -156,6 +181,7 @@ export interface ConsoleOptions<TFeatures extends Partial<OptionalFeatures> = {}
     isSensitive?: (line: string) => boolean;
     maxEntries?: number;
     namespaces?: NamespaceDefinition[];
+    now?: () => number;
     onClose?: () => void;
     // (undocumented)
     onContextChange?: (updater: Updater<ContextFrame[]>) => void;
@@ -184,6 +210,7 @@ export interface ConsoleState {
     recallCursor: number | null;
     // (undocumented)
     recallDraft: string | null;
+    remote: RemoteState | null;
     // (undocumented)
     running: RunningCommand | null;
 }
@@ -219,9 +246,12 @@ export interface ControllableState {
 // @public
 export interface CoreConsoleAPI<TFeatures extends Partial<OptionalFeatures> = {}> {
     appendEntries(entries: ConsoleEntry[]): void;
+    approve(requestId: string): boolean;
+    attachRemote(binding: RemoteBinding): void;
     cancel(): void;
     // (undocumented)
     clearEntries(): void;
+    detachRemote(): void;
     dispose(): void;
     editInput(value: string, caret: number): void;
     getCommands(): CommandSpec[];
@@ -230,6 +260,7 @@ export interface CoreConsoleAPI<TFeatures extends Partial<OptionalFeatures> = {}
     getState(): ConsoleState;
     handleKey(input: KeyInput): boolean;
     isSensitive(line: string): boolean;
+    reject(requestId: string): boolean;
     request(input: RequestInput): Promise<CommandOutcome>;
     reset(): void;
     run(line: string): Promise<boolean>;
@@ -237,6 +268,7 @@ export interface CoreConsoleAPI<TFeatures extends Partial<OptionalFeatures> = {}
     setOptions(updater: Updater<ConsoleOptions<TFeatures>>): void;
     submit(): Promise<boolean>;
     subscribe(listener: (state: ConsoleState) => void): () => void;
+    suspendRemote(): void;
 }
 
 // @public
@@ -310,6 +342,27 @@ export interface RecallFeature {
 export const recallFeature: RecallFeature;
 
 // @public
+export interface RemoteBinding {
+    approvedAt: number;
+    bindingId: string;
+    grantId: string;
+    send(reply: CliReply): void | Promise<void>;
+    status?(): {
+        hidden: boolean;
+        dataAgeMs?: number | null;
+    };
+    viewTitle?(view: string): string | undefined;
+}
+
+// @public
+export interface RemoteState {
+    approval: ApprovalPlan | null;
+    approvedAt: number;
+    // (undocumented)
+    bindingId: string;
+}
+
+// @public
 export type RequestInput = {
     command: string;
     args?: Record<string, unknown>;
@@ -346,7 +399,7 @@ export interface RunningCommand {
     command: string;
     // (undocumented)
     inputId: string;
-    phase: 'authorizing' | 'running';
+    phase: 'authorizing' | 'approving' | 'running';
     // (undocumented)
     runId: string;
 }

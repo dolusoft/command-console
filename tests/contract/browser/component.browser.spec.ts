@@ -7,6 +7,7 @@ import { h } from 'vue'
 
 import { settle } from '../../support/console-fixture'
 import { mountConsole, unmountAll } from '../../support/mount-console'
+import { boundConsole } from '../../support/remote-fixture'
 
 afterEach(() => {
   unmountAll()
@@ -55,6 +56,21 @@ describe('C-48 accessibility', () => {
     const result = await axe.run(root)
     return result.violations.map(violation => violation.id)
   }
+
+  test('C-48 C-103 C-104 axe finds no violation with a bound CLI, its approval window and the pairing question', async () => {
+    const remote = boundConsole()
+    const view = mountConsole({
+      props: {
+        console: remote.console,
+        commands: undefined,
+        pairing: { createdAt: 0, environment: 'develop' }
+      }
+    })
+    remote.askApproval()
+    await settle()
+    expect(view.root.querySelector('.cc-approval')).not.toBeNull()
+    expect(await violations(view.root)).toEqual([])
+  })
 
   test('C-48 axe finds no violation with output of every kind and the list closed', async () => {
     const view = mountConsole()

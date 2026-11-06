@@ -8,6 +8,7 @@ import { h } from 'vue'
 import { settle } from '../../support/console-fixture'
 import { createCollector, slotMarker } from '../../support/dom-collector'
 import { mountConsole, unmountAll } from '../../support/mount-console'
+import { boundConsole } from '../../support/remote-fixture'
 
 afterEach(unmountAll)
 
@@ -78,6 +79,22 @@ describe('C-45 DOM contract', () => {
     dom.collect()
     void slotted.api.run('slow')
     await settle()
+    dom.collect()
+    slotted.unmount()
+
+    // C-102 to C-104: a bound CLI, its line, the approval window and the
+    // pairing question.
+    const remote = boundConsole()
+    const bound = mountConsole({
+      props: {
+        console: remote.console,
+        commands: undefined,
+        pairing: { createdAt: 0, environment: 'develop' }
+      }
+    })
+    remote.askApproval()
+    await settle()
+    expect(bound.root.querySelector('.cc-approval')).not.toBeNull()
     dom.collect()
 
     dom.expectNothingOutsideContract()

@@ -1,6 +1,5 @@
-import { nextTick } from 'vue'
-
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 
 import {
   completionFeature,
@@ -51,7 +50,7 @@ const bound = () => {
         danger: 'change',
         confirm: { field: 'yes' },
         plan: input => ({
-          targets: [String(input.id)],
+          targets: [JSON.stringify(input.id)],
           preview: '1 task stops'
         })
       }

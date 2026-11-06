@@ -12,7 +12,6 @@ import {
   joinChunks,
   type ChunkReply,
   type CliReply,
-  type FinishedReply,
   type InputSchema
 } from '@dolusoft/command-protocol'
 
@@ -84,7 +83,7 @@ const setup = (
       (r): r is Extract<CliReply, { kind: K }> =>
         r.kind === kind && (id === undefined || ('id' in r && r.id === id))
     )
-  const finished = (id: string) => of('finished', id)[0] as FinishedReply
+  const finished = (id: string) => of('finished', id)[0]
   return {
     console,
     gate,
@@ -137,7 +136,7 @@ const stop = (
   extra: Partial<CommandDefinition> = {}
 ) => ({
   run,
-  definition: command('tasks.stop', run as CommandDefinition['run'], {
+  definition: command('tasks.stop', run, {
     input: stopInput,
     danger: 'change',
     confirm: { field: 'yes' },
@@ -208,7 +207,7 @@ describe('C-95 Confirm field', () => {
   it("the agent's run takes a preview as read and refuses the change with its line", async () => {
     const { run, definition } = stop()
     const console = createConsole({ commands: [definition] })
-    const tools = agentTools(console)
+    const tools = agentTools(console, { context: () => ({}) })
     const runTool = tools.find(tool => tool.name === 'run')!
     expect(await runTool.execute({ line: 'tasks.stop --id 8812' })).toEqual({
       status: 'ok',
@@ -673,7 +672,7 @@ describe('C-99 Approval plan', () => {
     expect(t.run).not.toHaveBeenCalled()
     expect(t.finished(id).outcome).toMatchObject({
       code: 'not-allowed',
-      message: expect.stringMatching(/rejected/)
+      message: expect.stringMatching(/rejected/) as unknown
     })
     expect(t.console.getState().running).toBeNull()
     expect(t.console.getState().remote?.approval).toBeNull()
@@ -700,7 +699,7 @@ describe('C-99 Approval plan', () => {
       if (text !== '' && text !== 'disconnected') {
         expect(t.finished(id).outcome).toMatchObject({
           code: 'not-allowed',
-          message: expect.stringMatching(new RegExp(text))
+          message: expect.stringMatching(new RegExp(text)) as unknown
         })
       }
     }

@@ -16,7 +16,7 @@ import type { CommandDefinition, RemoteBinding } from './dispatch.types'
 import { describedCommand } from './operation'
 
 /** The largest clock difference between the tab and the hub (C-98). */
-export const skewMs = 30_000
+const skewMs = 30_000
 
 /** How long an approval waits for the user (C-99). */
 export const approvalMs = 120_000

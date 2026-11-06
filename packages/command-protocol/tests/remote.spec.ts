@@ -96,7 +96,7 @@ describe('C-96 Remote envelopes', () => {
       expect(chunk).toMatchObject({ index, total: chunks.length })
       expect(remoteBytes(chunk)).toBeLessThanOrEqual(envelopeMaxBytes)
       expect(chunk.bytes).toBe(new TextEncoder().encode(chunk.data).length)
-      expect(chunk.data.isWellFormed()).toBe(true)
+      expect(encodeURIComponent(chunk.data)).toBeTruthy()
     }
     expect(chunks.map(chunk => chunk.data).join('')).toBe(text)
     expect(chunkData('r1', '')).toEqual([])
