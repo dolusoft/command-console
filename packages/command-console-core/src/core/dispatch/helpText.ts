@@ -24,7 +24,7 @@ const width = (text: string): number => Array.from(text).length
  * `text` as lines of at most `max` code points with `indent` in front, split
  * at spaces; a word longer than a line is cut.
  */
-export const wrap = (text: string, max: number, indent = ''): string[] => {
+const wrap = (text: string, max: number, indent = ''): string[] => {
   const room = Math.max(1, max - width(indent))
   const lines: string[] = []
   let current = ''

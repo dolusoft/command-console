@@ -44,7 +44,7 @@ const error = (
     : { status: 'error', code, message }
 
 /** A command's namespace: its name up to the first dot (C-92). */
-export const namespaceOf = (name: string): string => name.split('.', 1)[0]
+const namespaceOf = (name: string): string => name.split('.', 1)[0]
 
 /**
  * Whether `name` is under `prefix`. One trailing dot is dropped; what is left

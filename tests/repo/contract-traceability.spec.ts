@@ -27,13 +27,13 @@ import { collectSuite, coveredIds, namedIds, rulesOf } from './test-names'
  * what, C-95 to C-104 for the remote entry of a desktop CLI, C-105 to C-112
  * for its 1.7.0 contract. A later rule raises it.
  */
-const ruleCount = 112
+const ruleCount = 114
 /**
  * The fewest runnable tests the specs must hold, so a broken reader that
  * finds none fails. Each piece raises it to about the count it leaves; 1.0 is
  * released with it set to the 1.0 count.
  */
-const minimumTests = 715
+const minimumTests = 735
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
