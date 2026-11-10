@@ -68,13 +68,13 @@ Cancels the request `id` if it is the tab's current run; otherwise ignored.
 
 The tab accepted the request and is about to run it.
 
-| Field                            | Type             | Required | Notes                                                                                                                           |
-| -------------------------------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `v`, `kind` (`"received"`), `id` |                  | yes      |                                                                                                                                 |
-| `hidden`                         | boolean          | yes      | The page was hidden on accept.                                                                                                  |
-| `dataAgeMs`                      | number or `null` | yes      | ≥ 0; `null` when unknown. The CLI prints a staleness line only for a number.                                                    |
-| `change`                         | boolean          | yes      | The request runs the path that changes data: not a `read` command, not a preview. Decided from the normalized, validated input. |
-| `viewRelevant`                   | boolean          | yes      | The CLI prints the view line.                                                                                                   |
+| Field                            | Type             | Required | Notes                                                                                                                                                              |
+| -------------------------------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `v`, `kind` (`"received"`), `id` |                  | yes      |                                                                                                                                                                    |
+| `hidden`                         | boolean          | yes      | The page was hidden on accept.                                                                                                                                     |
+| `dataAgeMs`                      | number or `null` | yes      | ≥ 0; `null` when unknown. The CLI prints a staleness line only for a number.                                                                                       |
+| `change`                         | boolean          | yes      | The request runs the path that changes data: not a `read` command, not a preview. Decided from the normalized, validated input.                                    |
+| `viewRelevant`                   | boolean          | yes      | The CLI prints the view line. `true` when the command runs in a view: the request's `view`, else the tab's active view on accept (the view `finished.view` names). |
 
 ### `awaiting-approval`
 

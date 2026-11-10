@@ -7,8 +7,4 @@
  * the first test of a rule removes the rule from this list in the same change.
  * 1.0 is released with this list empty.
  */
-export const pendingRules: readonly string[] = [
-  // command-console 1.7.0, C2: the core's `received` fields and suggestions.
-  'C-110',
-  'C-111'
-]
+export const pendingRules: readonly string[] = []

@@ -45,7 +45,11 @@ export { validateInput } from './input/validate'
 export type { Token, TokenizeError, TokenizeResult } from './syntax/tokenize'
 export { tokenize } from './syntax/tokenize'
 export { quoteArgument } from './syntax/quote'
-export { formatCommandLine, parseOptions } from './syntax/options'
+export {
+  formatCommandArgv,
+  formatCommandLine,
+  parseOptions
+} from './syntax/options'
 
 export type { Envelope, EnvelopeErrorCode, EnvelopeResult } from './envelope'
 export { envelopeBytes, envelopeMaxBytes, parseEnvelope } from './envelope'

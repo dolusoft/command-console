@@ -10,7 +10,8 @@
     "1.0.1 (protocol, #13, 2026-11-04): the protocol fixture also checks an input schema, reads an option line, validates and formats the input, and builds, measures and parses an envelope: the schema checker, the validator, the option line and the envelope are new runtime code (ADR 0012).",
     "1.0.1 (core, #13, 2026-11-04): dispatch reads schema lines (parseOptions, validateInput, formatCommandLine), checks schemas on registration (checkInputSchema), and runs the gate path (envelope, echo, closed ids) and request(); every console now bundles that protocol code, so core and core-all grow by about 4.6 KB.",
     "1.3.0 (core, #13, 2026-11-05): dispatch describes a refused input in words (field, wanted type or bound, the nearest known field by edit distance), carries a CommandError's message to the outcome, turns a string into a list of one and calls a summary function; core and core-all grow by about 850 B.",
-    "1.6.0 (core, ADR 0014, 2026-11-07): dispatch runs the remote entry of a desktop CLI (parseCliMessage, the stamp check, the seen ids, the capabilities, the approval plan with its window, chunked results, cancel) and validates confirm and plan; core and core-all grow by about 3.2 KB since the last measure (1.3.0)."
+    "1.6.0 (core, ADR 0014, 2026-11-07): dispatch runs the remote entry of a desktop CLI (parseCliMessage, the stamp check, the seen ids, the capabilities, the approval plan with its window, chunked results, cancel) and validates confirm and plan; core and core-all grow by about 3.2 KB since the last measure (1.3.0).",
+    "1.7.0 (core, CLI isolation C2, ADR 0015, 2026-11-10): dispatch reads argv requests, the remote name rule, near names, positional fixes, preview and next-page argv (formatCommandArgv) and publishes the capabilities in parts (capabilitiesParts, a revision hash); core 14920 → 16908 B and core-all 17263 → 19233 B since 1.6.0, C1's error classes and received flags included."
   ],
   "fixtures": {
     "protocol": {
@@ -18,12 +19,12 @@
       "maxGzipBytes": 3899
     },
     "core": {
-      "measuredGzipBytes": 14920,
-      "maxGzipBytes": 15666
+      "measuredGzipBytes": 16908,
+      "maxGzipBytes": 17754
     },
     "core-all": {
-      "measuredGzipBytes": 17263,
-      "maxGzipBytes": 18127
+      "measuredGzipBytes": 19233,
+      "maxGzipBytes": 20195
     }
   }
 }

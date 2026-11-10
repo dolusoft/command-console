@@ -8,16 +8,17 @@
     "1.3.0 (core, #13, 2026-11-05): an error outcome says what to fix (the schema's refusal in words with the nearest known field, a CommandError's message), a string for a list of strings, a summary function; about 850 B in both fixtures. The component stays within its budget, so only the composable's is raised.",
     "1.4.0 (core, #13, 2026-11-05): a not-allowed outcome says why and gives a change command's line, and the console validates and reads namespace summaries (namespaces, getNamespaces); about 415 B in both fixtures (composable 11893 → 12308 B). The component goes over its budget, so its budget is raised; the composable stays within its own.",
     "1.6.0 (core and vue, ADR 0014, 2026-11-07): the core bundles the remote entry (stamped requests, approval plan, chunked results) and the component draws the bound CLI, the approval window and the pairing question; the composable is 3.2 KB over its last measure (11893 B) and the component 3.5 KB over its own (18943 B).",
-    "1.7.0 (protocol, CLI isolation C1, 2026-11-10): every remote error carries its class (the errorClassOf table of the 18 codes) and `received` its change flags; the composable is 2 B over its budget (15864 B), so its budget is raised; the component stays within its own."
+    "1.7.0 (protocol, CLI isolation C1, 2026-11-10): every remote error carries its class (the errorClassOf table of the 18 codes) and `received` its change flags; the composable is 2 B over its budget (15864 B), so its budget is raised; the component stays within its own.",
+    "1.7.0 (core, CLI isolation C2, ADR 0015, 2026-11-10): the remote entry reads argv, finds names case-insensitively, suggests near names (Damerau-Levenshtein), positional fixes, preview and next-page argv, and publishes the capabilities in parts with a revision hash (capabilitiesParts); the composable is 17095 B, the component 24522 B, both over their budgets, so both are raised."
   ],
   "fixtures": {
     "composable": {
-      "measuredGzipBytes": 15864,
-      "maxGzipBytes": 16658
+      "measuredGzipBytes": 17095,
+      "maxGzipBytes": 17950
     },
     "component": {
-      "measuredGzipBytes": 22481,
-      "maxGzipBytes": 23606
+      "measuredGzipBytes": 24522,
+      "maxGzipBytes": 25749
     }
   }
 }

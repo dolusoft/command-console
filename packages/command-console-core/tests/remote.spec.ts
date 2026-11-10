@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -9,8 +13,15 @@ import {
   type RemoteBinding
 } from '@dolusoft/command-console-core'
 import {
+  envelopeMaxBytes,
+  formatCommandArgv,
+  formatCommandLine,
   joinChunks,
+  readCapabilitiesParts,
+  remoteFeatures,
+  tokenize,
   type ChunkReply,
+  type JsonValue,
   type CliReply,
   type InputSchema
 } from '@dolusoft/command-protocol'
@@ -44,12 +55,16 @@ const setup = (
     })
   } satisfies ConsoleGate
   const replies: CliReply[] = []
+  const published: { revision: string; parts: string[] }[] = []
   const binding: RemoteBinding = {
     bindingId: 'b1',
     grantId: 'g1',
     approvedAt: 900_000,
     send: reply => {
       replies.push(JSON.parse(JSON.stringify(reply)) as CliReply)
+    },
+    publishCapabilities: payload => {
+      published.push(payload)
     },
     ...bindingExtra
   }
@@ -76,6 +91,11 @@ const setup = (
     deliver({ v: 1, kind: 'cli-request', id, line, ...stamp(extra) })
     return id
   }
+  const requestArgv = (argv: string[], extra: Record<string, unknown> = {}) => {
+    const id = (extra.id as string | undefined) ?? `r${++next}`
+    deliver({ v: 1, kind: 'cli-request', id, argv, ...stamp(extra) })
+    return id
+  }
   const cancel = (id: string) =>
     deliver({ v: 1, kind: 'cancel', id, ...stamp() })
   const of = <K extends CliReply['kind']>(kind: K, id?: string) =>
@@ -92,8 +112,10 @@ const setup = (
     timers,
     listeners,
     replies,
+    published,
     deliver,
     request,
+    requestArgv,
     cancel,
     of,
     finished,
@@ -372,46 +394,119 @@ describe('C-97 Attach remote', () => {
     expect(t.finished(id).outcome).toEqual({ status: 'ok', summary: 'found' })
   })
 
-  it('sends the capabilities: described commands, confirm fields, sensitive names', () => {
-    const t = setup({
+  it('publishes the capabilities in parts: described commands, sensitive names, no reply', () => {
+    const t = setup(
+      {
+        commands: [
+          search(),
+          stop().definition,
+          command('login', () => undefined, {
+            sensitive: true,
+            aliases: ['signin']
+          }),
+          command('wipe', () => undefined, {
+            input: stopInput,
+            danger: 'irreversible'
+          }),
+          command('secret', () => undefined, {
+            input: searchInput,
+            danger: 'read',
+            hidden: true
+          }),
+          command('plain')
+        ]
+      },
+      { minCli: '0.9.0' }
+    )
+    t.attach()
+    expect(t.replies).toEqual([])
+    expect(t.published).toHaveLength(1)
+    const [{ revision, parts }] = t.published
+    expect(revision).toMatch(/^[0-9a-f]{8}$/)
+    expect(parts).toHaveLength(1)
+    expect(readCapabilitiesParts(parts)).toEqual({
+      envelopes: [1],
+      features: [...remoteFeatures],
+      minCli: '0.9.0',
+      revision,
+      sensitive: ['login', 'signin'],
       commands: [
-        search(),
-        stop().definition,
-        command('login', () => undefined, {
-          sensitive: true,
-          aliases: ['signin']
-        }),
-        command('wipe', () => undefined, {
-          input: stopInput,
-          danger: 'irreversible'
-        }),
-        command('secret', () => undefined, {
-          input: searchInput,
-          danger: 'read',
-          hidden: true
-        }),
-        command('plain')
+        { name: 'search', aliases: ['s'], danger: 'read' },
+        { name: 'tasks.stop', aliases: [], danger: 'change' }
       ]
     })
+    // The head is at the start of the first part; no confirm field.
+    expect(parts[0]).toMatch(/^\{"envelopes":\[1\],"features":/)
+    expect(parts.join('')).not.toContain('confirm')
+  })
+
+  it('the revision comes from the list: the same list, the same revision', () => {
+    const a = setup({ commands: [search(), stop().definition] })
+    const b = setup({ commands: [search(), stop().definition] })
+    const c = setup({ commands: [search()] })
+    for (const t of [a, b, c]) {
+      t.attach()
+    }
+    expect(a.published[0].revision).toBe(b.published[0].revision)
+    expect(c.published[0].revision).not.toBe(a.published[0].revision)
+    expect(a.published[0].parts.join('')).not.toContain('minCli')
+  })
+
+  it('a list over three parts makes attachRemote throw and attaches nothing', () => {
+    const many = Array.from({ length: 2000 }, (_, index) =>
+      command(`namespace.command-${index}`, () => undefined, {
+        input: searchInput,
+        danger: 'read',
+        aliases: [`alias-${index}`]
+      })
+    )
+    const t = setup({ commands: many })
+    expect(() => t.attach()).toThrow(RangeError)
+    expect(t.console.getState().remote).toBeNull()
+    expect(t.published).toEqual([])
+  })
+
+  it('a long list is cut into parts of at most 16 KB that join back', () => {
+    const many = Array.from({ length: 500 }, (_, index) =>
+      command(`namespace.command-${index}`, () => undefined, {
+        input: searchInput,
+        danger: 'read'
+      })
+    )
+    const t = setup({ commands: many })
     t.attach()
-    expect(t.replies).toEqual([
+    const { parts } = t.published[0]
+    expect(parts.length).toBeGreaterThan(1)
+    expect(parts.length).toBeLessThanOrEqual(3)
+    for (const part of parts) {
+      expect(new TextEncoder().encode(part).length).toBeLessThanOrEqual(
+        envelopeMaxBytes
+      )
+    }
+    expect(readCapabilitiesParts(parts)?.commands).toHaveLength(500)
+  })
+
+  it('a publishCapabilities that throws or rejects goes to onError', async () => {
+    const onError = vi.fn()
+    const t = setup(
+      { commands: [search()], onError },
       {
-        v: 1,
-        kind: 'capabilities',
-        bindingId: 'b1',
-        envelope: 1,
-        commands: [
-          { name: 'search', aliases: ['s'], danger: 'read' },
-          {
-            name: 'tasks.stop',
-            aliases: [],
-            danger: 'change',
-            confirm: 'yes'
-          }
-        ],
-        sensitive: ['login', 'signin']
+        publishCapabilities: vi
+          .fn()
+          .mockImplementationOnce(() => {
+            throw new Error('down')
+          })
+          .mockImplementation(() => Promise.reject(new Error('later')))
       }
-    ])
+    )
+    t.attach()
+    t.console.setOptions(options => ({
+      ...options,
+      commands: [search(), stop().definition]
+    }))
+    await flush()
+    expect(onError).toHaveBeenCalledTimes(2)
+    expect(t.console.getState().remote).not.toBeNull()
   })
 
   it('puts the binding in the state; detach clears it and sends nothing more', () => {
@@ -453,30 +548,44 @@ describe('C-97 Attach remote', () => {
     expect(t.of('finished')).toEqual([])
   })
 
-  it('setOptions with new commands sends the capabilities again; other options do not', () => {
+  it('setOptions with new commands publishes the capabilities again with a new revision; other options do not', () => {
     const t = setup({ commands: [search()] })
     t.attach()
-    // The core still sends the 1.6 capabilities reply until it publishes
-    // the parts (C-108); the protocol no longer types it.
-    const capabilities = () =>
-      (
-        t.replies as unknown as { kind: string; commands: { name: string }[] }[]
-      ).filter(reply => reply.kind === 'capabilities')
     t.console.setOptions(options => ({ ...options, prompt: '$' }))
-    expect(capabilities()).toHaveLength(1)
+    expect(t.published).toHaveLength(1)
     t.console.setOptions(options => ({
       ...options,
       commands: [...options.commands, stop().definition]
     }))
-    const sent = capabilities()
-    expect(sent).toHaveLength(2)
-    expect(sent[1].commands.map(spec => spec.name)).toEqual([
-      'search',
-      'tasks.stop'
-    ])
+    expect(t.published).toHaveLength(2)
+    expect(
+      readCapabilitiesParts(t.published[1].parts)?.commands.map(
+        spec => spec.name
+      )
+    ).toEqual(['search', 'tasks.stop'])
+    expect(t.published[1].revision).not.toBe(t.published[0].revision)
     t.console.detachRemote()
     t.console.setOptions(options => ({ ...options, commands: [search()] }))
-    expect(capabilities()).toHaveLength(2)
+    expect(t.published).toHaveLength(2)
+    expect(t.replies).toEqual([])
+  })
+
+  it('a setOptions whose list no longer fits goes to onError and publishes nothing', () => {
+    const onError = vi.fn()
+    const t = setup({ commands: [search()], onError })
+    t.attach()
+    t.console.setOptions(options => ({
+      ...options,
+      commands: Array.from({ length: 2000 }, (_, index) =>
+        command(`namespace.command-${index}`, () => undefined, {
+          input: searchInput,
+          danger: 'read',
+          aliases: [`alias-${index}`]
+        })
+      )
+    }))
+    expect(t.published).toHaveLength(1)
+    expect(onError).toHaveBeenCalledWith(expect.any(RangeError), null)
   })
 
   it('dispose unsubscribes and ends the binding', () => {
@@ -502,7 +611,8 @@ describe('C-97 Attach remote', () => {
     t.attach()
     t.request('search --ip 1')
     await flush()
-    expect(onError).toHaveBeenCalledTimes(3)
+    // `received` throws, `finished` rejects.
+    expect(onError).toHaveBeenCalledTimes(2)
     expect(t.console.getState().running).toBeNull()
   })
 })
@@ -558,10 +668,8 @@ describe('C-98 Remote accept', () => {
       ).toMatchObject({ code: 'too-large' })
     })
 
-    it('ends with invalid-args for an argv request, which it does not run yet', () => {
-      const t = refused(
-        base({ line: undefined, argv: ['search', '--ip', '1'] })
-      )
+    it('ends with invalid-args for a request with both argv and line', () => {
+      const t = refused(base({ argv: ['search', '--ip', '1'] }))
       expect(t.finished('bad').outcome).toMatchObject({
         code: 'invalid-args',
         class: 'usage'
@@ -605,7 +713,7 @@ describe('C-98 Remote accept', () => {
     const t = setup({ commands: [search()] })
     t.attach()
     const id = t.request('s --ip 1.2.3.4 --limit 5')
-    expect(t.replies.slice(1)).toEqual([
+    expect(t.replies).toEqual([
       {
         v: 1,
         kind: 'received',
@@ -1116,5 +1224,460 @@ describe('C-101 Remote cancel', () => {
     t.cancel(id)
     t.cancel('other')
     expect(t.replies).toHaveLength(before)
+  })
+})
+
+describe('C-98 Remote accept: the argv path', () => {
+  it('runs argv without making it a line: items are values as they are', () => {
+    const seen: unknown[] = []
+    const t = setup({
+      commands: [
+        search(request => {
+          seen.push(request.input)
+          return { summary: 'found' }
+        })
+      ]
+    })
+    t.attach()
+    // A quote in an item is a character, not the start of a quoted text.
+    const id = t.requestArgv(['s', '--ip', '"a b'])
+    expect(t.finished(id).outcome).toEqual({ status: 'ok', summary: 'found' })
+    expect(seen).toEqual([{ ip: '"a b' }])
+    const [entry] = t.console.getState().entries
+    expect(entry).toMatchObject({ kind: 'input', actor: 'cli' })
+    // The history shows the canonical line.
+    expect(entry.kind === 'input' && entry.text).toBe(
+      formatCommandLine('search', { ip: '"a b' }, searchInput)
+    )
+  })
+
+  it('checks the argv as typed and as its canonical line for sensitivity', () => {
+    const run = vi.fn()
+    const t = setup({
+      commands: [search(run), command('login', run, { sensitive: true })],
+      isSensitive: line => line.includes('hunter2') || line.includes("'x y'")
+    })
+    t.attach()
+    const ids = [
+      t.requestArgv(['LOGIN', 'pw']),
+      t.requestArgv(['search', '--ip', 'hunter2']),
+      // Only a joined form quotes the item.
+      t.requestArgv(['search', '--ip', 'x y'])
+    ]
+    expect(run).not.toHaveBeenCalled()
+    for (const id of ids) {
+      expect(t.finished(id).outcome).toEqual({
+        status: 'error',
+        code: 'not-allowed',
+        class: 'denied'
+      })
+    }
+    expect(t.of('received')).toEqual([])
+  })
+
+  it('refuses options the schema refuses, as for a line', () => {
+    const t = setup({ commands: [search()] })
+    t.attach()
+    const outcome = t.finished(t.requestArgv(['search', '--ipp', '1'])).outcome
+    expect(outcome).toMatchObject({ code: 'invalid-args', class: 'usage' })
+    expect(t.console.getState().entries).toEqual([])
+  })
+})
+
+describe('C-110 Received fields', () => {
+  it('change is true only for the path that changes data', () => {
+    const t = setup({ commands: [search(), stop().definition] })
+    t.attach()
+    const read = t.request('search --ip 1')
+    const preview = t.request('tasks.stop --id 1')
+    const change = t.request('tasks.stop --id 1 --yes')
+    expect(t.of('received', read)[0].change).toBe(false)
+    expect(t.of('received', preview)[0].change).toBe(false)
+    expect(t.of('received', change)[0].change).toBe(true)
+  })
+
+  it('change follows the normalized input, not the typed one', () => {
+    const t = setup({
+      commands: [
+        stop(undefined, {
+          normalize: input => ({ ...input, yes: input.id === 7 })
+        }).definition
+      ]
+    })
+    t.attach()
+    expect(t.of('received', t.request('tasks.stop --id 7'))[0].change).toBe(
+      true
+    )
+    t.tick()
+    expect(
+      t.of('received', t.request('tasks.stop --id 8 --yes'))[0].change
+    ).toBe(false)
+  })
+
+  it('viewRelevant is true when the command runs in a view: the request’s or the active one', () => {
+    const page: { active?: string } = {}
+    const t = setup({ commands: [search()], activeView: () => page.active })
+    t.attach()
+    const none = t.request('search --ip 1')
+    const named = t.request('search --ip 1', { view: 'v-1' })
+    page.active = 'v-active'
+    const current = t.request('search --ip 1')
+    expect(t.of('received', none)[0].viewRelevant).toBe(false)
+    expect(t.finished(none).view).toBeUndefined()
+    expect(t.of('received', named)[0].viewRelevant).toBe(true)
+    expect(t.of('received', current)[0].viewRelevant).toBe(true)
+    expect(t.finished(current).view).toEqual({ id: 'v-active' })
+  })
+
+  it('asks the binding’s status with the canonical command name and passes its age on', () => {
+    const status = vi.fn((request: { command: string }) => ({
+      hidden: false,
+      dataAgeMs: request.command === 'search' ? 5000 : null
+    }))
+    const t = setup({ commands: [search(), stop().definition] }, { status })
+    t.attach()
+    const a = t.request('s --ip 1')
+    const b = t.request('tasks.stop --id 1')
+    expect(status.mock.calls).toEqual([
+      [{ command: 'search' }],
+      [{ command: 'tasks.stop' }]
+    ])
+    expect(t.of('received', a)[0].dataAgeMs).toBe(5000)
+    expect(t.of('received', b)[0].dataAgeMs).toBeNull()
+  })
+})
+
+describe('C-111 Remote suggestions', () => {
+  const listInput: InputSchema = {
+    type: 'object',
+    properties: {
+      state: { type: 'string' },
+      cursor: { type: 'string' },
+      limit: { type: 'integer' }
+    }
+  }
+  const reader = (name: string, extra: Partial<CommandDefinition> = {}) =>
+    command(name, () => undefined, {
+      input: searchInput,
+      danger: 'read',
+      ...extra
+    })
+
+  it('a preview suggests its argv with the confirm field true, from the normalized input', () => {
+    const t = setup({
+      commands: [
+        stop(undefined, {
+          normalize: input => ({ ...input, id: (input.id as number) + 100 })
+        }).definition
+      ]
+    })
+    t.attach()
+    const end = t.finished(t.request('tasks.stop --id 1'))
+    expect(end.preview).toBe(true)
+    expect(end.suggest).toEqual(['tasks.stop', '--id', '101', '--yes'])
+    expect(end).not.toHaveProperty('outcome.line')
+  })
+
+  it('unknown-command suggests only the nearest open name, never the arguments', () => {
+    const t = setup({
+      commands: [
+        search(),
+        reader('seek'),
+        reader('serve'),
+        reader('sea'),
+        reader('sertch'),
+        reader('serc'),
+        reader('searcy', { hidden: true }),
+        command('searck', () => undefined, { sensitive: true }),
+        command('searcz', () => undefined, {
+          input: stopInput,
+          danger: 'irreversible'
+        }),
+        command('searcw')
+      ]
+    })
+    t.attach()
+    const end = t.finished(t.request('serch --ip secret-value'))
+    expect(end.outcome).toEqual({
+      status: 'error',
+      code: 'unknown-command',
+      class: 'usage',
+      // Three of four near names, nearest first, a tie by name.
+      message: 'unknown command: serch; did you mean: search, serc, sertch'
+    })
+    expect(end.suggest).toEqual(['search'])
+    expect(JSON.stringify(end)).not.toContain('secret-value')
+    expect(end.help).toBeUndefined()
+  })
+
+  it('an alias counts, the case is ignored, and far names give a bare message', () => {
+    const t = setup({ commands: [search()] })
+    t.attach()
+    const far = t.finished(t.requestArgv(['Xyzzy']))
+    expect(far.outcome).toMatchObject({ message: 'unknown command: Xyzzy' })
+    expect(far.suggest).toBeUndefined()
+    // `SX` is one edit from the alias `s`, the case ignored.
+    expect(t.finished(t.requestArgv(['SX', '--ip', '1'])).suggest).toEqual([
+      'search'
+    ])
+  })
+
+  it('invalid-args names the command for help and suggests the positional fix', () => {
+    const t = setup({
+      commands: [
+        command('find', () => undefined, {
+          input: {
+            type: 'object',
+            properties: { text: { type: 'string' }, max: { type: 'integer' } },
+            required: ['text']
+          },
+          danger: 'read'
+        }),
+        stop().definition
+      ]
+    })
+    t.attach()
+    const fix = t.finished(t.request('find data  view'))
+    expect(fix.outcome).toMatchObject({ code: 'invalid-args', class: 'usage' })
+    expect(fix.suggest).toEqual(['find', '--text', 'data view'])
+    expect(fix.help).toBe('find')
+    // An argument that starts with a dash: no fix, still the help.
+    const dashed = t.finished(t.requestArgv(['find', 'data', '-x']))
+    expect(dashed.suggest).toBeUndefined()
+    expect(dashed.help).toBe('find')
+    // The only required field is not a string.
+    const integer = t.finished(t.request('tasks.stop 5'))
+    expect(integer.suggest).toBeUndefined()
+    expect(integer.help).toBe('tasks.stop')
+  })
+
+  it('next is the argv of the next page when the data has a nextCursor and the schema a cursor', () => {
+    const t = setup({
+      commands: [
+        command(
+          'tasks.list',
+          request => ({
+            data: {
+              items: [],
+              nextCursor: request.input?.cursor === '40' ? '' : '40'
+            }
+          }),
+          { input: listInput, danger: 'read' }
+        ),
+        command('plain.list', () => ({ data: { nextCursor: '40' } }), {
+          input: searchInput,
+          danger: 'read'
+        })
+      ]
+    })
+    t.attach()
+    const first = t.finished(t.request('tasks.list --state open --limit 20'))
+    expect(first.next).toEqual([
+      'tasks.list',
+      '--state',
+      'open',
+      '--cursor',
+      '40',
+      '--limit',
+      '20'
+    ])
+    expect(t.finished(t.requestArgv(first.next!)).next).toBeUndefined()
+    // No `cursor` field: no next.
+    expect(t.finished(t.request('plain.list --ip 1')).next).toBeUndefined()
+  })
+
+  it('a not-allowed end of an accepted request suggests its canonical argv', () => {
+    const t = setup({ commands: [stop().definition] })
+    t.attach()
+    const id = t.request('tasks.stop --yes --id 3')
+    t.console.reject(id)
+    const end = t.finished(id)
+    expect(end.outcome).toMatchObject({ code: 'not-allowed', class: 'denied' })
+    expect(end.suggest).toEqual(['tasks.stop', '--id', '3', '--yes'])
+  })
+
+  it('a sensitive request’s reply has no message, suggest, next or help', () => {
+    const t = setup({
+      commands: [
+        search(),
+        command('login', () => undefined, {
+          sensitive: true,
+          aliases: ['signin']
+        })
+      ],
+      isSensitive: line => line.includes('hunter2')
+    })
+    t.attach()
+    for (const id of [
+      t.request('logn hunter2'),
+      t.request('Signin x'),
+      t.request('search hunter2')
+    ]) {
+      const end = t.finished(id)
+      expect(end.outcome).toEqual({
+        status: 'error',
+        code: 'not-allowed',
+        class: 'denied'
+      })
+      for (const field of ['suggest', 'next', 'help']) {
+        expect(end).not.toHaveProperty(field)
+      }
+    }
+    // A sensitive name is never a suggestion.
+    const near = t.finished(t.request('logon'))
+    expect(near.suggest).toBeUndefined()
+    expect(JSON.stringify(near)).not.toContain('login')
+  })
+
+  it('formatCommandArgv gives what tokenize gives of formatCommandLine', () => {
+    const schema: InputSchema = {
+      type: 'object',
+      properties: {
+        text: { type: 'string' },
+        n: { type: 'number' },
+        on: { type: 'boolean' },
+        off: { type: 'boolean' },
+        tags: { type: 'array', items: { type: 'string' } },
+        filter: {
+          type: 'object',
+          properties: { host: { type: 'string' } }
+        }
+      }
+    }
+    const values: Record<string, JsonValue>[] = [
+      {},
+      { text: 'a b "c" \\ \'d\'', n: 1.5, on: true, off: false },
+      { tags: ['', 'x y', '--z'], filter: { host: 'h' } },
+      { text: '🙂  ' }
+    ]
+    for (const value of values) {
+      const argv = formatCommandArgv('ns.cmd', value, schema)
+      const parsed = tokenize(formatCommandLine('ns.cmd', value, schema))
+      expect(parsed.ok).toBe(true)
+      expect(parsed.tokens.map(token => token.value)).toEqual(argv)
+    }
+  })
+})
+
+describe('C-112 Remote command name', () => {
+  interface Row {
+    name: string
+    input: { argv: string[] } | { line: string }
+    tab: { name: string } | { refuse: string }
+    sensitive?: true
+  }
+  const file = JSON.parse(
+    readFileSync(
+      join(
+        dirname(fileURLToPath(import.meta.url)),
+        '..',
+        '..',
+        '..',
+        'fixtures',
+        'remote',
+        'command-name.json'
+      ),
+      'utf8'
+    )
+  ) as {
+    commands: {
+      name: string
+      aliases: string[]
+      danger: 'read' | 'change'
+      sensitive?: true
+    }[]
+    rows: Row[]
+  }
+  const keyInput: InputSchema = {
+    type: 'object',
+    properties: { key: { type: 'string' } }
+  }
+  const commands = file.commands.map(spec =>
+    command(spec.name, () => ({ summary: 'ran' }), {
+      aliases: spec.aliases,
+      ...(spec.sensitive === true
+        ? { sensitive: true }
+        : { input: keyInput, danger: spec.danger })
+    })
+  )
+
+  for (const row of file.rows) {
+    it(`command-name.json "${row.name}" runs through attachRemote as the tab expects`, () => {
+      const t = setup({ commands })
+      t.attach()
+      const id =
+        'argv' in row.input
+          ? t.requestArgv(row.input.argv)
+          : t.request(row.input.line)
+      const end = t.finished(id)
+      if ('name' in row.tab) {
+        expect(t.of('received', id)).toHaveLength(1)
+        const [entry] = t.console.getState().entries
+        const text = entry.kind === 'input' ? entry.text : null
+        expect(tokenize(text ?? '').tokens[0]?.value).toBe(row.tab.name)
+      } else {
+        expect(t.of('received', id)).toEqual([])
+        expect(end.outcome).toMatchObject({ code: row.tab.refuse })
+        expect(t.console.getState().entries).toEqual([])
+      }
+      if (row.sensitive === true) {
+        expect(end.outcome).toEqual({
+          status: 'error',
+          code: 'not-allowed',
+          class: 'denied'
+        })
+        expect(end).not.toHaveProperty('suggest')
+      }
+    })
+  }
+
+  it('the line tokenizer ends a name at ECMAScript WhiteSpace and LineTerminator only', () => {
+    const expected = [
+      0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002,
+      0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x2028,
+      0x2029, 0x202f, 0x205f, 0x3000, 0xfeff
+    ]
+    // What splits `a?b` in two: the tokenizer of the local terminal, measured.
+    const tokenizer: number[] = []
+    for (let code = 0; code <= 0xffff; code++) {
+      if (tokenize(`a${String.fromCharCode(code)}b`).tokens.length === 2) {
+        tokenizer.push(code)
+      }
+    }
+    expect(tokenizer).toEqual(expected)
+    // The remote line ends its name at each of them; U+0085 joins the name.
+    const t = setup({ commands: [] })
+    t.attach()
+    for (const code of [...expected, 0x85]) {
+      const { outcome } = t.finished(
+        t.request(`nosuch${String.fromCharCode(code)}x`)
+      )
+      expect(outcome.status === 'error' && outcome.code).toBe(
+        code === 0x85 ? 'invalid-args' : 'unknown-command'
+      )
+    }
+  })
+
+  it('an exact name wins over a folded one; the local terminal stays case-sensitive', async () => {
+    const ran: string[] = []
+    const t = setup({
+      commands: [
+        command('Get', () => void ran.push('Get'), {
+          input: keyInput,
+          danger: 'read'
+        }),
+        command('get', () => void ran.push('get'), {
+          input: keyInput,
+          danger: 'read'
+        })
+      ]
+    })
+    t.attach()
+    t.requestArgv(['get'])
+    t.requestArgv(['Get'])
+    t.requestArgv(['GET'])
+    expect(ran).toEqual(['get', 'Get', 'Get'])
+    await t.console.run('GET')
+    expect(ran).toHaveLength(3)
   })
 })

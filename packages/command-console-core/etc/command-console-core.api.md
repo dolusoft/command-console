@@ -346,8 +346,15 @@ export interface RemoteBinding {
     approvedAt: number;
     bindingId: string;
     grantId: string;
+    minCli?: string;
+    publishCapabilities(payload: {
+        revision: string;
+        parts: string[];
+    }): void | Promise<void>;
     send(reply: CliReply): void | Promise<void>;
-    status?(): {
+    status?(request: {
+        command: string;
+    }): {
         hidden: boolean;
         dataAgeMs?: number | null;
     };

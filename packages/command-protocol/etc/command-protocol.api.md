@@ -270,6 +270,9 @@ export interface FinishedReply {
 }
 
 // @public
+export function formatCommandArgv(command: string, value: Record<string, JsonValue>, schema: InputSchema): string[];
+
+// @public
 export function formatCommandLine(command: string, value: Record<string, JsonValue>, schema: InputSchema): string;
 
 // @public
