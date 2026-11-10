@@ -40,7 +40,8 @@ user's terminal.
 
 ## From a desktop terminal (`gecko`)
 
-- Call `gecko help` first; without a bound tab it starts the binding.
+- Call `gecko help` first; without a bound tab it starts the binding. `gecko help <namespace>` and
+  `gecko help <command>` come from the tab; an unknown name answers with the nearest one.
 - Use `--json` and give the line on `stdin` with `--line -`.
 - `stdout` carries only the result; progress and waiting go to `stderr`.
 - A change: take the preview first, then tell the user to approve it in the browser.

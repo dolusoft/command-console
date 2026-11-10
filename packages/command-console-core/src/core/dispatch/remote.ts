@@ -10,12 +10,12 @@ import {
   remoteFeatures,
   type ChunkReply,
   type CliReply,
-  type CliRequest,
   type CommandOutcome,
   type ErrorCode,
   type FinishedReply,
   type RemoteCommandSpec,
-  type RemoteOutcome
+  type RemoteOutcome,
+  type RemoteStamp
 } from '@dolusoft/command-protocol'
 
 import type { CommandDefinition, RemoteBinding } from './dispatch.types'
@@ -36,7 +36,7 @@ export const approvalHoldMs = 1000
  * `expired`. `null` when it may run.
  */
 export const stampRefusal = (
-  request: CliRequest,
+  request: RemoteStamp,
   now: number
 ): { code: ErrorCode; message: string } | null => {
   if (request.stampedAt - now > skewMs) {

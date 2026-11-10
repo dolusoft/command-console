@@ -937,6 +937,12 @@ export interface CommandDefinition extends Omit<CommandSpec, 'summary'> {
    */
   summary?: string | (() => string)
   /**
+   * The command works on a view, so a CLI prints the view it ran in
+   * (`received.viewRelevant`, C-110). Overrides its namespace's `usesView`;
+   * changes nothing for the local terminal or an agent.
+   */
+  usesView?: boolean
+  /**
    * Runs the command. A promise makes the run asynchronous; the console
    * stays locked until it settles or the run is cancelled.
    */
@@ -1725,7 +1731,8 @@ nothing more through the binding, not even the end of a command still running; s
 A `cli-request` of the bound CLI is its own action. An id seen before is ignored. One that `parseCliMessage` refuses
 but whose `id` and `origin` ids can be read (C-96, the binding's) sends only `finished`, once per id: `unsupported-version`,
 `too-large`, or `invalid-args` for any other reason, with a short `message` and nothing of the request; a refused
-message of another `kind`, or without a readable `id`, is ignored. By the `now` option, one stamped
+`help-request` gets the same answer as a `help-result` (C-113); a refused `cancel`, a message of another `kind`,
+and one without a readable `id` are ignored. By the `now` option, one stamped
 more than 30 s ahead is `clock-skew` and one after its `expiresAt` is `expired`, each with a `message`; while a run
 exists it is `busy` (no queue). An `argv` request (C-106) is never made a line: its first item is the name and the
 rest are the option tokens as they are; a `line` gives its name and its tokens as C-112 says. Then, as for an agent
@@ -1833,8 +1840,10 @@ where those are tested.
 #### C-110 Received fields
 
 `received` tells the CLI `change`: the request runs the path that changes data, after `normalize` and the schema (not
-a `read` command, not a preview, C-95); and `viewRelevant`: the command runs in a view, the request's or the
-`activeView()` on accept (the view `finished` names), so the CLI prints the view. The binding's `status` is called
+a `read` command, not a preview, C-95); and `viewRelevant`: the request carries a `view`, or the command's
+`usesView` is `true` (else, when the command does not set it, its namespace's `usesView`), so the CLI prints the
+view. An `activeView()` alone does not make it `true`; `finished.view` still names the view the command ran in.
+`usesView` changes nothing for the local terminal or an agent. The binding's `status` is called
 as `status({ command })` with the command's canonical name; `hidden` and `dataAgeMs` come from it as they are (an age
 that is not a finite number at or above 0 is `null`).
 
@@ -1866,6 +1875,35 @@ the rest is tokenized (ADR 0007). The name, and so `argv[0]`, must match `^[A-Za
 the request is `invalid-args` and the name is not echoed. Every row of `fixtures/remote/command-name.json` runs
 through `attachRemote` and finds the `tab` name or is refused with its code; a `sensitive` row is refused as
 sensitive. The local terminal and `request()` keep their exact, case-sensitive lookup.
+
+#### C-113 Remote help
+
+A `help-request` of the bound CLI is answered with one `help-result`, in its own action: an id seen before is
+ignored, and the stamp is checked as C-98 says (`clock-skew`, `expired`). It is answered while a command runs (no
+`busy`), with no `received` and no approval, and adds no entry. Its `argv` is read in the tab: the first item that
+does not start with `-` is the target; `--cursor <n>` and `--limit <n>` (or `--name=<n>`) page as the agent's `help`
+does (C-92); any other option, a second target or an option without a value is `invalid-args` with a message that
+echoes nothing of the argv. The content is the agent's `help` (C-92, C-94) over the commands the CLI may run (C-97):
+a target that names one of them or its alias (C-112's lookup) gives that command; one that starts a namespace of
+them gives that page; none gives the whole list. Any other target is `unknown-command` with the message of C-111 and
+`suggest: [nearest name]`; a target that names a sensitive command is `unknown-command` with no `message`, no
+`suggest` and no `help` (P16). An invalid `--cursor` or `--limit` is `invalid-args`, naming the target command in
+`help` when it has one. `want: 'json'` gives the result as `result`; `want: 'text'` gives `text`, English lines at most
+`width` (else 80) code points long, wrapped at spaces, with no control character and no CLI name: a page lists the
+namespaces (at the top level) and the commands with their danger and summary; a command shows its danger, summary,
+usage, the line "Runs as a preview without --<field>" when it has `confirm`, and each field with its type, whether it
+is required and its description. The JSON of `text` is at most 12 KB: a page that does not fit lists fewer commands,
+and a command that does not fit is cut with a last line that says so. A page with a `nextCursor` has `next`:
+`['help', target?, '--cursor', <n>, '--limit', <n> when given]`. A reply over `envelopeMaxBytes` is `too-large`.
+Every error carries `class: errorClassOf(code)` (C-105).
+
+#### C-114 Frozen fixtures
+
+`scripts/check-fixtures-frozen.mjs` compares `fixtures/remote/` with the `remote-fixtures-<version>.tar.gz` asset of
+the latest published GitHub Release: every example of every published file must still exist, under the same `name`,
+with the same content (a file that was a single object must be equal). A release without that asset, or no release,
+passes. A failed download fails with a message that says to run it again. CI runs it on every pull request, and
+`release.yml` attaches the archive of `fixtures/remote/` and `docs/remote-contract.md` to each release.
 
 ## DOM contract
 

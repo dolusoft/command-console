@@ -93,8 +93,17 @@ describe('C-96 Remote envelopes', () => {
     }
   })
 
-  it('refusedCliRequest reads only the id and origin ids of a refused cli-request', () => {
+  it('refusedCliRequest reads only the kind, id and origin ids of a refused cli-request or help-request', () => {
     expect(refusedCliRequest(request({ v: 2, line: 5 }))).toEqual({
+      kind: 'cli-request',
+      id: 'r1',
+      grantId: 'g1',
+      bindingId: 'b1'
+    })
+    expect(
+      refusedCliRequest(request({ kind: 'help-request', want: 'html' }))
+    ).toEqual({
+      kind: 'help-request',
       id: 'r1',
       grantId: 'g1',
       bindingId: 'b1'
@@ -102,7 +111,7 @@ describe('C-96 Remote envelopes', () => {
     for (const raw of [
       null,
       request({ kind: 'cancel' }),
-      request({ kind: 'help-request' }),
+      request({ kind: 'nope' }),
       request({ id: '' }),
       request({ id: 1 }),
       request({ origin: null }),

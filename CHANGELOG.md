@@ -2,10 +2,49 @@
 
 The release notes of a version are on its GitHub Release. This file names what a consumer must change.
 
-## 1.7.0 (in progress)
+## 1.7.0
 
-The remote contract of the CLI isolation ([docs/remote-contract.md](docs/remote-contract.md)). It does not speak the
-1.6 shapes.
+The CLI isolation (ADR 0015, ADR 0016): the tab reads the CLI's argv and writes what the CLI prints (suggestions,
+help, error class). The remote contract is [docs/remote-contract.md](docs/remote-contract.md); it does not speak the
+1.6 shapes, so a CLI and a shell of 1.6 do not work with 1.7.0.
+
+**Breaking for the remote entry** (no compatibility path):
+
+- `help-request` carries `argv`, `want` and `width`; its old `input` object is gone. `help-result` carries `status`,
+  `text` or `result`, and `code`, `class`, `message`, `suggest`, `next`, `help` on an error.
+- A remote `finished` no longer carries `outcome.line`; `suggest` (argv) takes its place. The local
+  `CommandOutcome.line` of `request()` stays.
+- The `capabilities` reply (and `CapabilitiesReply`) is gone, and so is `commands[].confirm`: the list is published
+  to the hub instead of sent.
+- **The shell must provide `RemoteBinding.publishCapabilities({ revision, parts })`**; `attachRemote` throws without
+  it. It hands `parts` to the hub's `PublishCapabilities` as they are. `minCli` is an optional binding field.
+- `RemoteBinding.status` is called as `status({ command })`; give `dataAgeMs` only for the command it concerns.
+
+**New in the core:**
+
+- `cli-request.argv` is run without being made a line; the command name is found by name or alias with the ASCII
+  case ignored and must be written plain (C-106, C-112).
+- `received` carries `change` and `viewRelevant` (C-110). `viewRelevant` is `true` when the request names a view or
+  the command declares **`usesView: true`** (new optional field of `CommandDefinition`; also of
+  `NamespaceDefinition`, where it applies to the namespace's commands unless a command sets its own). The active view
+  alone no longer counts.
+- Every remote error carries `class` (C-105). `finished` carries `suggest`, `next` and `help` (C-111): the nearest
+  name of an unknown command, the `--field` form of bare words, a preview's argv with its confirm field set, the next
+  page, the command to ask help for.
+- **The core answers `help-request`** (C-113): text wrapped to the CLI's width or the agent `help` JSON, paged, with
+  the nearest name of an unknown one. A shell that answered `help-request` itself (frontendx `cliHelp.ts`) drops that
+  code and lets the gate deliver it. An unreadable `help-request` gets a `help-result` error.
+- The capabilities are published in one to three parts with a `revision` (C-97, C-108).
+
+**New in the protocol:** `argv` on `cli-request` (C-106); `ErrorClass`, `errorClassOf` (C-105);
+`CapabilitiesPayload`, `capabilitiesParts`, `readCapabilitiesParts`, `remoteFeatures`, `remoteEnvelopes`,
+`remoteArgvMaxItems` (C-108); `formatCommandArgv`; `refusedCliRequest` also reads a `help-request` and returns its
+`kind`; `fixtures/remote/` (C-109).
+
+**Release:** each GitHub Release attaches `remote-fixtures-<version>.tar.gz`, and CI keeps published fixture
+examples unchanged (C-114).
+
+The protocol changes in detail:
 
 - **Changed in the protocol:** `cli-request` takes `argv` or `line` (C-106); `received` adds `change` and
   `viewRelevant`; an error `outcome` carries `class` (`ErrorClass`, `errorClassOf`; C-105) and no longer `line`;

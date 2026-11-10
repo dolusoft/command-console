@@ -17,6 +17,8 @@ import {
   type OutputEntry,
   type CliReply,
   type CliRequest,
+  type HelpRequest,
+  type HelpResultReply,
   envelopeBytes,
   envelopeMaxBytes,
   formatCommandArgv,
@@ -67,6 +69,7 @@ import {
   stampRefusal,
   type Hints
 } from './remote'
+import { helpError, helpReply } from './remoteHelp'
 import {
   isLineSensitive,
   matchesPredicate,
@@ -550,7 +553,7 @@ const receive = (console: object, raw: unknown) => {
   const kind = (raw as { kind?: unknown } | null)?.kind
   if (
     typeof raw === 'object' &&
-    (kind === 'cli-request' || kind === 'cancel')
+    (kind === 'cli-request' || kind === 'cancel' || kind === 'help-request')
   ) {
     receiveRemote(console, raw)
     return
@@ -1152,7 +1155,8 @@ const isPreview = (command: CommandDefinition, value: Input): boolean =>
  * A message the gate delivered with a CLI `kind` (C-98): read with
  * `parseCliMessage`; one without a live binding and one whose `origin` is not
  * the binding's is ignored. A refused `cli-request` whose id and origin can
- * be read ends once with `finished`; any other refused message is ignored.
+ * be read ends once with `finished`, a refused `help-request` with
+ * `help-result`; any other refused message is ignored.
  */
 const receiveRemote = (console: object, raw: unknown) => {
   const parsed = parseCliMessage(raw)
@@ -1181,6 +1185,8 @@ const receiveRemote = (console: object, raw: unknown) => {
       cancelRemote(console, received.id)
     } else if (received.kind === 'cli-request') {
       acceptRemote(console, holder, received)
+    } else {
+      answerHelp(console, holder, received)
     }
   })
 }
@@ -1212,7 +1218,23 @@ const refuseUnread = (
       return
     }
     rememberClosed(state.seen, id)
-    if (reason === 'unsupported-version') {
+    if (read.kind === 'help-request') {
+      reply(
+        console,
+        holder,
+        helpError(
+          id,
+          reason === 'unsupported-version' || reason === 'too-large'
+            ? reason
+            : 'invalid-args',
+          reason === 'unsupported-version'
+            ? 'The request has a version this tab does not read.'
+            : reason === 'too-large'
+              ? 'The request is too large.'
+              : 'The request is not a valid help request.'
+        )
+      )
+    } else if (reason === 'unsupported-version') {
       refuseRemote(
         console,
         holder,
@@ -1238,6 +1260,34 @@ const refuseUnread = (
       )
     }
   })
+}
+
+/**
+ * A `help-request` of the bound CLI (C-113): its id seen once and its stamp
+ * checked as a `cli-request`'s are; answered even while a command runs, with
+ * no approval and no `received`.
+ */
+const answerHelp = (console: object, holder: Holder, request: HelpRequest) => {
+  const state = stateOf(console)
+  const { id } = request
+  if (state.seen.has(id) || state.closed.has(id)) {
+    return
+  }
+  rememberClosed(state.seen, id)
+  const { options } = liveRecord(console)
+  const stamp = stampRefusal(request, options.now!())
+  let answer: HelpResultReply
+  if (stamp) {
+    answer = helpError(id, stamp.code, stamp.message)
+  } else {
+    try {
+      answer = helpReply(request, options.commands, options.namespaces ?? [])
+    } catch (error) {
+      reportCallbackError(console, error)
+      answer = helpError(id, 'failed')
+    }
+  }
+  reply(console, holder, answer)
 }
 
 /** Ends CLI request `id` before it is accepted: only `finished`. */
@@ -1464,8 +1514,14 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     dataAgeMs:
       typeof age === 'number' && Number.isFinite(age) && age >= 0 ? age : null,
     change: remote.change,
-    // The CLI prints the view the command runs in, when it runs in one.
-    viewRelevant: shown !== undefined
+    // The CLI prints the view when the request names one or the command (or
+    // its namespace) declares `usesView`; an active view alone does not.
+    viewRelevant:
+      request.view !== undefined ||
+      (command.usesView ??
+        options.namespaces?.find(
+          namespace => namespace.name === command.name.split('.', 1)[0]
+        )?.usesView) === true
   })
   const inputId = addEntry(console, {
     kind: 'input',

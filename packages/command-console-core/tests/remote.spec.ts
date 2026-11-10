@@ -1314,7 +1314,7 @@ describe('C-110 Received fields', () => {
     ).toBe(false)
   })
 
-  it('viewRelevant is true when the command runs in a view: the request’s or the active one', () => {
+  it('viewRelevant is the request’s view or usesView, not the active view alone', () => {
     const page: { active?: string } = {}
     const t = setup({ commands: [search()], activeView: () => page.active })
     t.attach()
@@ -1325,8 +1325,38 @@ describe('C-110 Received fields', () => {
     expect(t.of('received', none)[0].viewRelevant).toBe(false)
     expect(t.finished(none).view).toBeUndefined()
     expect(t.of('received', named)[0].viewRelevant).toBe(true)
-    expect(t.of('received', current)[0].viewRelevant).toBe(true)
+    // An active view alone does not make it relevant; finished still names it.
+    expect(t.of('received', current)[0].viewRelevant).toBe(false)
     expect(t.finished(current).view).toEqual({ id: 'v-active' })
+  })
+
+  it('viewRelevant follows usesView of the command, else of its namespace', () => {
+    const read = (name: string, extra: Partial<CommandDefinition> = {}) =>
+      command(name, () => ({ summary: 'ok' }), {
+        input: searchInput,
+        danger: 'read',
+        ...extra
+      })
+    const t = setup({
+      commands: [
+        read('dataview.search'),
+        read('dataview.export', { usesView: false }),
+        read('tasks.list'),
+        read('tasks.peek', { usesView: true })
+      ],
+      namespaces: [
+        { name: 'dataview', usesView: true },
+        { name: 'tasks', summary: 'Tasks.' }
+      ],
+      activeView: () => 'v-active'
+    })
+    t.attach()
+    const relevant = (line: string) =>
+      t.of('received', t.request(`${line} --ip 1`))[0].viewRelevant
+    expect(relevant('dataview.search')).toBe(true)
+    expect(relevant('dataview.export')).toBe(false)
+    expect(relevant('tasks.list')).toBe(false)
+    expect(relevant('tasks.peek')).toBe(true)
   })
 
   it('asks the binding’s status with the canonical command name and passes its age on', () => {

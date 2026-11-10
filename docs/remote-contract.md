@@ -52,7 +52,7 @@ Both `argv` and `line`, or neither, is `invalid`. The CLI sends `argv` (the comm
 | `want`            | `"text"` or `"json"`              | yes      |         |                                         | `invalid`                |
 | `width`           | integer                           | no       | 80      | 20 to 400                               | outside: left out, so 80 |
 
-`argv` is everything after `help`, raw; the tab reads the target, namespaces and `--cursor` / `--limit`. Answered by `help-result`, also while a command runs.
+`argv` is everything after `help`, raw; the tab reads it. The first item that does not start with `-` is the target; `--cursor <n>` and `--limit <n>` (also `--cursor=<n>`) page. Any other option, a second target or an option without a value is `invalid-args`. A target that names a command the CLI may run, or its alias (case-insensitive), gives that command; one that starts a namespace gives that page; no target gives the whole list. Any other target is `unknown-command` with `suggest: [nearest name]`; a sensitive name is `unknown-command` with nothing else. The CLI sends an unknown command name alone this way to get the suggestion. Answered by one `help-result`, also while a command runs, with no `received`; the stamp is checked as for `cli-request`, and an unreadable `help-request` whose `id` and `origin` can be read gets a `help-result` error.
 
 ### `cancel`
 
@@ -68,13 +68,13 @@ Cancels the request `id` if it is the tab's current run; otherwise ignored.
 
 The tab accepted the request and is about to run it.
 
-| Field                            | Type             | Required | Notes                                                                                                                                                              |
-| -------------------------------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `v`, `kind` (`"received"`), `id` |                  | yes      |                                                                                                                                                                    |
-| `hidden`                         | boolean          | yes      | The page was hidden on accept.                                                                                                                                     |
-| `dataAgeMs`                      | number or `null` | yes      | ≥ 0; `null` when unknown. The CLI prints a staleness line only for a number.                                                                                       |
-| `change`                         | boolean          | yes      | The request runs the path that changes data: not a `read` command, not a preview. Decided from the normalized, validated input.                                    |
-| `viewRelevant`                   | boolean          | yes      | The CLI prints the view line. `true` when the command runs in a view: the request's `view`, else the tab's active view on accept (the view `finished.view` names). |
+| Field                            | Type             | Required | Notes                                                                                                                                                                                                                                                                                          |
+| -------------------------------- | ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `v`, `kind` (`"received"`), `id` |                  | yes      |                                                                                                                                                                                                                                                                                                |
+| `hidden`                         | boolean          | yes      | The page was hidden on accept.                                                                                                                                                                                                                                                                 |
+| `dataAgeMs`                      | number or `null` | yes      | ≥ 0; `null` when unknown. The CLI prints a staleness line only for a number.                                                                                                                                                                                                                   |
+| `change`                         | boolean          | yes      | The request runs the path that changes data: not a `read` command, not a preview. Decided from the normalized, validated input.                                                                                                                                                                |
+| `viewRelevant`                   | boolean          | yes      | The CLI prints the view line. `true` when the request carries a `view`, or the command declares `usesView: true` (when the command does not set it, its namespace's `usesView`). The tab's active view alone does not make it `true`; `finished.view` still names the view the command ran in. |
 
 ### `awaiting-approval`
 
@@ -125,7 +125,27 @@ Chunks come before their `finished`. A missing or repeated part, or byte counts 
 | `result`                            | any JSON            | no         | For `want: "json"`: the agent's `help` result.                                                          |
 | `suggest`, `next`, `help`           |                     | no         | As in `finished`; `next` is `["help", …target, "--cursor", value]`.                                     |
 
-At most one of `text` and `result`.
+At most one of `text` and `result`. `next` carries `--limit <n>` when the request gave one. A page of `text` that would pass 12 KB lists fewer commands and gives `next`; a single command that would pass it is cut, with the last line `(cut to fit; --json has the rest)`. On an error, `help` names the target command when it is one (an invalid `--cursor` or `--limit`). The layout of `text` (each line as the CLI prints it):
+
+```
+Namespaces:
+  tasks (2 commands)
+      Background tasks.
+Commands:
+  tasks.stop · change
+      Stops a task.
+```
+
+```
+tasks.stop · change
+Stops a task.
+Usage:
+  tasks.stop --id <integer> [options]
+Runs as a preview without --yes; with --yes it makes the change.
+Fields:
+  --id <integer> · required
+  --yes <boolean> · optional
+```
 
 ### `cancelled-before-start`, `cancel-requested`
 
@@ -200,4 +220,4 @@ The CLI filters sensitive commands by name only. A command marked sensitive by i
 1. Adding is free: an optional field, a `features` name, an error code with its class and its row in the table above. A new enum value only with a defined default for readers (see "Common rules").
 2. A new envelope `kind` comes with a `features` name.
 3. A breaking change is a new version in `envelopes`. The old version goes on a schedule announced with `minCli`; both are spoken for at least 90 days.
-4. A published fixture example is never changed or removed; examples are only added.
+4. A published fixture example is never changed or removed; examples are only added. Each release attaches `fixtures/remote/` and this document as `remote-fixtures-<version>.tar.gz`, and CI compares the folder with the latest release's archive on every pull request (`scripts/check-fixtures-frozen.mjs`).

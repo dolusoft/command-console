@@ -35,6 +35,15 @@ jobs:
       # same script.
       - run: node scripts/check-release-version.mjs
 
+      # A published remote fixture example is never changed or removed
+      # (C-114): compared with the archive of the latest GitHub Release. Fails,
+      # never passes, when GitHub cannot be read; re-run the job.
+      - name: Published fixtures are unchanged
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: node scripts/check-fixtures-frozen.mjs
+
       # The pnpm version is the `packageManager` field of package.json.
       - uses: pnpm/action-setup@v4
 

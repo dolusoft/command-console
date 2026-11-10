@@ -341,5 +341,82 @@
       "kind": "cancelled-before-start",
       "id": "r1"
     }
+  },
+  {
+    "name": "help-result-command-text",
+    "envelope": {
+      "v": 1,
+      "kind": "help-result",
+      "id": "h2",
+      "status": "ok",
+      "text": [
+        "tasks.stop · change",
+        "Stops a task.",
+        "Usage:",
+        "  tasks.stop --id <integer> [options]",
+        "Runs as a preview without --yes; with --yes it makes the change.",
+        "Fields:",
+        "  --id <integer> · required",
+        "  --yes <boolean> · optional"
+      ]
+    },
+    "read": {
+      "v": 1,
+      "kind": "help-result",
+      "id": "h2",
+      "status": "ok",
+      "text": [
+        "tasks.stop · change",
+        "Stops a task.",
+        "Usage:",
+        "  tasks.stop --id <integer> [options]",
+        "Runs as a preview without --yes; with --yes it makes the change.",
+        "Fields:",
+        "  --id <integer> · required",
+        "  --yes <boolean> · optional"
+      ]
+    }
+  },
+  {
+    "name": "help-result-invalid-args-help",
+    "envelope": {
+      "v": 1,
+      "kind": "help-result",
+      "id": "h3",
+      "status": "error",
+      "code": "invalid-args",
+      "class": "usage",
+      "message": "limit: expected integer from 1 to 100",
+      "help": "tasks.list"
+    },
+    "read": {
+      "v": 1,
+      "kind": "help-result",
+      "id": "h3",
+      "status": "error",
+      "code": "invalid-args",
+      "class": "usage",
+      "message": "limit: expected integer from 1 to 100",
+      "help": "tasks.list"
+    }
+  },
+  {
+    "name": "help-result-sensitive-name",
+    "envelope": {
+      "v": 1,
+      "kind": "help-result",
+      "id": "h4",
+      "status": "error",
+      "code": "unknown-command",
+      "class": "usage"
+    },
+    "read": {
+      "v": 1,
+      "kind": "help-result",
+      "id": "h4",
+      "status": "error",
+      "code": "unknown-command",
+      "class": "usage"
+    }
   }
 ]
