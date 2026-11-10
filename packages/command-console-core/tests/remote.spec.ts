@@ -1521,10 +1521,28 @@ describe('C-111 Remote suggestions', () => {
     const t = setup({ commands: [stop().definition] })
     t.attach()
     const id = t.request('tasks.stop --yes --id 3')
+    t.tick()
+    const end = t.finished(id)
+    expect(end.outcome).toMatchObject({
+      code: 'not-allowed',
+      class: 'denied',
+      message: 'The approval expired; nothing changed.'
+    })
+    expect(end.suggest).toEqual(['tasks.stop', '--id', '3', '--yes'])
+  })
+
+  it('a change the user rejected is not suggested again', () => {
+    const t = setup({ commands: [stop().definition] })
+    t.attach()
+    const id = t.request('tasks.stop --yes --id 3')
     t.console.reject(id)
     const end = t.finished(id)
-    expect(end.outcome).toMatchObject({ code: 'not-allowed', class: 'denied' })
-    expect(end.suggest).toEqual(['tasks.stop', '--id', '3', '--yes'])
+    expect(end.outcome).toMatchObject({
+      code: 'not-allowed',
+      class: 'denied',
+      message: 'The user rejected the change in the browser; nothing changed.'
+    })
+    expect(end).not.toHaveProperty('suggest')
   })
 
   it('a sensitive request’s reply has no message, suggest, next or help', () => {

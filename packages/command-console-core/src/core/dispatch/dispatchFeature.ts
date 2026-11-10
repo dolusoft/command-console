@@ -180,6 +180,8 @@ interface RemoteRun {
   /** True once the command's `run` was called. */
   started: boolean
   approval: ApprovalPlan | null
+  /** The user rejected the change: its end suggests nothing (C-111). */
+  rejected: boolean
 }
 
 interface DispatchState {
@@ -1317,7 +1319,7 @@ const refuseRemote = (
  * What the end of an accepted CLI request suggests (C-111), from the
  * normalized `input`: a preview's argv with its confirm field `true`, the
  * next page's argv with `cursor` set to the data's `nextCursor`, the
- * canonical argv of a `not-allowed`, the command's name for its help on an
+ * canonical argv of a `not-allowed` the user did not reject, the command's name for its help on an
  * `invalid-args`. An argv the schema refuses is left out.
  */
 const hintsOf = (
@@ -1489,7 +1491,8 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     change: command.danger === 'change' && !preview,
     preview: command.confirm !== undefined && preview,
     started: false,
-    approval: null
+    approval: null,
+    rejected: false
   }
   // The view is fixed on accept: the request's, else the active one.
   let view: string | undefined
@@ -1551,7 +1554,8 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
           hintsOf(
             command,
             outcome,
-            mapped.ok ? mapped.value : undefined,
+            // A change the user rejected is not offered again.
+            mapped.ok && !remote.rejected ? mapped.value : undefined,
             remote.preview
           )
         )
@@ -1709,6 +1713,7 @@ const reject = (console: object, requestId: string): boolean => {
   if (!run?.current || run.remote?.approval?.requestId !== requestId) {
     return false
   }
+  run.remote.rejected = true
   close(
     console,
     run,
