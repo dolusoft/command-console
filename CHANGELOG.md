@@ -2,6 +2,12 @@
 
 The release notes of a version are on its GitHub Release. This file names what a consumer must change.
 
+## 1.7.2
+
+- **Fixed: a `CommandError` thrown or rejected by a command's approval `plan` reaches the CLI with its code and
+  message** (C-99), as one thrown by `run` does (C-86, C-89). It was a bare `failed`. Any other error the plan throws
+  stays `failed` without a message. Nothing for a consumer to change.
+
 ## 1.7.1
 
 - **Changed: an `unknown-command` message of the remote entry names no near command** (C-111). It is

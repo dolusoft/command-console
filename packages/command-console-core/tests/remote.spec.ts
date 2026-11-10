@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   agentTools,
+  CommandError,
   createConsole,
   type CommandDefinition,
   type ConsoleGate,
@@ -1066,8 +1067,37 @@ describe('C-99 Approval plan', () => {
       const t = approvalSetup({ plan })
       const id = t.request('tasks.stop --id 1 --yes')
       await flush()
-      expect(t.finished(id).outcome).toMatchObject({ code: 'failed' })
+      expect(t.finished(id).outcome).toEqual({
+        status: 'error',
+        code: 'failed',
+        class: 'failed'
+      })
       expect(t.run).not.toHaveBeenCalled()
+    }
+  })
+
+  it('a CommandError the plan throws or rejects ends the request with its code and message, as from run', async () => {
+    const error = () =>
+      new CommandError('target-not-found', '/x is not a page of your menu.')
+    for (const plan of [
+      () => {
+        throw error()
+      },
+      () => Promise.reject(error())
+    ]) {
+      const t = approvalSetup({ plan })
+      const id = t.request('tasks.stop --id 1 --yes')
+      await flush()
+      expect(t.of('received', id)).toHaveLength(1)
+      expect(t.of('awaiting-approval', id)).toEqual([])
+      expect(t.finished(id).outcome).toEqual({
+        status: 'error',
+        code: 'target-not-found',
+        class: 'failed',
+        message: '/x is not a page of your menu.'
+      })
+      expect(t.run).not.toHaveBeenCalled()
+      expect(t.console.getState().remote?.approval ?? null).toBeNull()
     }
   })
 

@@ -683,64 +683,71 @@ const askApproval = (console: object, run: Run, remote: RemoteRun) => {
       run.controller.signal
     )
   } catch (error) {
-    fail(console, run, error)
+    // The plan's error is classed as `run`'s (C-86, C-99).
+    fail(console, run, error, commandFailure(error))
     return
   }
-  whenSettled(console, run, details, given => {
-    const { store, options } = liveRecord(console)
-    const now = options.now!()
-    const targets = Array.isArray(given?.targets)
-      ? given.targets.filter(
-          (target): target is string => typeof target === 'string'
-        )
-      : []
-    const preview =
-      typeof given?.preview === 'string' ? given.preview : undefined
-    const approval: ApprovalPlan = {
-      requestId: remote.requestId,
-      command: run.command.name,
-      line: run.request.line,
-      input: structuredCopy(run.request.input!),
-      targets,
-      ...(preview !== undefined && { preview }),
-      ...(run.request.view !== undefined && { view: run.request.view }),
-      openedAt: now,
-      acceptsAt: now + approvalHoldMs,
-      expiresAt: now + approvalMs
-    }
-    remote.approval = approval
-    store.update('remote', state => state && { ...state, approval })
-    reply(console, remote.holder, {
-      v: 1,
-      kind: 'awaiting-approval',
-      id: remote.requestId,
-      expiresAt: approval.expiresAt
-    })
-    store.afterCommit(() => {
-      if (!remote.approval || !run.current) {
-        return
+  whenSettled(
+    console,
+    run,
+    details,
+    given => {
+      const { store, options } = liveRecord(console)
+      const now = options.now!()
+      const targets = Array.isArray(given?.targets)
+        ? given.targets.filter(
+            (target): target is string => typeof target === 'string'
+          )
+        : []
+      const preview =
+        typeof given?.preview === 'string' ? given.preview : undefined
+      const approval: ApprovalPlan = {
+        requestId: remote.requestId,
+        command: run.command.name,
+        line: run.request.line,
+        input: structuredCopy(run.request.input!),
+        targets,
+        ...(preview !== undefined && { preview }),
+        ...(run.request.view !== undefined && { view: run.request.view }),
+        openedAt: now,
+        acceptsAt: now + approvalHoldMs,
+        expiresAt: now + approvalMs
       }
-      try {
-        run.cancelTimer = options.gate!.schedule(approvalMs, () =>
+      remote.approval = approval
+      store.update('remote', state => state && { ...state, approval })
+      reply(console, remote.holder, {
+        v: 1,
+        kind: 'awaiting-approval',
+        id: remote.requestId,
+        expiresAt: approval.expiresAt
+      })
+      store.afterCommit(() => {
+        if (!remote.approval || !run.current) {
+          return
+        }
+        try {
+          run.cancelTimer = options.gate!.schedule(approvalMs, () =>
+            settle(console, run, () => {
+              if (remote.approval) {
+                close(
+                  console,
+                  run,
+                  'not-allowed',
+                  undefined,
+                  'The approval expired; nothing changed.'
+                )
+              }
+            })
+          )
+        } catch {
           settle(console, run, () => {
-            if (remote.approval) {
-              close(
-                console,
-                run,
-                'not-allowed',
-                undefined,
-                'The approval expired; nothing changed.'
-              )
-            }
+            close(console, run, 'connection-lost')
           })
-        )
-      } catch {
-        settle(console, run, () => {
-          close(console, run, 'connection-lost')
-        })
-      }
-    })
-  })
+        }
+      })
+    },
+    commandFailure
+  )
 }
 
 const structuredCopy = <T>(value: T): T =>

@@ -1750,7 +1750,8 @@ and a change waits for approval (C-99). The view is the request's, else `activeV
 
 A change from the CLI is in `phase: 'approving'` while it waits. The command's `plan(input, signal)`, when it has
 one, is called with the normalized input and may return a promise; a throw or rejection fails the request and
-nothing runs. Then `state.remote.approval` holds the plan (the request id, the command, the canonical line, the
+nothing runs. Its error is classed as one `run` threw: a `CommandError` gives its code and message (C-86, C-89),
+any other error `failed` without a message. Then `state.remote.approval` holds the plan (the request id, the command, the canonical line, the
 normalized input, the `targets` strings, the `preview` string, the view, `openedAt` by `now`, `acceptsAt` one second
 later and `expiresAt` two minutes later), the CLI gets `awaiting-approval` with `expiresAt`, and a timer of two
 minutes is set through `gate.schedule`. `approve(id)` returns `false` and does nothing for another id or before
