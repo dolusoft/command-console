@@ -587,8 +587,8 @@ normalized once: the same input the plan and the run get; an input that cannot b
 
 ### C-96 Remote envelopes
 
-`parseCliMessage(raw)` accepts a version 1 `cli-request` (`id`, `line` of at most `remoteLineMax` code points, an
-optional `view`) or `cancel` (`id`), each with the hub's stamp: `origin` `{ kind: 'cli', grantId, bindingId }`,
+`parseCliMessage(raw)` accepts a version 1 `cli-request` (`id`, exactly one of `argv` (C-106) and `line` of at most
+`remoteLineMax` code points, an optional `view`), `help-request` (C-107) or `cancel` (`id`), each with the hub's stamp: `origin` `{ kind: 'cli', grantId, bindingId }`,
 `stampedAt` and `expiresAt` finite numbers at or above 0, `expiresAt` after `stampedAt`. It returns a new message
 with only the known fields and never changes `raw`; another `v` is `unsupported-version`, a JSON over
 `envelopeMaxBytes` is `too-large`, anything else `invalid`, and a `null` `view` is no view. `refusedCliRequest(raw)`
@@ -596,8 +596,12 @@ gives `{ id, grantId, bindingId }` of a plain object with `kind: 'cli-request'`,
 non-empty `grantId` and `bindingId`, else `undefined`. `chunkData(id, text)` cuts
 a JSON text into at most `remoteChunksMax` (3) chunk replies, each within `envelopeMaxBytes` with its UTF-8 `bytes`,
 cut between code points, or returns `undefined`; `joinChunks(finished, chunks)` gives the text back only when every
-part from 0 to `chunks - 1` is there once, of that request, and the byte counts hold. `isCliReply` checks a reply's
-shape.
+part from 0 to `chunks - 1` is there once, of that request, and the byte counts hold. `isCliReply` checks the shape of
+a `received` (with the booleans `change` and `viewRelevant`), `awaiting-approval`, `chunk`, `finished` (an
+`outcome` with a non-empty `status`; `suggest` and `next` arrays of strings, `help` a non-empty string, each
+optional) or `help-result` (never both `text` and `result`), `cancelled-before-start` or `cancel-requested` reply; an
+unknown field is ignored and a `status` or `class` it does not know is still read (C-109). The list of commands is
+not a reply (C-108).
 
 ### C-97 Attach remote
 
@@ -620,9 +624,10 @@ more than 30 s ahead is `clock-skew` and one after its `expiresAt` is `expired`,
 exists it is `busy` (no queue). Then, as for an agent (C-82, C-89, C-93): an unparsable or empty line is
 `invalid-args`, an unknown or `hidden` command `unknown-command`; a sensitive command, a line `isSensitive` marks,
 typed or canonical, an `irreversible` command and one without `input` or `danger` are `not-allowed`, and the
-`message` repeats no part of a sensitive line; options the schema refuses are `invalid-args` with a `message`. Each
+`message` repeats no part of a sensitive line; options the schema refuses are `invalid-args` with a `message`. Until
+the `argv` path (C-106) runs, a request with `argv` is `invalid-args` after the stamp and `busy` checks. Each
 of these sends only `finished`, and adds no entry. Otherwise the tab sends `received` (`hidden` and `dataAgeMs` from
-the binding's `status`, else `false` and `null`), appends an input entry with the canonical line and
+the binding's `status`, else `false` and `null`; `change` and `viewRelevant` as C-110 says), appends an input entry with the canonical line and
 `actor: 'cli'`, and starts the run without an envelope: `beforeRun`, then a `read` command or a preview (C-95) runs,
 and a change waits for approval (C-99). The view is the request's, else `activeView()` on accept.
 
@@ -644,8 +649,10 @@ command's `run` once with the plan's input; the line is not read again. `reject(
 The end of a CLI request sends its outcome as the agent's `request()` would give it (C-82, C-86 to C-89): when it has
 `data`, first its JSON in at most three `chunk` replies (C-96), then `finished` with the outcome without `data`,
 `chunks`, `bytes`, `view` (`{ id, title? }`, the title from the binding's `viewTitle`) and `preview: true` for a
-preview that ended `ok`. Data that does not fit in three chunks makes the outcome `too-large` without chunks. The
-terminal's blocks never go to the CLI, nor the text of an error other than C-89's.
+preview that ended `ok`. Every error outcome, the refusals of C-98 included, carries `class: errorClassOf(code)`
+(C-105); the local `line` of `not-allowed` does not go to the CLI (`suggest` takes its place, C-111). Data that does
+not fit in three chunks makes the outcome `too-large` without chunks. The terminal's blocks never go to the CLI, nor
+the text of an error other than C-89's.
 
 ### C-101 Remote cancel
 
@@ -674,3 +681,57 @@ With the `pairing` prop, `div.cc-pairing` (a `role="alertdialog"` named by `labe
 and the server's facts (`createdAt` through `labels.formatTime`, `environment`) and the buttons `cc-pair-accept` and
 `cc-pair-decline`, which emit `pair` with `true` and `false`. A click on any of the library's buttons does not move
 the focus to the input (C-51).
+
+### C-105 Error class
+
+`errorClassOf(code)` gives every `ErrorCode` one `ErrorClass`, from a table that names all of them: `usage` for
+`invalid-args`, `unknown-command`, `unsupported-version` and `too-large`; `denied` for `not-allowed`; `not-run` for
+`busy`, `connection-lost`, `expired`, `clock-skew`, `not-delivered`, `tab-unreachable` and `gone`; `unknown` for
+`unknown-outcome`; `cancelled` for `cancelled`; `failed` for `failed`, `timeout`, `target-not-found` and `id-conflict`.
+`fixtures/remote/error-class.json` lists the same table.
+
+### C-106 CLI request argv
+
+A `cli-request` carries exactly one of `argv` and `line`; both or neither is `invalid`. `argv` is an array of at most
+`remoteArgvMaxItems` (256) strings, each and all together at most `remoteLineMax` (4000) code points, not empty and
+its first item not empty; `parseCliMessage` returns a copy of it.
+
+### C-107 Help envelopes
+
+A `help-request` (`id`, `argv` within the limits of C-106 but maybe empty, `want` `text` or `json`, an optional
+`width`) carries the hub's stamp; anything else is `invalid`, and a `width` that is not an integer from 20 to 400 is
+left out of the message. A `help-result` reply has `id`, `status`, and on an error `code`, `class` and `message`; at
+most one of `text` (lines) and `result`; optional `suggest`, `next` and `help` as in `finished`.
+
+### C-108 Capabilities parts
+
+What a bound tab runs for the CLI is a `CapabilitiesPayload` (`envelopes`, `features`, `minCli` when the shell gives
+one, `revision`, `sensitive`, `commands` of `{ name, aliases, danger }`), not an envelope. `capabilitiesParts(payload)`
+writes its JSON with the fields in that order and cuts it between code points into one to `remoteChunksMax` parts of
+at most `envelopeMaxBytes` UTF-8 bytes; when it does not fit it throws a `RangeError`. `readCapabilitiesParts(parts)`
+joins one to three such strings and reads the object, leaving unknown fields out and reading an unknown `danger` as
+`change`; malformed parts or fields give `undefined`. `remoteEnvelopes` is `[1]` and `remoteFeatures` names `argv`,
+`received-v2`, `suggest-argv`, `help-v2`, `error-class` and `capabilities-v2`.
+
+### C-109 Remote fixtures
+
+`fixtures/remote/` holds examples of `docs/remote-contract.md`, each named once in its file. Every `valid` example is
+read as its `read` (`parseCliMessage` from the CLI, `isCliReply` from the tab, `readCapabilitiesParts` for parts);
+every `invalid` example is refused with its `code`; a `future` example is accepted with its unknown parts left out,
+ignored as a whole (an unknown `kind`), or read by its documented default. `error-class.json` matches C-105. The
+`sequence` examples and `command-name.json` have the documented form: they describe the CLI and the core, and run
+where those are tested.
+
+### C-110 Received fields
+
+`received` tells the CLI `change`: the request runs the path that changes data, after `normalize` and the schema (not
+a `read` command, not a preview, C-95); and `viewRelevant`: the request names a view or its command runs in one, so
+the CLI prints the view. `dataAgeMs` comes from the binding's `status`, asked with the request's command.
+
+### C-111 Remote suggestions
+
+A `finished` reply carries `suggest`, `next` and `help` as argv without the CLI's name: a preview's `suggest` is its
+canonical argv with the confirm field `true`; `unknown-command` suggests only the nearest name, never its arguments;
+an `invalid-args` with one positional fix suggests `[name, '--field', value]`; `not-allowed` suggests the canonical
+argv. `next` is the canonical argv with `cursor` set to the data's `nextCursor`. `help` names the command of an
+`invalid-args`. A sensitive line's reply has none of them, nor a `message`.

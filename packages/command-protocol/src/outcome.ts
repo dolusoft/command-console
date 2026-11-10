@@ -48,6 +48,41 @@ export type ErrorCode =
   | 'gone'
   | 'unknown-outcome'
 
+/**
+ * What a CLI does with an error, whatever its code (C-105): `failed` the
+ * command or its transport failed, `usage` the request was wrong, `denied`
+ * it may not run, `not-run` it did not reach the command, `unknown` whether
+ * it changed anything is not known, `cancelled` it was cancelled in the tab.
+ */
+export type ErrorClass =
+  'failed' | 'usage' | 'denied' | 'not-run' | 'unknown' | 'cancelled'
+
+const errorClasses: Record<ErrorCode, ErrorClass> = {
+  'invalid-args': 'usage',
+  'unknown-command': 'usage',
+  'not-allowed': 'denied',
+  'target-not-found': 'failed',
+  'id-conflict': 'failed',
+  'unsupported-version': 'usage',
+  'too-large': 'usage',
+  busy: 'not-run',
+  timeout: 'failed',
+  failed: 'failed',
+  'connection-lost': 'not-run',
+  cancelled: 'cancelled',
+  expired: 'not-run',
+  'clock-skew': 'not-run',
+  'not-delivered': 'not-run',
+  'tab-unreachable': 'not-run',
+  gone: 'not-run',
+  'unknown-outcome': 'unknown'
+}
+
+/** The class of an error code (C-105). */
+export function errorClassOf(code: ErrorCode): ErrorClass {
+  return errorClasses[code]
+}
+
 /** The most bytes the UTF-8 JSON of a response's `data` may take. */
 export const dataMaxBytes = 32768
 

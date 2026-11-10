@@ -19,6 +19,7 @@ import {
   type CliRequest,
   envelopeBytes,
   envelopeMaxBytes,
+  errorClassOf,
   formatCommandLine,
   parseCliMessage,
   parseEnvelope,
@@ -1167,7 +1168,7 @@ const receiveRemote = (console: object, raw: unknown) => {
     }
     if (received.kind === 'cancel') {
       cancelRemote(console, received.id)
-    } else {
+    } else if (received.kind === 'cli-request') {
       acceptRemote(console, holder, received)
     }
   })
@@ -1242,8 +1243,13 @@ const refuseRemote = (
     id,
     outcome:
       text === undefined
-        ? { status: 'error', code }
-        : { status: 'error', code, message: cutMessage(text) },
+        ? { status: 'error', code, class: errorClassOf(code) }
+        : {
+            status: 'error',
+            code,
+            class: errorClassOf(code),
+            message: cutMessage(text)
+          },
     chunks: 0,
     bytes: 0
   })
@@ -1275,6 +1281,12 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
       'busy',
       'The terminal is running another command; nothing was queued.'
     )
+    return
+  }
+  // C-106: the `argv` path comes with the core's 1.7.0 work; until then it
+  // is refused, nothing of it read.
+  if (request.line === undefined) {
+    refuse('invalid-args', 'argv requests are not supported by this tab yet')
     return
   }
   const lookup = lookupOf(console)
@@ -1362,7 +1374,9 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     id,
     hidden: status?.hidden === true,
     dataAgeMs:
-      typeof age === 'number' && Number.isFinite(age) && age >= 0 ? age : null
+      typeof age === 'number' && Number.isFinite(age) && age >= 0 ? age : null,
+    change: remote.change,
+    viewRelevant: request.view !== undefined
   })
   const inputId = addEntry(console, {
     kind: 'input',

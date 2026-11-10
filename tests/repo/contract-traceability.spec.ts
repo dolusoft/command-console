@@ -24,16 +24,16 @@ import { collectSuite, coveredIds, namedIds, rulesOf } from './test-names'
  * C-84 and C-85 for the external console and the actor, C-86 and C-87 for a
  * command's own outcome, C-88 for its data, C-89 to C-92 for what an agent
  * reads back, C-93 and C-94 for why it may not run and which namespace does
- * what, C-95 to C-104 for the remote entry of a desktop CLI. A later rule
- * raises it.
+ * what, C-95 to C-104 for the remote entry of a desktop CLI, C-105 to C-111
+ * for its 1.7.0 contract. A later rule raises it.
  */
-const ruleCount = 104
+const ruleCount = 111
 /**
  * The fewest runnable tests the specs must hold, so a broken reader that
  * finds none fails. Each piece raises it to about the count it leaves; 1.0 is
  * released with it set to the 1.0 count.
  */
-const minimumTests = 577
+const minimumTests = 596
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 

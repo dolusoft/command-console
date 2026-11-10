@@ -2,7 +2,7 @@
 // capabilities and the finished reply with its chunks.
 import {
   chunkData,
-  type CapabilitiesReply,
+  errorClassOf,
   type ChunkReply,
   type CliReply,
   type CliRequest,
@@ -50,34 +50,40 @@ export const stampRefusal = (
   return null
 }
 
-/** The capabilities reply of a binding (C-97). */
+/**
+ * The capabilities reply of a binding (C-97). The protocol no longer has this
+ * envelope (C-108: the list is published in parts); the core sends it until
+ * it publishes the parts, so it is typed here and sent as a reply.
+ */
 export const capabilitiesOf = (
   bindingId: string,
   commands: readonly CommandDefinition[]
-): CapabilitiesReply => ({
-  v: 1,
-  kind: 'capabilities',
-  bindingId,
-  envelope: 1,
-  commands: commands
-    .filter(
-      command =>
-        command.hidden !== true &&
-        describedCommand(command) &&
-        command.danger !== 'irreversible'
-    )
-    .map(command => ({
-      name: command.name,
-      aliases: [...(command.aliases ?? [])],
-      danger: command.danger as 'read' | 'change',
-      ...(command.confirm !== undefined && { confirm: command.confirm.field })
-    })),
-  sensitive: commands
-    .filter(
-      command => command.sensitive !== undefined && command.sensitive !== false
-    )
-    .flatMap(command => [command.name, ...(command.aliases ?? [])])
-})
+): CliReply =>
+  ({
+    v: 1,
+    kind: 'capabilities',
+    bindingId,
+    envelope: 1,
+    commands: commands
+      .filter(
+        command =>
+          command.hidden !== true &&
+          describedCommand(command) &&
+          command.danger !== 'irreversible'
+      )
+      .map(command => ({
+        name: command.name,
+        aliases: [...(command.aliases ?? [])],
+        danger: command.danger as 'read' | 'change',
+        ...(command.confirm !== undefined && { confirm: command.confirm.field })
+      })),
+    sensitive: commands
+      .filter(
+        command =>
+          command.sensitive !== undefined && command.sensitive !== false
+      )
+      .flatMap(command => [command.name, ...(command.aliases ?? [])])
+  }) as unknown as CliReply
 
 /**
  * The replies that end request `id` (C-100): the chunks of `data`, then
@@ -100,6 +106,7 @@ export const finishedReplies = (
       result = {
         status: 'error',
         code: 'too-large',
+        class: errorClassOf('too-large'),
         message: 'The data does not fit in 3 chunks.'
       }
     } else {
@@ -108,12 +115,13 @@ export const finishedReplies = (
         summary === undefined ? { status: 'ok' } : { status: 'ok', summary }
     }
   } else {
-    const { code, message, line } = outcome
+    // The local `line` does not go to the CLI (C-108); `suggest` replaces it.
+    const { code, message } = outcome
     result = {
       status: 'error',
       code,
-      ...(message !== undefined && { message }),
-      ...(line !== undefined && { line })
+      class: errorClassOf(code),
+      ...(message !== undefined && { message })
     }
   }
   const finished: FinishedReply = {

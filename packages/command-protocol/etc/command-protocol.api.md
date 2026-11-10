@@ -49,16 +49,16 @@ export interface CancelReply {
 }
 
 // @public
-export interface CapabilitiesReply {
-    // (undocumented)
-    bindingId: string;
+export function capabilitiesParts(payload: CapabilitiesPayload): string[];
+
+// @public
+export interface CapabilitiesPayload {
     commands: RemoteCommandSpec[];
-    envelope: 1;
-    // (undocumented)
-    kind: 'capabilities';
+    envelopes: number[];
+    features: string[];
+    minCli?: string;
+    revision: string;
     sensitive: string[];
-    // (undocumented)
-    v: 1;
 }
 
 // @public
@@ -93,7 +93,7 @@ export interface CliCancel extends RemoteStamp {
 }
 
 // @public
-export type CliMessage = CliRequest | CliCancel;
+export type CliMessage = CliRequest | CliCancel | HelpRequest;
 
 // @public
 export type CliMessageResult = {
@@ -105,18 +105,18 @@ export type CliMessageResult = {
 };
 
 // @public
-export type CliReply = CapabilitiesReply | ReceivedReply | AwaitingApprovalReply | ChunkReply | FinishedReply | CancelReply;
+export type CliReply = ReceivedReply | AwaitingApprovalReply | ChunkReply | FinishedReply | HelpResultReply | CancelReply;
 
+// Warning: (ae-forgotten-export) The symbol "CliRequestBase" needs to be exported by the entry point index.d.ts
+//
 // @public
-export interface CliRequest extends RemoteStamp {
-    id: string;
-    // (undocumented)
-    kind: 'cli-request';
+export type CliRequest = (CliRequestBase & {
+    argv: string[];
+    line?: never;
+}) | (CliRequestBase & {
     line: string;
-    // (undocumented)
-    v: 1;
-    view?: string;
-}
+    argv?: never;
+});
 
 // @public
 export type CommandOutcome = {
@@ -237,6 +237,12 @@ export type EnvelopeResult = {
 };
 
 // @public
+export type ErrorClass = 'failed' | 'usage' | 'denied' | 'not-run' | 'unknown' | 'cancelled';
+
+// @public
+export function errorClassOf(code: ErrorCode): ErrorClass;
+
+// @public
 export type ErrorCode = 'invalid-args' | 'unknown-command' | 'not-allowed' | 'target-not-found' | 'id-conflict' | 'unsupported-version' | 'too-large' | 'busy' | 'timeout' | 'failed' | 'connection-lost' | 'cancelled' | 'expired' | 'clock-skew' | 'not-delivered' | 'tab-unreachable' | 'gone' | 'unknown-outcome';
 
 // @public
@@ -245,13 +251,16 @@ export interface FinishedReply {
     bytes: number;
     // (undocumented)
     chunks: number;
+    help?: string;
     // (undocumented)
     id: string;
     // (undocumented)
     kind: 'finished';
+    next?: string[];
     // (undocumented)
     outcome: RemoteOutcome;
     preview?: true;
+    suggest?: string[];
     // (undocumented)
     v: 1;
     view?: {
@@ -262,6 +271,45 @@ export interface FinishedReply {
 
 // @public
 export function formatCommandLine(command: string, value: Record<string, JsonValue>, schema: InputSchema): string;
+
+// @public
+export interface HelpRequest extends RemoteStamp {
+    argv: string[];
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    kind: 'help-request';
+    // (undocumented)
+    v: 1;
+    want: 'text' | 'json';
+    width?: number;
+}
+
+// @public
+export interface HelpResultReply {
+    // (undocumented)
+    class?: ErrorClass;
+    // (undocumented)
+    code?: ErrorCode;
+    // (undocumented)
+    help?: string;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    kind: 'help-result';
+    // (undocumented)
+    message?: string;
+    // (undocumented)
+    next?: string[];
+    result?: unknown;
+    // (undocumented)
+    status: 'ok' | 'error';
+    // (undocumented)
+    suggest?: string[];
+    text?: string[];
+    // (undocumented)
+    v: 1;
+}
 
 // @public
 export interface InputEntry {
@@ -436,7 +484,11 @@ export function parseOptions(args: readonly string[], schema: InputSchema): Inpu
 export function quoteArgument(value: string): string;
 
 // @public
+export function readCapabilitiesParts(parts: readonly unknown[]): CapabilitiesPayload | undefined;
+
+// @public
 export interface ReceivedReply {
+    change: boolean;
     dataAgeMs: number | null;
     hidden: boolean;
     // (undocumented)
@@ -445,6 +497,7 @@ export interface ReceivedReply {
     kind: 'received';
     // (undocumented)
     v: 1;
+    viewRelevant: boolean;
 }
 
 // @public
@@ -453,6 +506,9 @@ export function refusedCliRequest(raw: unknown): {
     grantId: string;
     bindingId: string;
 } | undefined;
+
+// @public
+export const remoteArgvMaxItems = 256;
 
 // @public
 export function remoteBytes(value: CliMessage | CliReply): number;
@@ -464,12 +520,17 @@ export const remoteChunksMax = 3;
 export interface RemoteCommandSpec {
     // (undocumented)
     aliases: string[];
-    confirm?: string;
     // (undocumented)
     danger: Exclude<Danger, 'irreversible'>;
     // (undocumented)
     name: string;
 }
+
+// @public
+export const remoteEnvelopes: readonly number[];
+
+// @public
+export const remoteFeatures: readonly string[];
 
 // @public
 export const remoteLineMax = 4000;
@@ -489,8 +550,8 @@ export type RemoteOutcome = {
 } | {
     status: 'error';
     code: ErrorCode;
+    class: ErrorClass;
     message?: string;
-    line?: string;
 };
 
 // @public

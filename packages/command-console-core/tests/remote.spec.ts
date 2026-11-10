@@ -456,13 +456,19 @@ describe('C-97 Attach remote', () => {
   it('setOptions with new commands sends the capabilities again; other options do not', () => {
     const t = setup({ commands: [search()] })
     t.attach()
+    // The core still sends the 1.6 capabilities reply until it publishes
+    // the parts (C-108); the protocol no longer types it.
+    const capabilities = () =>
+      (
+        t.replies as unknown as { kind: string; commands: { name: string }[] }[]
+      ).filter(reply => reply.kind === 'capabilities')
     t.console.setOptions(options => ({ ...options, prompt: '$' }))
-    expect(t.of('capabilities')).toHaveLength(1)
+    expect(capabilities()).toHaveLength(1)
     t.console.setOptions(options => ({
       ...options,
       commands: [...options.commands, stop().definition]
     }))
-    const sent = t.of('capabilities')
+    const sent = capabilities()
     expect(sent).toHaveLength(2)
     expect(sent[1].commands.map(spec => spec.name)).toEqual([
       'search',
@@ -470,7 +476,7 @@ describe('C-97 Attach remote', () => {
     ])
     t.console.detachRemote()
     t.console.setOptions(options => ({ ...options, commands: [search()] }))
-    expect(t.of('capabilities')).toHaveLength(2)
+    expect(capabilities()).toHaveLength(2)
   })
 
   it('dispose unsubscribes and ends the binding', () => {
@@ -534,6 +540,7 @@ describe('C-98 Remote accept', () => {
         outcome: {
           status: 'error',
           code: 'invalid-args',
+          class: 'usage',
           message: expect.any(String) as unknown
         },
         chunks: 0,
@@ -549,6 +556,18 @@ describe('C-98 Remote accept', () => {
       expect(
         refused(base({ pad: 'x'.repeat(70_000) })).finished('bad').outcome
       ).toMatchObject({ code: 'too-large' })
+    })
+
+    it('ends with invalid-args for an argv request, which it does not run yet', () => {
+      const t = refused(
+        base({ line: undefined, argv: ['search', '--ip', '1'] })
+      )
+      expect(t.finished('bad').outcome).toMatchObject({
+        code: 'invalid-args',
+        class: 'usage'
+      })
+      expect(t.of('received')).toEqual([])
+      expect(t.console.getState().entries).toEqual([])
     })
 
     it('ends with invalid-args without a line', () => {
@@ -587,7 +606,15 @@ describe('C-98 Remote accept', () => {
     t.attach()
     const id = t.request('s --ip 1.2.3.4 --limit 5')
     expect(t.replies.slice(1)).toEqual([
-      { v: 1, kind: 'received', id, hidden: false, dataAgeMs: null },
+      {
+        v: 1,
+        kind: 'received',
+        id,
+        hidden: false,
+        dataAgeMs: null,
+        change: false,
+        viewRelevant: false
+      },
       {
         v: 1,
         kind: 'finished',
@@ -1032,7 +1059,8 @@ describe('C-100 Remote result', () => {
     const failed = t.request('boom --ip 1')
     expect(t.finished(failed).outcome).toEqual({
       status: 'error',
-      code: 'failed'
+      code: 'failed',
+      class: 'failed'
     })
     expect(JSON.stringify(t.replies)).not.toContain('internal detail')
   })

@@ -1,15 +1,22 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  capabilitiesParts,
   chunkData,
   envelopeMaxBytes,
+  errorClassOf,
   isCliReply,
   joinChunks,
   parseCliMessage,
+  readCapabilitiesParts,
   refusedCliRequest,
+  remoteArgvMaxItems,
   remoteBytes,
   remoteChunksMax,
+  remoteEnvelopes,
+  remoteFeatures,
   remoteLineMax,
+  type CapabilitiesPayload,
   type FinishedReply
 } from '@dolusoft/command-protocol'
 
@@ -152,15 +159,22 @@ describe('C-96 Remote envelopes', () => {
     const replies = [
       {
         v: 1,
-        kind: 'capabilities',
-        bindingId: 'b1',
-        envelope: 1,
-        commands: [
-          { name: 'a', aliases: [], danger: 'change', confirm: 'yes' }
-        ],
-        sensitive: ['login']
+        kind: 'help-result',
+        id: 'h',
+        status: 'error',
+        code: 'unknown-command',
+        class: 'usage',
+        suggest: ['tasks.list']
       },
-      { v: 1, kind: 'received', id: 'r', hidden: true, dataAgeMs: null },
+      {
+        v: 1,
+        kind: 'received',
+        id: 'r',
+        hidden: true,
+        dataAgeMs: null,
+        change: false,
+        viewRelevant: true
+      },
       { v: 1, kind: 'awaiting-approval', id: 'r', expiresAt: 5 },
       { v: 1, kind: 'chunk', id: 'r', index: 0, total: 1, bytes: 1, data: 'x' },
       {
@@ -181,19 +195,209 @@ describe('C-96 Remote envelopes', () => {
       null,
       { v: 2, kind: 'received', id: 'r', hidden: true, dataAgeMs: null },
       { v: 1, kind: 'other', id: 'r' },
-      {
-        ...replies[0],
-        commands: [{ name: 'a', aliases: [], danger: 'irreversible' }]
-      },
+      { ...replies[0], text: ['a'], result: {} },
+      { ...replies[0], suggest: 'tasks.list' },
       { ...replies[1], hidden: 'no' },
+      { ...replies[1], change: undefined },
       { ...replies[2], expiresAt: -1 },
       { ...replies[3], index: 0.5 },
-      { ...replies[4], outcome: { status: 'maybe' } },
+      { ...replies[4], outcome: { status: '' } },
+      { ...replies[4], next: [1] },
+      { ...replies[4], help: '' },
       { ...replies[5], id: '' },
       { ...replies[3], data: 'x'.repeat(envelopeMaxBytes) }
     ]
     for (const reply of wrong) {
       expect(isCliReply(reply)).toBe(false)
+    }
+  })
+})
+
+describe('C-105 Error class', () => {
+  it('gives each error code its class; cancelled is its own', () => {
+    expect(errorClassOf('invalid-args')).toBe('usage')
+    expect(errorClassOf('not-allowed')).toBe('denied')
+    expect(errorClassOf('not-delivered')).toBe('not-run')
+    expect(errorClassOf('unknown-outcome')).toBe('unknown')
+    expect(errorClassOf('failed')).toBe('failed')
+    expect(errorClassOf('cancelled')).toBe('cancelled')
+  })
+})
+
+describe('C-106 CLI request argv', () => {
+  const argvRequest = (argv: unknown, extra: Record<string, unknown> = {}) =>
+    request({ line: undefined, argv, ...extra })
+
+  it('reads an argv request, a copy of its items', () => {
+    const argv = ['tasks.stop', '--id', '8812']
+    const parsed = parseCliMessage(argvRequest(argv, { view: 'v1' }))
+    expect(parsed).toEqual({
+      ok: true,
+      message: {
+        v: 1,
+        kind: 'cli-request',
+        id: 'r1',
+        argv,
+        view: 'v1',
+        ...stamp
+      }
+    })
+    expect(
+      parsed.ok && 'argv' in parsed.message && parsed.message.argv
+    ).not.toBe(argv)
+  })
+
+  it('takes exactly one of argv and line', () => {
+    expect(parseCliMessage(request({ argv: ['search'] }))).toEqual({
+      ok: false,
+      code: 'invalid'
+    })
+    expect(parseCliMessage(request({ line: undefined }))).toEqual({
+      ok: false,
+      code: 'invalid'
+    })
+  })
+
+  it('keeps argv within 256 items and 4000 code points, its name not empty', () => {
+    const ok = (argv: unknown) => parseCliMessage(argvRequest(argv)).ok
+    expect(remoteArgvMaxItems).toBe(256)
+    expect(ok(['a', ...Array<string>(remoteArgvMaxItems - 1).fill('')])).toBe(
+      true
+    )
+    expect(ok(['a', ...Array<string>(remoteArgvMaxItems).fill('')])).toBe(false)
+    expect(ok(['a', 'x'.repeat(remoteLineMax - 1)])).toBe(true)
+    expect(ok(['a', 'x'.repeat(remoteLineMax)])).toBe(false)
+    expect(ok(['a', '🙂'.repeat(remoteLineMax - 1)])).toBe(true)
+    expect(ok([])).toBe(false)
+    expect(ok([''])).toBe(false)
+    expect(ok(['a', 1])).toBe(false)
+    expect(ok('a')).toBe(false)
+  })
+})
+
+describe('C-107 Help envelopes', () => {
+  const help = (extra: Record<string, unknown> = {}) => ({
+    v: 1,
+    kind: 'help-request',
+    id: 'h1',
+    argv: ['tasks'],
+    want: 'text',
+    ...stamp,
+    ...extra
+  })
+
+  it('reads a help-request; a width outside 20 to 400 is dropped', () => {
+    expect(parseCliMessage(help({ width: 120, extra: 1 }))).toEqual({
+      ok: true,
+      message: help({ width: 120 })
+    })
+    expect(parseCliMessage(help({ argv: [], want: 'json' }))).toEqual({
+      ok: true,
+      message: help({ argv: [], want: 'json' })
+    })
+    for (const width of [19, 401, 80.5, '80']) {
+      expect(parseCliMessage(help({ width }))).toEqual({
+        ok: true,
+        message: help()
+      })
+    }
+  })
+
+  it('refuses a help-request without argv or with another want', () => {
+    for (const raw of [
+      help({ argv: undefined }),
+      help({ argv: ['x'.repeat(remoteLineMax + 1)] }),
+      help({ want: 'html' }),
+      help({ want: undefined })
+    ]) {
+      expect(parseCliMessage(raw)).toEqual({ ok: false, code: 'invalid' })
+    }
+  })
+
+  it('isCliReply takes a help-result with text or result, not both', () => {
+    const reply = { v: 1, kind: 'help-result', id: 'h1', status: 'ok' }
+    expect(isCliReply({ ...reply, text: ['tasks.list  Lists tasks'] })).toBe(
+      true
+    )
+    expect(isCliReply({ ...reply, result: { commands: [] } })).toBe(true)
+    expect(isCliReply({ ...reply, text: [1] })).toBe(false)
+  })
+})
+
+describe('C-108 Capabilities parts', () => {
+  const payload = (count: number): CapabilitiesPayload => ({
+    envelopes: [...remoteEnvelopes],
+    features: [...remoteFeatures],
+    revision: 'a1b2c3d4',
+    sensitive: ['login'],
+    commands: Array.from({ length: count }, (_, i) => ({
+      name: `ns.command-ğ-${i}`,
+      aliases: [`c${i}`],
+      danger: i % 2 === 0 ? 'read' : 'change'
+    }))
+  })
+
+  it('names the features and envelopes of this version', () => {
+    expect(remoteEnvelopes).toEqual([1])
+    expect(remoteFeatures).toEqual([
+      'argv',
+      'received-v2',
+      'suggest-argv',
+      'help-v2',
+      'error-class',
+      'capabilities-v2'
+    ])
+  })
+
+  it('cuts the JSON into one to three parts of 16 KB, the head first', () => {
+    const one = capabilitiesParts({ ...payload(2), minCli: '0.3.0' })
+    expect(one).toHaveLength(1)
+    expect(Object.keys(JSON.parse(one[0]) as object)).toEqual([
+      'envelopes',
+      'features',
+      'minCli',
+      'revision',
+      'sensitive',
+      'commands'
+    ])
+    const many = capabilitiesParts(payload(500))
+    expect(many.length).toBeGreaterThan(1)
+    expect(many.length).toBeLessThanOrEqual(remoteChunksMax)
+    for (const part of many) {
+      expect(new TextEncoder().encode(part).length).toBeLessThanOrEqual(
+        envelopeMaxBytes
+      )
+    }
+    expect(many[0].startsWith('{"envelopes":[1],"features":')).toBe(true)
+    expect(readCapabilitiesParts(many)).toEqual(payload(500))
+  })
+
+  it('throws when the list does not fit in three parts', () => {
+    expect(() => capabilitiesParts(payload(3000))).toThrow(RangeError)
+  })
+
+  it('reads the parts back, an unknown danger as change, or nothing', () => {
+    const text = JSON.stringify({
+      ...payload(1),
+      future: true,
+      commands: [{ name: 'a', aliases: [], danger: 'explosive', more: 1 }]
+    })
+    expect(readCapabilitiesParts([text.slice(0, 10), text.slice(10)])).toEqual({
+      ...payload(0),
+      commands: [{ name: 'a', aliases: [], danger: 'change' }]
+    })
+    for (const parts of [
+      [],
+      ['{', '"', '}', ''],
+      ['{'],
+      ['[]'],
+      [1],
+      [JSON.stringify({ ...payload(1), revision: '' })],
+      [JSON.stringify({ ...payload(1), minCli: 3 })],
+      [JSON.stringify({ ...payload(1), envelopes: [1.5] })],
+      ['"' + 'x'.repeat(envelopeMaxBytes) + '"']
+    ]) {
+      expect(readCapabilitiesParts(parts)).toBeUndefined()
     }
   })
 })

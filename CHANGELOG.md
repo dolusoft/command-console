@@ -2,6 +2,18 @@
 
 The release notes of a version are on its GitHub Release. This file names what a consumer must change.
 
+## 1.7.0 (in progress)
+
+The remote contract of the CLI isolation ([docs/remote-contract.md](docs/remote-contract.md)). It does not speak the
+1.6 shapes.
+
+- **Changed in the protocol:** `cli-request` takes `argv` or `line` (C-106); `received` adds `change` and
+  `viewRelevant`; an error `outcome` carries `class` (`ErrorClass`, `errorClassOf`; C-105) and no longer `line`;
+  `finished` adds `suggest`, `next` and `help`. **New:** `help-request` and `help-result` (C-107),
+  `CapabilitiesPayload`, `capabilitiesParts`, `readCapabilitiesParts`, `remoteFeatures`, `remoteEnvelopes`,
+  `remoteArgvMaxItems` (C-108), and `fixtures/remote/` (C-109). **Removed:** `CapabilitiesReply` and
+  `RemoteCommandSpec.confirm`. A CLI that reads replies reads `class` for its exit code.
+
 ## 1.6.1
 
 Two fixes of the remote entry.
