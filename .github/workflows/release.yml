@@ -9,14 +9,16 @@ name: Release
 #            1.0.0 (ADR 0009).
 #   ci       read-only token: every check of CI (ci.yml, called as is).
 #   pack     read-only token: builds, packs one tarball per package and
-#            uploads them as a workflow artifact.
+#            the remote fixtures archive (fixtures/remote/ and
+#            docs/remote-contract.md), and uploads them as workflow artifacts.
 #   npm      no install and no repository code: publishes the same tarballs
 #            to npm, protocol, then core, then vue, with trusted publishing
 #            (OIDC: no token, no OTP) and provenance. Each package on
 #            npmjs.com lists this repository and `release.yml` as its trusted
 #            publisher (ADR 0008).
 #   publish  write token, no install and no repository code: creates one
-#            GitHub Release with generated notes and no asset, after npm.
+#            GitHub Release with generated notes and one asset,
+#            remote-fixtures-<version>.tar.gz (ADR 0016), after npm.
 #   npm and publish both run in the release environment, which waits for
 #   one of its reviewers.
 
@@ -127,6 +129,24 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      # The remote contract's examples and document, attached to the GitHub
+      # Release (C-114, ADR 0016): CI compares fixtures/remote/ with the
+      # latest one, so a published example is never changed.
+      - name: Pack the remote fixtures
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          mkdir -p fixtures-archive
+          tar -czf "fixtures-archive/remote-fixtures-$VERSION.tar.gz" fixtures/remote docs/remote-contract.md
+          tar -tzf "fixtures-archive/remote-fixtures-$VERSION.tar.gz" > /dev/null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: remote-fixtures
+          path: fixtures-archive/remote-fixtures-*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
   npm:
     needs: [version, pack]
     # Waits for a reviewer of the `release` environment; the npm trusted
@@ -176,14 +196,23 @@ jobs:
       TAG: ${{ github.ref_name }}
       GH_REPO: ${{ github.repository }}
     steps:
-      # Notes generated from the merged pull requests; no asset, the packages
-      # are on npm (ADR 0008).
+      - uses: actions/download-artifact@v4
+        with:
+          name: remote-fixtures
+          path: fixtures-archive
+
+      # Notes generated from the merged pull requests; the packages are on npm
+      # (ADR 0008). The one asset is the remote fixtures archive (ADR 0016),
+      # uploaded again with --clobber on a re-run.
       - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
+          asset="fixtures-archive/remote-fixtures-$VERSION.tar.gz"
           if gh release view "$TAG" > /dev/null 2>&1; then
-            echo "Release $TAG already exists: nothing to do."
+            echo "Release $TAG already exists: uploading the fixtures archive."
+            gh release upload "$TAG" "$asset" --clobber
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag
+            gh release create "$TAG" "$asset" --title "$TAG" --generate-notes --verify-tag
           fi
