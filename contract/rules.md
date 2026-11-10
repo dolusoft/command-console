@@ -579,9 +579,9 @@ lists no summary.
 
 A command's `confirm` is `{ field }` naming a boolean property of its `input`, on a `change` command only; anything
 else throws at creation and on `setOptions`, as does a `plan` that is not a function. `getCommands()` copies it into
-the spec. For an agent's `request()` (C-82) and a CLI request (C-98), a call whose field is not `true` is the
-command's preview and runs as `read`; one whose field is `true` is the change: `not-allowed` with its line for the
-agent (C-93), an approval plan for the CLI (C-99). The decision reads the input after `normalize` and the schema,
+the spec. For an agent's `request()` (C-82), a call whose field is not `true` is the command's preview and runs as
+`read`; one whose field is `true` is the change: `not-allowed` with its line (C-93). A CLI request (C-98) sets the
+field itself: `true`, or `false` with `--dry-run` (C-117). The decision reads the input after `normalize` and the schema,
 normalized once: the same input the plan and the run get; an input that cannot be normalized fails as C-77 says. The agent's `help` of such a command gives `confirm` (the field name), and the `help` and `run` descriptions and the skill say that it runs first as a preview, without its field. Options the schema refuses are `invalid-args` for a command with
 `confirm`. A line the user types is not changed by it.
 
@@ -598,19 +598,20 @@ a JSON text into at most `remoteChunksMax` (3) chunk replies, each within `envel
 cut between code points, or returns `undefined`; `joinChunks(finished, chunks)` gives the text back only when every
 part from 0 to `chunks - 1` is there once, of that request, and the byte counts hold. `isCliReply` checks the shape of
 a `received` (with the booleans `change` and `viewRelevant`), `awaiting-approval`, `chunk`, `finished` (an
-`outcome` with a non-empty `status`; `suggest` and `next` arrays of strings, `help` a non-empty string, each
-optional) or `help-result` (never both `text` and `result`), `cancelled-before-start` or `cancel-requested` reply; an
+`outcome` with a non-empty `status`; `suggest` and `next` arrays of strings, `help` and `approval` (C-118) non-empty
+strings, each optional) or `help-result` (never both `text` and `result`), `cancelled-before-start` or `cancel-requested` reply; an
 unknown field is ignored and a `status` or `class` it does not know is still read (C-109). The list of commands is
 not a reply (C-108).
 
 ### C-97 Attach remote
 
 `attachRemote(binding)` needs the `gate` and `now` options and a binding with a non-empty `bindingId` and `grantId`,
-a finite `approvedAt`, a `send` and a `publishCapabilities` function, and a `minCli` that is a non-empty string when
-given; otherwise it throws a `TypeError`. It subscribes to the gate at once, puts `{ bindingId, approvedAt, approval:
-null }` in `state.remote`, replaces a binding already attached, and calls `publishCapabilities({ revision, parts })`
-(no reply goes through `send`): `parts` is `capabilitiesParts` (C-108) of the commands that are neither `hidden` nor
-`irreversible` and have `input` and `danger` without `sensitive` (name, aliases, danger), the names and aliases of
+a finite `approvedAt`, a `send` and a `publishCapabilities` function, a `minCli` that is a non-empty string when
+given and a `level` of C-116 when given; otherwise it throws a `TypeError`. It subscribes to the gate at once, puts
+`{ bindingId, approvedAt, level, approval: null }` in `state.remote`, replaces a binding already attached, and calls
+`publishCapabilities({ revision, parts })` (no reply goes through `send`): `parts` is `capabilitiesParts` (C-108) of
+the commands that are neither `hidden` nor `irreversible` and have `input` and `danger` without `sensitive` (name,
+aliases, danger, and a `change` command's `effect`, C-115), the names and aliases of
 every sensitive command, `remoteEnvelopes`, `remoteFeatures` and the binding's `minCli`; `revision` is 8 hex digits
 made from the commands and the sensitive names only, the same for the same list, with no clock and no randomness. A
 list that does not fit in three parts makes `attachRemote` throw that `RangeError` before anything changes. A message
@@ -637,12 +638,12 @@ unparsable or empty line or a name C-112 refuses is `invalid-args`, an unknown o
 schema refuses are `invalid-args` with a `message`. Each of these sends only `finished`, and adds no entry.
 Otherwise the tab sends `received` (`hidden` and `dataAgeMs` from
 the binding's `status`, else `false` and `null`; `change` and `viewRelevant` as C-110 says), appends an input entry with the canonical line and
-`actor: 'cli'`, and starts the run without an envelope: `beforeRun`, then a `read` command or a preview (C-95) runs,
-and a change waits for approval (C-99). The view is the request's, else `activeView()` on accept.
+`actor: 'cli'`, and starts the run without an envelope: `beforeRun`, then a `read` command or a preview (C-117) runs,
+and a change runs or waits for approval (C-99) as C-116 says. The view is the request's, else `activeView()` on accept.
 
 ### C-99 Approval plan
 
-A change from the CLI is in `phase: 'approving'` while it waits. The command's `plan(input, signal)`, when it has
+A change from the CLI that asks the user (C-116) is in `phase: 'approving'` while it waits. The command's `plan(input, signal)`, when it has
 one, is called with the normalized input and may return a promise; a throw or rejection fails the request and
 nothing runs. Its error is classed as one `run` threw: a `CommandError` gives its code and message (C-86, C-89),
 any other error `failed` without a message. Then `state.remote.approval` holds the plan (the request id, the command, the canonical line, the
@@ -658,8 +659,8 @@ command's `run` once with the plan's input; the line is not read again. `reject(
 
 The end of a CLI request sends its outcome as the agent's `request()` would give it (C-82, C-86 to C-89): when it has
 `data`, first its JSON in at most three `chunk` replies (C-96), then `finished` with the outcome without `data`,
-`chunks`, `bytes`, `view` (`{ id, title? }`, the title from the binding's `viewTitle`) and `preview: true` for a
-preview that ended `ok`. Every error outcome, the refusals of C-98 included, carries `class: errorClassOf(code)`
+`chunks`, `bytes`, `view` (`{ id, title? }`, the title from the binding's `viewTitle`), `preview: true` for a
+preview that ended `ok`, and `approval` as C-118 says. Every error outcome, the refusals of C-98 included, carries `class: errorClassOf(code)`
 (C-105); the local `line` of `not-allowed` does not go to the CLI (`suggest` takes its place, C-111). Data that does
 not fit in three chunks makes the outcome `too-large` without chunks. The terminal's blocks never go to the CLI, nor
 the text of an error other than C-89's.
@@ -687,7 +688,8 @@ shows a computer name.
 
 ### C-104 Pairing question (Vue)
 
-With the `pairing` prop, `div.cc-pairing` (a `role="alertdialog"` named by `labels.remote.pairing`) shows the question
+Deprecated in 1.8.0: the CLI row (C-119) takes its place, and the `pairing` prop and the `pair` event go in a later
+minor. With the `pairing` prop, `div.cc-pairing` (a `role="alertdialog"` named by `labels.remote.pairing`) shows the question
 and the server's facts (`createdAt` through `labels.formatTime`, `environment`) and the buttons `cc-pair-accept` and
 `cc-pair-decline`, which emit `pair` with `true` and `false`. A click on any of the library's buttons does not move
 the focus to the input (C-51).
@@ -716,12 +718,13 @@ most one of `text` (lines) and `result`; optional `suggest`, `next` and `help` a
 ### C-108 Capabilities parts
 
 What a bound tab runs for the CLI is a `CapabilitiesPayload` (`envelopes`, `features`, `minCli` when the shell gives
-one, `revision`, `sensitive`, `commands` of `{ name, aliases, danger }`), not an envelope. `capabilitiesParts(payload)`
+one, `revision`, `sensitive`, `commands` of `{ name, aliases, danger, effect? }`), not an envelope. `capabilitiesParts(payload)`
 writes its JSON with the fields in that order and cuts it between code points into one to `remoteChunksMax` parts of
 at most `envelopeMaxBytes` UTF-8 bytes; when it does not fit it throws a `RangeError`. `readCapabilitiesParts(parts)`
-joins one to three such strings and reads the object, leaving unknown fields out and reading an unknown `danger` as
-`change`; malformed parts or fields give `undefined`. `remoteEnvelopes` is `[1]` and `remoteFeatures` names `argv`,
-`received-v2`, `suggest-argv`, `help-v2`, `error-class` and `capabilities-v2`.
+joins one to three such strings and reads the object, leaving unknown fields out, reading an unknown `danger` as
+`change` and an `effect` as C-115 says; malformed parts or fields give `undefined`. `remoteEnvelopes` is `[1]` and
+`remoteFeatures` names `argv`, `received-v2`, `suggest-argv`, `help-v2`, `error-class`, `capabilities-v2`, `effect`
+(C-115), `dry-run` (C-117) and `approval` (C-118).
 
 ### C-109 Remote fixtures
 
@@ -735,7 +738,7 @@ where those are tested.
 ### C-110 Received fields
 
 `received` tells the CLI `change`: the request runs the path that changes data, after `normalize` and the schema (not
-a `read` command, not a preview, C-95); and `viewRelevant`: the request carries a `view`, or the command's
+a `read` command, not a preview, C-117), whether or not it asks the user (C-116); and `viewRelevant`: the request carries a `view`, or the command's
 `usesView` is `true` (else, when the command does not set it, its namespace's `usesView`), so the CLI prints the
 view. An `activeView()` alone does not make it `true`; `finished.view` still names the view the command ran in.
 `usesView` changes nothing for the local terminal or an agent. The binding's `status` is called
@@ -746,8 +749,7 @@ that is not a finite number at or above 0 is `null`).
 
 A `finished` reply carries `suggest`, `next` and `help` as argv without the CLI's name, and never `outcome.line`.
 `formatCommandArgv(name, value, schema)` is the canonical argv: the items `formatCommandLine` quotes, so
-`tokenize(formatCommandLine(...))` gives it back. A preview that ends `ok` suggests the argv of its normalized input
-with the confirm field `true`. `unknown-command` has the message `unknown command: <name>`, with no near name in it,
+`tokenize(formatCommandLine(...))` gives it back. A preview suggests nothing (C-117). `unknown-command` has the message `unknown command: <name>`, with no near name in it,
 and suggests `[a]`, the nearest name, never its arguments: the near names are at most
 three commands within Damerau-Levenshtein distance 2 of the name (optimal string alignment, by code point, the ASCII
 case ignored), an alias counting for its command, nearest first and a tie by name; only commands the CLI may run
@@ -755,8 +757,8 @@ case ignored), an alias counting for its command, nearest first and a tie by nam
 names the command in `help`; when no argument starts with `-`, there is at least one and the command's only
 required field is a string, it suggests `[name, '--field', arguments joined by one space]`. The `invalid-args` end
 of a run also names the command in `help`. A `not-allowed` end of an accepted request (an approval expired or
-dropped, `beforeRun`) suggests the canonical argv of its normalized input; an approval the user rejected suggests
-nothing. An `ok` end whose `data` is a
+dropped, `beforeRun`) suggests the canonical argv of its normalized input without the confirm field; an approval the
+user rejected suggests nothing. An `ok` end whose `data` is a
 plain object with a non-empty string `nextCursor`, of a command whose schema has a `cursor` field, has `next`: the
 argv of the normalized input with `cursor` set to it. An argv the schema refuses is left out, and so are `suggest`
 and `next` when `finished` would not fit in `envelopeMaxBytes`. A sensitive request's reply (C-98) has none of
@@ -787,7 +789,7 @@ them gives that page; none gives the whole list. Any other target is `unknown-co
 `help` when it has one. `want: 'json'` gives the result as `result`; `want: 'text'` gives `text`, English lines at most
 `width` (else 80) code points long, wrapped at spaces, with no control character and no CLI name: a page lists the
 namespaces (at the top level) and the commands with their danger and summary; a command shows its danger, summary,
-usage, the line "Runs as a preview without --<field>" when it has `confirm`, and each field with its type, whether it
+usage, the line "Makes the change; with --dry-run it shows the preview." when it has `confirm` (C-117), and each field with its type, whether it
 is required and its description. The JSON of `text` is at most 12 KB: a page that does not fit lists fewer commands,
 and a command that does not fit is cut with a last line that says so. A page with a `nextCursor` has `next`:
 `['help', target?, '--cursor', <n>, '--limit', <n> when given]`. A reply over `envelopeMaxBytes` is `too-large`.
@@ -800,3 +802,60 @@ the latest published GitHub Release: every example of every published file must 
 with the same content (a file that was a single object must be equal). A release without that asset, or no release,
 passes. A failed download fails with a message that says to run it again. CI runs it on every pull request, and
 `release.yml` attaches the archive of `fixtures/remote/` and `docs/remote-contract.md` to each release.
+
+### C-115 Command effect
+
+A `change` command may declare `effect`: `screen` (only the user's own tab changes: a page, a view it opens, a
+download) or `server` (a job or a record on the server); without it the command is `server`. An `effect` on a command
+whose `danger` is not `change`, or another value, throws at creation and on `setOptions`. `getCommands()` copies it
+into the spec. The capabilities (C-97) give every `change` command its `effect`, `server` when it declares none, and
+a `read` command none; `capabilitiesParts` writes `effect` only on a `change` command, and `readCapabilitiesParts`
+keeps it, reads a string it does not know as `server`, leaves it out on a `read` command and refuses one that is not a
+non-empty string. The local terminal and an agent's `request()` do not read it.
+
+### C-116 Approval level
+
+A binding carries a `level`: `ask-server` (the default) or `never-ask`; another value makes `attachRemote` throw a
+`TypeError`. The console takes the level only from the shell (`attachRemote`, `setRemoteLevel`), never from a
+message, and shows it in `state.remote.level`. For a CLI request C-98 accepts, a `read` command and a preview run; a
+change (C-117) with `effect: 'screen'` runs without asking; one with `effect: 'server'` waits for the user's approval
+(C-99) at `ask-server` and runs without asking at `never-ask`. At both levels an `irreversible` or sensitive command
+stays refused and `beforeRun` still decides. `setRemoteLevel(level)` sets the level for the next request in its own
+action and keeps a waiting approval; it does nothing without a binding or with the same level, and throws a
+`TypeError` for another value.
+
+### C-117 Remote dry run
+
+From the CLI a change asks for itself: a `change` command with `confirm` runs with its confirm field `true` whether
+or not the request gives it, and a `--yes` (or `--yes false`) changes nothing. `--dry-run` is the remote entry's own
+flag: every argument that is exactly `--dry-run` is taken out before the options are read, the confirm field is then
+`false` and the command runs as its preview (`received.change: false`, and `finished.preview: true` when it ends
+`ok`). On a `change` command without `confirm` it is `invalid-args` with `help` and a `message`, and nothing runs; on a
+`read` command it is dropped. A preview's `finished` has no `suggest`. The input entry and the approval show the
+canonical line of the input the command gets. The local terminal and an agent's `request()` keep C-95: their preview
+is the call without its confirm field, and `--dry-run` is an unknown option there.
+
+### C-118 Approval field
+
+The `finished` of a change from the CLI whose command's `run` was called carries `approval`: `card` when the user
+approved it in the window (C-99), `none` when it ran without asking (C-116), whether it then ended `ok`, failed or
+was cancelled. A `read` command, a preview, and a request that ended before its `run` (a refusal, `beforeRun`, an
+approval rejected, expired or dropped, a cancel before the start) carry none. `isCliReply` takes an `approval` that
+is a non-empty string; a reader takes a value it does not know as `none`. Each example of
+`fixtures/remote/sequence/approval.json` runs through `attachRemote` with the level, the command and the user's
+answer of its `tab`, and gives its `replies`.
+
+### C-119 CLI row (Vue)
+
+With the `attachable` prop and while `state.remote` is `null`, `div.cc-attach` shows the level choice
+(`fieldset.cc-attach-levels` named by `labels.remote.levelLegend`, with the radio buttons `ask-server`, chosen at
+first, and `never-ask`, whose label holds `labels.remote.neverAskWarning`) and `button.cc-attach-start`
+(`labels.remote.attach`), which emits `attach-remote` with the chosen level. With the `attachCode` prop
+(`{ code, expiresAt }`) it also shows `div.cc-attach-code`, a `role="group"` named by `labels.remote.attachCode`:
+`labels.remote.attachLine(code)` in `code.cc-attach-line`; `button.cc-attach-copy`, which writes the line to the
+clipboard and then shows `labels.remote.copied`, or selects the line when the clipboard cannot be reached;
+`labels.remote.attachWarning`; and the time left, `labels.remote.expiresIn(seconds)` counted each second, then
+`labels.remote.expired` with `data-expired` on the panel. The start button then shows `labels.remote.attachAgain`;
+a new `attachCode` resets the copy button. While `state.remote` is set the row is `div.cc-remote` (C-102), whose
+`span.cc-remote-level` shows `labels.remote.levelAskServer` or `levelNeverAsk`. A click on one of its controls or
+labels does not move the focus to the input (C-51). The texts come from `labels` only (C-47).

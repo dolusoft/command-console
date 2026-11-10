@@ -102,6 +102,12 @@ export interface RemoteBinding {
   grantId: string
   /** When the user approved the binding, in ms since the epoch. */
   approvedAt: number
+  /**
+   * When a change from the CLI asks the user (C-116): the level the user
+   * chose for the binding. Default `ask-server`. The shell gives it here and
+   * through `setRemoteLevel`; the console never reads it from a message.
+   */
+  level?: RemoteLevel
   /** Sends a reply to the bound CLI (the hub's `SendToCli`). */
   send(reply: CliReply): void | Promise<void>
   /**
@@ -129,6 +135,14 @@ export interface RemoteBinding {
   /** The title of a view instance, for `finished`. */
   viewTitle?(view: string): string | undefined
 }
+
+/**
+ * When a change from the CLI asks the user (C-116): `ask-server` a change
+ * with `effect: 'server'` opens the approval window and a `screen` change
+ * runs; `never-ask` every change runs without asking. A `read` command always
+ * runs; an `irreversible` one never does.
+ */
+export type RemoteLevel = 'ask-server' | 'never-ask'
 
 /** A change from the CLI that waits for the user (ADR 0014, C-99). */
 export interface ApprovalPlan {

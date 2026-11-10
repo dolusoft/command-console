@@ -142,12 +142,10 @@ const commandLines = (help: Record<string, unknown>, max: number): string[] => {
       ? help.usage
       : usageOf(name, help.input)
   lines.push('Usage:', ...wrap(usage, max, '  '))
+  // From the CLI a change runs without its confirm field (C-117).
   if (typeof help.confirm === 'string') {
     lines.push(
-      ...wrap(
-        `Runs as a preview without --${help.confirm}; with --${help.confirm} it makes the change.`,
-        max
-      )
+      ...wrap('Makes the change; with --dry-run it shows the preview.', max)
     )
   }
   lines.push('Fields:', ...fieldLines(help.input, max))

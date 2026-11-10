@@ -256,6 +256,8 @@ interface RemoteBinding {
   bindingId: string
   grantId: string
   approvedAt: number
+  // What the user chose when connecting; default 'ask-server'.
+  level?: 'ask-server' | 'never-ask'
   send(reply: CliReply): void | Promise<void>
   // The hub's PublishCapabilities: replaces the list it keeps, whole.
   publishCapabilities(payload: {
@@ -272,11 +274,13 @@ interface RemoteBinding {
 
 const console = createConsole({ commands, gate, now: () => Date.now() })
 console.attachRemote(binding) // subscribes now, publishes the capabilities
+console.setRemoteLevel('never-ask') // the user changed the level
 console.detachRemote()
 ```
 
 - **Capabilities.** On attach, and whenever `setOptions` changes `commands`, the console calls
-  `publishCapabilities({ revision, parts })`: the JSON of what the CLI may run (`name`, `aliases`, `danger`), the
+  `publishCapabilities({ revision, parts })`: the JSON of what the CLI may run (`name`, `aliases`, `danger`, and a
+  `change` command's `effect`), the
   sensitive names, the features and the binding's `minCli`, cut into one to three parts of at most 16 KB. The shell
   hands the parts to the hub as they are. `revision` changes only when the list does. A list that does not fit makes
   `attachRemote` throw a `RangeError`.
@@ -291,17 +295,26 @@ console.detachRemote()
 - **Replies.** `received` (`hidden`, the data age `status({ command })` gives for that command, `change` when the
   request runs the path that changes data, `viewRelevant` when the request names a view or the command declares
   `usesView: true`, or, when the command does not set it, its namespace in `namespaces` does; the active view alone
-  does not count, and `usesView` changes nothing for the terminal or an agent), `awaiting-approval` for a change,
-  then `chunk` (at most three) and `finished` with the outcome and its `class`. The CLI gets what an agent gets
-  (summary, data, code, message); the terminal's blocks stay in the browser.
+  does not count, and `usesView` changes nothing for the terminal or an agent), `awaiting-approval` for a change
+  that asks the user, then `chunk` (at most three) and `finished` with the outcome and its `class`, and for a change
+  whose command ran, `approval: 'card' | 'none'`. The CLI gets what an agent gets (summary, data, code, message); the
+  terminal's blocks stay in the browser.
 - **Suggestions.** `finished` may carry argv for the CLI to print, never to run: `suggest` (the nearest name of an
-  unknown command, the `--field` form of bare words, a preview with its confirm field set, the canonical argv of a
-  refused change), `next` (the next page when the data has a `nextCursor` and the command a `cursor` field) and `help`
-  (the command of an `invalid-args`). A sensitive request's refusal carries none of them and no message.
-- **Preview and change.** A `change` command declares `confirm: { field: 'yes' }`. Without `--yes` the call is its
-  preview and runs as `read`, for the CLI and for the agent's `run` alike; with it, it is the change. The field is
-  read after `normalize`: a `normalize` that sets it makes the call the change.
-- **Approval.** A change from the CLI waits in `phase: 'approving'`. The command's optional `plan(input, signal)`
+  unknown command, the `--field` form of bare words, the canonical argv of a refused change), `next` (the next page
+  when the data has a `nextCursor` and the command a `cursor` field) and `help` (the command of an `invalid-args`). A
+  sensitive request's refusal carries none of them and no message.
+- **Effect.** A `change` command says what it changes: `effect: 'screen'` (only the user's own tab: a page, a view, a
+  download) or `effect: 'server'` (a job or a record on the server, the default).
+- **Preview and change.** A `change` command declares `confirm: { field: 'yes' }`. For the agent's `run` and the
+  local terminal, without `--yes` the call is its preview and runs as `read`; with it, it is the change. From the
+  CLI the change needs no `--yes`: the console sets the field itself, and `--dry-run` asks for the preview instead
+  (a `change` command without `confirm` refuses it). The field is read after `normalize`: a `normalize` that sets it
+  makes the call the change.
+- **Level.** The shell gives the binding's `level`, the one the user chose when connecting (`attachRemote`, then
+  `setRemoteLevel` when it changes; `state.remote.level` shows it). At `ask-server` a `server` change waits for the
+  user's approval and a `screen` change runs at once; at `never-ask` both run at once. `irreversible` and sensitive
+  commands stay closed at both levels.
+- **Approval.** A change that asks the user waits in `phase: 'approving'`. The command's optional `plan(input, signal)`
   gives `targets` and a `preview`; `state.remote.approval` holds the plan for two minutes. `approve(id)` is refused in
   the first second and runs the plan's input once; `reject(id)`, the timer, `suspendRemote()`, `detachRemote()` and a
   cancel drop it.

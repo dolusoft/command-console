@@ -97,6 +97,17 @@ describe('C-45 DOM contract', () => {
     expect(bound.root.querySelector('.cc-approval')).not.toBeNull()
     dom.collect()
 
+    // C-119: the CLI row without a binding, its line shown and expired.
+    const attach = mountConsole({
+      props: {
+        attachable: true,
+        attachCode: { code: 'gk1_x', expiresAt: 0 }
+      }
+    })
+    await settle()
+    expect(attach.root.querySelector('.cc-attach-code')).not.toBeNull()
+    dom.collect()
+
     dom.expectNothingOutsideContract()
     dom.expectNoStyle()
     dom.expectEntriesRendered()

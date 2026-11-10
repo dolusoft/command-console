@@ -43,6 +43,7 @@ import { OutputBlock } from '@dolusoft/command-protocol';
 import { OutputEntry } from '@dolusoft/command-protocol';
 import { PublicProps } from 'vue';
 import { RemoteBinding } from '@dolusoft/command-console-core';
+import { RemoteLevel } from '@dolusoft/command-console-core';
 import { RemoteState } from '@dolusoft/command-console-core';
 import { RunContext } from '@dolusoft/command-console-core';
 import { RunInfo } from '@dolusoft/command-console-core';
@@ -59,6 +60,12 @@ export { Actor }
 export type ActorLabels = Record<Exclude<Actor, 'user'>, string>;
 
 export { ApprovalPlan }
+
+// @public
+export interface AttachCode {
+    code: string;
+    expiresAt: number;
+}
 
 export { BeforeRunResult }
 
@@ -101,11 +108,13 @@ export { ConsoleEffect }
 
 // @public
 export interface ConsoleEmits {
+    'attach-remote': [level: RemoteLevel];
     'detach-remote': [];
     'update:context': [context: ContextFrame[]];
     'update:entries': [entries: ConsoleEntry[]];
     'update:recall': [recall: string[]];
     close: [];
+    // @deprecated
     pair: [accepted: boolean];
     submit: [submit: ConsoleSubmit];
 }
@@ -149,6 +158,8 @@ export { ConsoleOptions }
 
 // @public
 export interface ConsoleProps {
+    attachable?: boolean;
+    attachCode?: AttachCode | null;
     autofocus?: boolean;
     beforeRun?: (info: RunInfo, signal: AbortSignal) => BeforeRunResult | Promise<BeforeRunResult>;
     commands?: CommandDefinition[];
@@ -162,6 +173,7 @@ export interface ConsoleProps {
     labels?: ConsoleLabelsInput;
     maxEntries?: number;
     onError?: (error: unknown, info: RunInfo | null) => void;
+    // @deprecated
     pairing?: PairingRequest | null;
     prompt?: string;
     recall?: string[];
@@ -238,7 +250,7 @@ export { OutputBlock }
 
 export { OutputEntry }
 
-// @public
+// @public @deprecated
 export interface PairingRequest {
     createdAt: number;
     environment: string;
@@ -252,9 +264,22 @@ export interface RemoteLabels {
     // (undocumented)
     approve: string;
     approvedAt: (time: string) => string;
+    attach: string;
+    attachAgain: string;
+    attachCode: string;
+    attachLine: (code: string) => string;
+    attachWarning: string;
     connected: string;
+    copied: string;
+    copy: string;
     detach: string;
+    expired: string;
+    expiresIn: (seconds: number) => string;
     fromCli: string;
+    levelAskServer: string;
+    levelLegend: string;
+    levelNeverAsk: string;
+    neverAskWarning: string;
     // (undocumented)
     pairAccept: string;
     // (undocumented)
@@ -265,6 +290,8 @@ export interface RemoteLabels {
     reject: string;
     targets: (targets: string[]) => string;
 }
+
+export { RemoteLevel }
 
 export { RemoteState }
 

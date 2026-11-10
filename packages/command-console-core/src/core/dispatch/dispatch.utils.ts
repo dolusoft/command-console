@@ -95,6 +95,21 @@ const checkDescription = (command: CommandDefinition) => {
     throw new Error(`command ${command.name}: plan must be a function.`)
   }
   checkConfirm(command)
+  checkEffect(command)
+}
+
+/** `effect` (C-115): `screen` or `server`, on a `change` command only. */
+const checkEffect = (command: CommandDefinition) => {
+  const { effect } = command
+  if (
+    effect !== undefined &&
+    (command.danger !== 'change' ||
+      (effect !== 'screen' && effect !== 'server'))
+  ) {
+    throw new Error(
+      `command ${command.name}: effect must be 'screen' or 'server', on a change command.`
+    )
+  }
 }
 
 /**
@@ -219,6 +234,9 @@ export const specOf = (command: CommandDefinition): CommandSpec => {
   }
   if (command.confirm !== undefined) {
     spec.confirm = { field: command.confirm.field }
+  }
+  if (command.effect !== undefined) {
+    spec.effect = command.effect
   }
   return spec
 }

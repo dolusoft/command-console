@@ -188,7 +188,7 @@ A desktop CLI sends a `cli-request`, a `help-request` or a `cancel` through the 
   "v": 1,
   "kind": "cli-request",
   "id": "r-1",
-  "argv": ["tasks.stop", "--id", "8812", "--yes"],
+  "argv": ["tasks.stop", "--id", "8812"],
   "origin": { "kind": "cli", "grantId": "g-1", "bindingId": "b-1" },
   "stampedAt": 1793957400000,
   "expiresAt": 1793957430000
@@ -202,7 +202,10 @@ and the `origin` ids, so the tab can answer it. The tab answers with `received`,
 carries its `class` (`errorClassOf(code)`), which the CLI turns into its exit code; `suggest` and `next` are argv the
 CLI prints, never runs. A result's `data` travels as its JSON text in at most `remoteChunksMax` (3) chunks of at most
 `envelopeMaxBytes` each: `chunkData(id, text)` cuts it, `joinChunks(finished, chunks)` joins it or gives `undefined`
-when a part is missing. `CommandSpec.confirm` names the boolean field that turns a preview into the change.
+when a part is missing. `CommandSpec.confirm` names the boolean field that turns a preview into the change; from
+the CLI a change needs no such field and `--dry-run` asks for the preview. `CommandSpec.effect` says what a `change`
+command changes (`screen` or `server`), and a change's `finished` says how it was let run (`approval`: `card` or
+`none`).
 
 What the tab runs for the CLI is not an envelope: `capabilitiesParts(payload)` cuts the JSON of a
 `CapabilitiesPayload` (`envelopes`, `features`, `minCli`, `revision`, `sensitive`, `commands`) into one to three

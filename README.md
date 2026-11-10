@@ -17,7 +17,7 @@ It is not a terminal emulator: no PTY, no ANSI escape handling, no cursor addres
 The three packages are released together on npm. Add the Vue package; the protocol and the core come with it as dependencies.
 
 ```bash
-pnpm add @dolusoft/command-console@1.7.2
+pnpm add @dolusoft/command-console@1.8.0
 ```
 
 Peer dependency: `vue` 3.5+. The packages are ESM only and need Node 22.18 or newer (`engines`). A consumer that builds its own markup with optional features imports them from the core, so it adds `@dolusoft/command-console-core` too. A consumer without Vue installs only the core (and the protocol, if it uses the protocol's functions).
@@ -311,7 +311,7 @@ const pageConsole = createConsole({
 <CommandConsole v-if="open" :console="pageConsole" autofocus />
 ```
 
-**Events.** `update:entries`, `update:recall`, `update:context` (the new value, for `v-model`); `close` (a command returned the `close` effect); `submit` (`{ inputId, sensitive }`, never the line) when a line is submitted with Enter or the exposed `run`. A change of a slice and the `close` request are events, not `on*` props, so `v-model` has one channel.
+**Events.** `update:entries`, `update:recall`, `update:context` (the new value, for `v-model`); `close` (a command returned the `close` effect); `submit` (`{ inputId, sensitive }`, never the line) when a line is submitted with Enter or the exposed `run`; `detach-remote` (the user pressed "Disconnect" on a bound CLI); `attach-remote` (`level`, `'ask-server'` or `'never-ask'`: the user asked for a line to connect a CLI; give the code back as the `attachCode` prop, `{ code, expiresAt }`, shown only with `attachable`). A change of a slice and the `close` request are events, not `on*` props, so `v-model` has one channel.
 
 **Slots.** Each replaces content, never the element that carries the hooks.
 
@@ -335,8 +335,12 @@ div.cc-console [data-busy] data-context-depth=<frames>
 │        └─ output: one .cc-block data-type=… per block
 │           text, json, custom → pre · table → table/thead/th scope=col/tbody · list → ul/li · message → div
 ├─ div.cc-status role="status"                 busy text, or the recalled line
-├─ div.cc-pairing role="alertdialog"          only with the pairing prop: span.cc-pairing-text, button.cc-pair-accept, button.cc-pair-decline
-├─ div.cc-remote                               while a CLI is bound: span.cc-remote-text, button.cc-remote-detach
+├─ div.cc-pairing role="alertdialog"          only with the pairing prop (deprecated): span.cc-pairing-text, button.cc-pair-accept, button.cc-pair-decline
+├─ div.cc-attach                               with the attachable prop while no CLI is bound
+│  ├─ fieldset.cc-attach-levels               legend.cc-attach-legend, label.cc-attach-level > input.cc-attach-radio type="radio" [span.cc-attach-hint]
+│  ├─ button.cc-attach-start                  emits attach-remote with the level
+│  └─ div.cc-attach-code role="group" [data-expired]   with the attachCode prop: code.cc-attach-line, button.cc-attach-copy, span.cc-attach-warning, span.cc-attach-expires
+├─ div.cc-remote                               while a CLI is bound: span.cc-remote-text, span.cc-remote-level, button.cc-remote-detach
 ├─ div.cc-approval role="alertdialog"         while a change from the CLI waits: span.cc-approval-source, span.cc-approval-preview, span.cc-approval-targets, button.cc-approve, button.cc-reject
 ├─ ul.cc-completions role="listbox"            only while a list is open
 │  └─ li.cc-completion role="option" aria-selected

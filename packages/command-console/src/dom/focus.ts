@@ -1,8 +1,9 @@
 // A click anywhere in the console focuses the input (README: DOM and styling,
 // C-51), unless the user is selecting text or clicked something of its own.
 
+// A click on a label also clicks its control (C-119's level choice).
 const interactive =
-  'a, button, input, select, textarea, [tabindex], [contenteditable]'
+  'a, button, input, label, select, textarea, [tabindex], [contenteditable]'
 
 /**
  * Whether a click on `target` inside `root` should focus the input: not when

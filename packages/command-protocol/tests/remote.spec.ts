@@ -354,7 +354,10 @@ describe('C-108 Capabilities parts', () => {
       'suggest-argv',
       'help-v2',
       'error-class',
-      'capabilities-v2'
+      'capabilities-v2',
+      'effect',
+      'dry-run',
+      'approval'
     ])
   })
 
@@ -407,6 +410,74 @@ describe('C-108 Capabilities parts', () => {
       ['"' + 'x'.repeat(envelopeMaxBytes) + '"']
     ]) {
       expect(readCapabilitiesParts(parts)).toBeUndefined()
+    }
+  })
+})
+
+describe('C-115 Command effect', () => {
+  const base = {
+    envelopes: [1],
+    features: [...remoteFeatures],
+    revision: 'a1b2c3d4',
+    sensitive: []
+  }
+
+  it('capabilitiesParts writes the effect of a change command and never of a read one', () => {
+    const [part] = capabilitiesParts({
+      ...base,
+      commands: [
+        { name: 'nav.go', aliases: [], danger: 'change', effect: 'screen' },
+        { name: 'tasks.stop', aliases: [], danger: 'change' },
+        { name: 'search', aliases: [], danger: 'read', effect: 'server' }
+      ]
+    })
+    expect((JSON.parse(part) as CapabilitiesPayload).commands).toEqual([
+      { name: 'nav.go', aliases: [], danger: 'change', effect: 'screen' },
+      { name: 'tasks.stop', aliases: [], danger: 'change' },
+      { name: 'search', aliases: [], danger: 'read' }
+    ])
+  })
+
+  it('readCapabilitiesParts keeps a given effect, reads an unknown one as server and drops it on a read', () => {
+    const text = JSON.stringify({
+      ...base,
+      commands: [
+        { name: 'a', aliases: [], danger: 'change', effect: 'screen' },
+        { name: 'b', aliases: [], danger: 'change', effect: 'cluster' },
+        { name: 'c', aliases: [], danger: 'change' },
+        { name: 'd', aliases: [], danger: 'read', effect: 'screen' }
+      ]
+    })
+    expect(readCapabilitiesParts([text])?.commands).toEqual([
+      { name: 'a', aliases: [], danger: 'change', effect: 'screen' },
+      { name: 'b', aliases: [], danger: 'change', effect: 'server' },
+      { name: 'c', aliases: [], danger: 'change' },
+      { name: 'd', aliases: [], danger: 'read' }
+    ])
+    const bad = JSON.stringify({
+      ...base,
+      commands: [{ name: 'a', aliases: [], danger: 'change', effect: 1 }]
+    })
+    expect(readCapabilitiesParts([bad])).toBeUndefined()
+  })
+})
+
+describe('C-118 Approval field', () => {
+  const finished: FinishedReply = {
+    v: 1,
+    kind: 'finished',
+    id: 'r1',
+    outcome: { status: 'ok', summary: 'stopped' },
+    chunks: 0,
+    bytes: 0
+  }
+
+  it('isCliReply takes a finished with an approval string, a value it does not know included', () => {
+    for (const approval of ['card', 'none', 'token']) {
+      expect(isCliReply({ ...finished, approval })).toBe(true)
+    }
+    for (const approval of ['', 1, true, null]) {
+      expect(isCliReply({ ...finished, approval })).toBe(false)
     }
   })
 })

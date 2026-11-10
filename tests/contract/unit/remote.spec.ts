@@ -235,3 +235,195 @@ describe('C-104 Pairing question (Vue)', () => {
     expect(document.activeElement).toBe(button)
   })
 })
+
+describe('C-119 CLI row (Vue)', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  const now = Date.UTC(2026, 10, 10, 12, 0)
+
+  it('offers the level choice and Connect CLI only with attachable and no binding', async () => {
+    const t = bound()
+    const view = mountConsole({
+      props: { console: t.console, commands: undefined }
+    })
+    expect(view.root.querySelector('.cc-attach')).toBeNull()
+    await view.wrapper.setProps({ attachable: true })
+    const row = view.root.querySelector('.cc-attach')!
+    expect(row.querySelector('.cc-attach-legend')?.textContent).toBe(
+      'When the CLI makes a change'
+    )
+    const radios = [
+      ...row.querySelectorAll<HTMLInputElement>('.cc-attach-radio')
+    ]
+    expect(
+      radios.map(radio => [radio.type, radio.value, radio.checked])
+    ).toEqual([
+      ['radio', 'ask-server', true],
+      ['radio', 'never-ask', false]
+    ])
+    expect(radios[0].name).not.toBe('')
+    expect(radios[0].name).toBe(radios[1].name)
+    const levels = [...row.querySelectorAll('.cc-attach-level')]
+    expect(levels.map(level => level.textContent)).toEqual([
+      'Ask before changes on the server',
+      'Never ask An agent in the terminal can then make changes for you without asking.'
+    ])
+    expect(row.querySelector('.cc-attach-code')).toBeNull()
+    t.console.attachRemote(t.binding)
+    await nextTick()
+    expect(view.root.querySelector('.cc-attach')).toBeNull()
+    expect(view.root.querySelector('.cc-remote')).not.toBeNull()
+  })
+
+  it('Connect CLI emits attach-remote with the chosen level', async () => {
+    const view = mountConsole({ props: { attachable: true } })
+    const start = () =>
+      view.root.querySelector<HTMLButtonElement>('.cc-attach-start')!.click()
+    expect(view.root.querySelector('.cc-attach-start')?.textContent).toBe(
+      'Connect CLI'
+    )
+    start()
+    const never =
+      view.root.querySelectorAll<HTMLInputElement>('.cc-attach-radio')[1]
+    never.click()
+    await nextTick()
+    start()
+    expect(view.emitted('attach-remote')).toEqual([
+      ['ask-server'],
+      ['never-ask']
+    ])
+    expect(
+      view.root.querySelectorAll<HTMLInputElement>('.cc-attach-radio')[1]
+        .checked
+    ).toBe(true)
+  })
+
+  it('shows the line with the warning and counts its time down', async () => {
+    vi.useFakeTimers({ now })
+    const view = mountConsole({
+      props: {
+        attachable: true,
+        attachCode: { code: 'gk1_abc', expiresAt: now + 120_000 }
+      }
+    })
+    const panel = view.root.querySelector('.cc-attach-code')!
+    expect(panel.getAttribute('role')).toBe('group')
+    expect(panel.getAttribute('aria-label')).toBe('Line to connect the CLI')
+    expect(panel.querySelector('.cc-attach-line')?.textContent).toBe(
+      'gecko attach gk1_abc'
+    )
+    expect(panel.querySelector('.cc-attach-warning')?.textContent).toBe(
+      'This line gives access to your session; do not share it.'
+    )
+    const expires = () =>
+      view.root.querySelector('.cc-attach-expires')?.textContent
+    expect(expires()).toBe('Valid for 2:00.')
+    expect(view.root.querySelector('.cc-attach-start')?.textContent).toBe(
+      'New line'
+    )
+    vi.advanceTimersByTime(61_000)
+    await nextTick()
+    expect(expires()).toBe('Valid for 0:59.')
+    expect(panel.hasAttribute('data-expired')).toBe(false)
+    vi.advanceTimersByTime(59_000)
+    await nextTick()
+    expect(expires()).toBe('This line expired; ask for a new one.')
+    expect(
+      view.root.querySelector('.cc-attach-code')?.hasAttribute('data-expired')
+    ).toBe(true)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('takes every text from labels', () => {
+    const view = mountConsole({
+      props: {
+        attachable: true,
+        attachCode: { code: 'gk1_x', expiresAt: Date.now() + 5000 },
+        labels: {
+          remote: {
+            attachLine: code => `cli connect ${code}`,
+            expiresIn: seconds => `${seconds} s`,
+            levelNeverAsk: 'Hiç sorma',
+            neverAskWarning: 'Uyarı.'
+          }
+        }
+      }
+    })
+    expect(view.root.querySelector('.cc-attach-line')?.textContent).toBe(
+      'cli connect gk1_x'
+    )
+    expect(view.root.querySelector('.cc-attach-expires')?.textContent).toMatch(
+      /^\d s$/
+    )
+    expect(view.root.querySelectorAll('.cc-attach-level')[1].textContent).toBe(
+      'Hiç sorma Uyarı.'
+    )
+  })
+
+  it('Copy writes the line to the clipboard, and selects it when the clipboard refuses', async () => {
+    const writeText = vi.fn(() => Promise.resolve())
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    const view = mountConsole({
+      props: {
+        attachable: true,
+        attachCode: { code: 'gk1_abc', expiresAt: Date.now() + 60_000 }
+      }
+    })
+    const copy = () =>
+      view.root.querySelector<HTMLButtonElement>('.cc-attach-copy')!
+    expect(copy().textContent).toBe('Copy')
+    copy().click()
+    await flushPromises()
+    expect(writeText).toHaveBeenCalledWith('gecko attach gk1_abc')
+    expect(copy().textContent).toBe('Copied')
+    // A new line resets the button.
+    await view.wrapper.setProps({
+      attachCode: { code: 'gk1_def', expiresAt: Date.now() + 60_000 }
+    })
+    expect(copy().textContent).toBe('Copy')
+
+    writeText.mockImplementation(() => Promise.reject(new Error('denied')))
+    copy().click()
+    await flushPromises()
+    expect(copy().textContent).toBe('Copy')
+    expect(document.getSelection()?.toString()).toBe('gecko attach gk1_def')
+    document.getSelection()?.removeAllRanges()
+  })
+
+  it('a click on its controls does not move the focus to the input', () => {
+    const view = mountConsole({ props: { attachable: true } })
+    const label =
+      view.root.querySelectorAll<HTMLLabelElement>('.cc-attach-level')[1]
+    label.click()
+    expect(document.activeElement).not.toBe(view.input())
+    const start =
+      view.root.querySelector<HTMLButtonElement>('.cc-attach-start')!
+    start.focus()
+    start.click()
+    expect(document.activeElement).toBe(start)
+  })
+
+  it('the bound row shows the level the shell gave', async () => {
+    const t = bound()
+    const view = mountConsole({
+      props: { console: t.console, commands: undefined }
+    })
+    t.console.attachRemote({ ...t.binding, level: 'never-ask' })
+    await nextTick()
+    const level = () =>
+      view.root.querySelector('.cc-remote .cc-remote-level')?.textContent
+    expect(level()).toBe('Never ask')
+    t.console.setRemoteLevel('ask-server')
+    await nextTick()
+    expect(level()).toBe('Ask before changes on the server')
+  })
+})
+
+const flushPromises = async () => {
+  for (let i = 0; i < 5; i++) {
+    await Promise.resolve()
+  }
+}

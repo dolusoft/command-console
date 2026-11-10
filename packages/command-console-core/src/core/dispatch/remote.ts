@@ -11,14 +11,20 @@ import {
   type ChunkReply,
   type CliReply,
   type CommandOutcome,
+  type Effect,
   type ErrorCode,
   type FinishedReply,
+  type RemoteApproval,
   type RemoteCommandSpec,
   type RemoteOutcome,
   type RemoteStamp
 } from '@dolusoft/command-protocol'
 
-import type { CommandDefinition, RemoteBinding } from './dispatch.types'
+import type {
+  CommandDefinition,
+  RemoteBinding,
+  RemoteLevel
+} from './dispatch.types'
 import { describedCommand } from './operation'
 
 /** The largest clock difference between the tab and the hub (C-98). */
@@ -65,6 +71,18 @@ export const openToCli = (command: CommandDefinition): boolean =>
   describedCommand(command) &&
   command.danger !== 'irreversible'
 
+/** Where a `change` command makes its change; `server` unless it says (C-115). */
+export const effectOf = (command: CommandDefinition): Effect =>
+  command.effect === 'screen' ? 'screen' : 'server'
+
+/** A binding's level; `ask-server` unless the shell gave one (C-116). */
+export const levelOf = (binding: RemoteBinding): RemoteLevel =>
+  binding.level ?? 'ask-server'
+
+/** Whether `value` is a `RemoteLevel` (C-116). */
+export const isLevel = (value: unknown): value is RemoteLevel =>
+  value === 'ask-server' || value === 'never-ask'
+
 /**
  * The 32-bit FNV-1a hash of the UTF-16 units of `text`, as 8 hex digits: the
  * same text gives the same revision, with no clock and no randomness.
@@ -88,13 +106,20 @@ export const capabilitiesOf = (
   commands: readonly CommandDefinition[],
   minCli: string | undefined
 ): { revision: string; parts: string[] } => {
-  const specs: RemoteCommandSpec[] = commands
-    .filter(openToCli)
-    .map(command => ({
-      name: command.name,
-      aliases: [...(command.aliases ?? [])],
-      danger: command.danger as 'read' | 'change'
-    }))
+  const specs: RemoteCommandSpec[] = commands.filter(openToCli).map(command =>
+    command.danger === 'change'
+      ? {
+          name: command.name,
+          aliases: [...(command.aliases ?? [])],
+          danger: 'change',
+          effect: effectOf(command)
+        }
+      : {
+          name: command.name,
+          aliases: [...(command.aliases ?? [])],
+          danger: 'read'
+        }
+  )
   const sensitive = commands
     .filter(
       command => command.sensitive !== undefined && command.sensitive !== false
@@ -121,7 +146,8 @@ export interface Hints {
 
 /**
  * The replies that end request `id` (C-100): the chunks of `data`, then
- * `finished` with the `hints`. `data` that does not fit in `remoteChunksMax`
+ * `finished` with the `hints` and, for a change whose command was called,
+ * its `approval` (C-118). `data` that does not fit in `remoteChunksMax`
  * chunks makes the outcome `too-large`.
  */
 export const finishedReplies = (
@@ -130,7 +156,8 @@ export const finishedReplies = (
   view: string | undefined,
   binding: RemoteBinding,
   preview: boolean,
-  hints: Hints = {}
+  hints: Hints = {},
+  approval?: RemoteApproval
 ): CliReply[] => {
   let chunks: ChunkReply[] = []
   let result: RemoteOutcome
@@ -180,6 +207,9 @@ export const finishedReplies = (
   if (preview && result.status === 'ok') {
     finished.preview = true
   }
+  if (approval !== undefined) {
+    finished.approval = approval
+  }
   const { suggest, next, help } = hints
   if (suggest !== undefined) {
     finished.suggest = suggest
@@ -213,10 +243,11 @@ export const checkBinding = (binding: unknown): RemoteBinding => {
     typeof given.send !== 'function' ||
     typeof given.publishCapabilities !== 'function' ||
     (given.minCli !== undefined &&
-      (typeof given.minCli !== 'string' || given.minCli === ''))
+      (typeof given.minCli !== 'string' || given.minCli === '')) ||
+    (given.level !== undefined && !isLevel(given.level))
   ) {
     throw new TypeError(
-      'attachRemote needs { bindingId, grantId, approvedAt, send, publishCapabilities }: two non-empty strings, a finite time and two functions; minCli, when given, a non-empty string.'
+      "attachRemote needs { bindingId, grantId, approvedAt, send, publishCapabilities }: two non-empty strings, a finite time and two functions; minCli, when given, a non-empty string; level, when given, 'ask-server' or 'never-ask'."
     )
   }
   return given as RemoteBinding

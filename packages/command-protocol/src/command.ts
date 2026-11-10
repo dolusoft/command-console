@@ -38,6 +38,13 @@ export interface CommandSpec {
    * field is `true` is the change.
    */
   confirm?: { field: string }
+  /**
+   * What a `change` command changes (C-115): `screen` only the user's own tab
+   * (a page, a view it opens, a download), `server` a job or a record on the
+   * server. Only for `danger: 'change'`; a `change` command without it is
+   * `server`. The remote entry runs a `screen` change without asking.
+   */
+  effect?: Effect
 }
 
 /**
@@ -45,6 +52,12 @@ export interface CommandSpec {
  * application or sends data out, `irreversible` cannot be undone.
  */
 export type Danger = 'read' | 'change' | 'irreversible'
+
+/**
+ * Where a `change` command makes its change (C-115): `screen` the user's own
+ * tab, `server` the server.
+ */
+export type Effect = 'screen' | 'server'
 
 /** What a command returns, as JSON. */
 export interface CommandResponse {

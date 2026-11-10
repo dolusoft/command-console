@@ -209,7 +209,7 @@ describe('C-113 Remote help', () => {
       'Stops a task.',
       'Usage:',
       '  tasks.stop --id <integer> [options]',
-      'Runs as a preview without --yes; with --yes it makes the change.',
+      'Makes the change; with --dry-run it shows the preview.',
       'Fields:',
       '  --id <integer> · required',
       '  --yes <boolean> · optional'
@@ -238,7 +238,7 @@ describe('C-113 Remote help', () => {
     ])
   })
 
-  it('gives the help-result-command-text fixture as it is', () => {
+  it('gives the help-result-command-text-dry-run fixture as it is', () => {
     const fixtures = JSON.parse(
       readFileSync(
         join(
@@ -249,7 +249,8 @@ describe('C-113 Remote help', () => {
       )
     ) as { name: string; envelope: unknown }[]
     const fixture = fixtures.find(
-      item => item.name === 'help-result-command-text'
+      // `help-result-command-text` (1.7.0) shows the help before C-117.
+      item => item.name === 'help-result-command-text-dry-run'
     )!
     const t = setup({ commands: commands() })
     expect(t.help(['tasks.stop'], 'text', { id: 'h2' })).toEqual(

@@ -478,5 +478,94 @@
       "chunks": 0,
       "bytes": 0
     }
+  },
+  {
+    "name": "finished-approval-card",
+    "envelope": {
+      "v": 1,
+      "kind": "finished",
+      "id": "r1",
+      "outcome": {
+        "status": "ok",
+        "summary": "Task 8812 stopped"
+      },
+      "chunks": 0,
+      "bytes": 0,
+      "approval": "card"
+    },
+    "read": {
+      "v": 1,
+      "kind": "finished",
+      "id": "r1",
+      "outcome": {
+        "status": "ok",
+        "summary": "Task 8812 stopped"
+      },
+      "chunks": 0,
+      "bytes": 0,
+      "approval": "card"
+    }
+  },
+  {
+    "name": "finished-approval-none",
+    "envelope": {
+      "v": 1,
+      "kind": "finished",
+      "id": "r1",
+      "outcome": {
+        "status": "ok",
+        "summary": "Dashboard opened"
+      },
+      "chunks": 0,
+      "bytes": 0,
+      "approval": "none"
+    },
+    "read": {
+      "v": 1,
+      "kind": "finished",
+      "id": "r1",
+      "outcome": {
+        "status": "ok",
+        "summary": "Dashboard opened"
+      },
+      "chunks": 0,
+      "bytes": 0,
+      "approval": "none"
+    }
+  },
+  {
+    "name": "help-result-command-text-dry-run",
+    "envelope": {
+      "v": 1,
+      "kind": "help-result",
+      "id": "h2",
+      "status": "ok",
+      "text": [
+        "tasks.stop · change",
+        "Stops a task.",
+        "Usage:",
+        "  tasks.stop --id <integer> [options]",
+        "Makes the change; with --dry-run it shows the preview.",
+        "Fields:",
+        "  --id <integer> · required",
+        "  --yes <boolean> · optional"
+      ]
+    },
+    "read": {
+      "v": 1,
+      "kind": "help-result",
+      "id": "h2",
+      "status": "ok",
+      "text": [
+        "tasks.stop · change",
+        "Stops a task.",
+        "Usage:",
+        "  tasks.stop --id <integer> [options]",
+        "Makes the change; with --dry-run it shows the preview.",
+        "Fields:",
+        "  --id <integer> · required",
+        "  --yes <boolean> · optional"
+      ]
+    }
   }
 ]

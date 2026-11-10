@@ -2,6 +2,34 @@
 
 The release notes of a version are on its GitHub Release. This file names what a consumer must change.
 
+## 1.8.0
+
+The CLI approval level: the user binds the CLI from the tab with one line and chooses whether a change that touches
+the server asks for approval. Nothing is removed; a consumer that does nothing keeps working, with one card for every
+server change as before.
+
+- **New: `effect` on a `change` command** (C-115): `'screen'` (only what the user sees) or `'server'`, the default.
+  A screen change never opens an approval card. Declare `effect: 'screen'` on navigation, filter and layout
+  commands; any other value throws at registration. The capabilities carry it for every change (feature `effect`).
+- **New: the approval level of a binding** (C-116): `RemoteBinding.level` is `'ask-server'` (default) or
+  `'never-ask'`; at `never-ask` a server change runs with no card. `console.setRemoteLevel(level)` changes it while
+  bound, and `state.remote.level` shows it. `RemoteLevel` is exported from the core and the Vue package.
+- **Changed: a remote change runs, `--dry-run` previews it** (C-117, feature `dry-run`). A change with `confirm` runs
+  with its confirm field `true` whatever the CLI sends; `--dry-run` runs its preview. `--dry-run` on a change without
+  `confirm` is `invalid-args`. A preview's `finished` no longer suggests the line with the confirm field, and a
+  `not-allowed` suggestion leaves the field out. The remote help text says
+  `Makes the change; with --dry-run it shows the preview.` Nothing for a consumer to change.
+- **New: `finished.approval`** (C-118, feature `approval`): `'card'` or `'none'` for a change that ran, so an agent
+  can tell the user what ran without their approval.
+- **New in the Vue package: the "Connect CLI" row** (C-119). Set `attachable` to show it; the user picks a level and
+  presses start, the panel emits `attach-remote` with the level, and the shell creates the code and gives it back as
+  `attach-code` (`{ code, expiresAt }`). The panel shows `gecko attach <code>` with a copy button and a countdown;
+  `null` hides it. New `RemoteLabels`: `attach`, `attachAgain`, `levelLegend`, `levelAskServer`, `levelNeverAsk`,
+  `neverAskWarning`, `attachCode`, `attachLine`, `copy`, `copied`, `attachWarning`, `expiresIn`, `expired`, with
+  English defaults; a translated shell adds them to its `labels.remote`. The bound row shows the level.
+- **Deprecated: the `pairing` prop, the `pair` event and `PairingRequest`.** They still work; the attach row replaces
+  them.
+
 ## 1.7.2
 
 - **Fixed: a `CommandError` thrown or rejected by a command's approval `plan` reaches the CLI with its code and
