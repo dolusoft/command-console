@@ -2044,7 +2044,8 @@ was cancelled. A `read` command, a preview, and a request that ended before its 
 approval rejected, expired or dropped, a cancel before the start) carry none. `isCliReply` takes an `approval` that
 is a non-empty string; a reader takes a value it does not know as `none`. Each example of
 `fixtures/remote/sequence/approval.json` runs through `attachRemote` with the level, the command and the user's
-answer of its `tab`, and gives its `replies`.
+answer of its `tab`, and gives its `replies`; an example with `expire` lets the card's time run out first (C-99),
+by the timer or by an approval after `expiresAt`.
 
 #### C-119 CLI row (Vue)
 
