@@ -2,6 +2,12 @@
 
 The release notes of a version are on its GitHub Release. This file names what a consumer must change.
 
+## 1.8.1
+
+- **Fixed: the level choice of the "Connect CLI" row starts at `ask-server` each time the row shows again**
+  (C-119): after a binding ends, or when `attachable` is set again. A `never-ask` picked for one binding stayed
+  chosen for the next. Nothing for a consumer to change.
+
 ## 1.8.0
 
 The CLI approval level: the user binds the CLI from the tab with one line and chooses whether a change that touches

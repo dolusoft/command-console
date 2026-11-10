@@ -2050,7 +2050,8 @@ answer of its `tab`, and gives its `replies`.
 
 With the `attachable` prop and while `state.remote` is `null`, `div.cc-attach` shows the level choice
 (`fieldset.cc-attach-levels` named by `labels.remote.levelLegend`, with the radio buttons `ask-server`, chosen at
-first, and `never-ask`, whose label holds `labels.remote.neverAskWarning`) and `button.cc-attach-start`
+first and each time the row shows again (a binding ends, `attachable` is set again), and `never-ask`, whose label
+holds `labels.remote.neverAskWarning`) and `button.cc-attach-start`
 (`labels.remote.attach`), which emits `attach-remote` with the chosen level. With the `attachCode` prop
 (`{ code, expiresAt }`) it also shows `div.cc-attach-code`, a `role="group"` named by `labels.remote.attachCode`:
 `labels.remote.attachLine(code)` in `code.cc-attach-line`; `button.cc-attach-copy`, which writes the line to the
@@ -2089,7 +2090,7 @@ The classes and attributes below are the only hooks a skin can select (P6). The 
 | `cc-attach-levels` | `.cc-attach > fieldset` | The level choice: two radio buttons (C-119). |
 | `cc-attach-legend` | `.cc-attach-levels > legend` | `labels.remote.levelLegend` (C-119). |
 | `cc-attach-level` | `.cc-attach-levels > label` | One level: its radio button and `labels.remote.levelAskServer` or `levelNeverAsk` (C-119). |
-| `cc-attach-radio` | `.cc-attach-level > input` | The radio button of a level; `ask-server` is chosen at first (C-119). |
+| `cc-attach-radio` | `.cc-attach-level > input` | The radio button of a level; `ask-server` is chosen at first and each time the row shows again (C-119). |
 | `cc-attach-hint` | `.cc-attach-level > span` | Next to `never-ask`: `labels.remote.neverAskWarning`, part of its label (C-119). |
 | `cc-attach-start` | `.cc-attach > button` | `labels.remote.attach`, or `attachAgain` while a line is shown; emits `attach-remote` with the level chosen (C-119). |
 | `cc-attach-code` | `.cc-attach > div` | A named `role="group"` while the `attachCode` prop is set: the line, its copy button, the warning and the time left (C-119). |

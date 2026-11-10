@@ -1,5 +1,6 @@
 // `<CommandConsole>` in a real browser: busy (C-44), accessibility (C-48),
-// focus (C-51), input replacement (C-54), scroll (C-58), no form (C-69).
+// focus (C-51), the CLI row's level (C-119), input replacement (C-54),
+// scroll (C-58), no form (C-69).
 import axe from 'axe-core'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
@@ -304,6 +305,47 @@ describe('C-51 focus', () => {
     pre.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     expect(document.activeElement).not.toBe(view.input())
     expect(window.getSelection()!.toString()).not.toBe('')
+  })
+})
+
+describe('C-119 CLI row', () => {
+  test('C-119 never-ask picked for one binding is not chosen when the row shows again', async () => {
+    const remote = boundConsole()
+    remote.console.detachRemote()
+    const view = mountConsole({
+      props: { console: remote.console, commands: undefined, attachable: true }
+    })
+    await settle()
+    const checked = () =>
+      [...view.root.querySelectorAll<HTMLInputElement>('.cc-attach-radio')].map(
+        radio => radio.checked
+      )
+    expect(checked()).toEqual([true, false])
+    await userEvent.click(view.root.querySelectorAll('.cc-attach-level')[1])
+    expect(checked()).toEqual([false, true])
+    await userEvent.click(view.root.querySelector('.cc-attach-start')!)
+    expect(view.emitted('attach-remote')).toEqual([['never-ask']])
+
+    remote.console.attachRemote({
+      bindingId: 'b2',
+      grantId: 'g1',
+      approvedAt: Date.UTC(2026, 10, 7, 9, 0),
+      level: 'never-ask',
+      send: () => undefined,
+      publishCapabilities: () => undefined
+    })
+    await settle()
+    expect(view.root.querySelector('.cc-attach')).toBeNull()
+    await userEvent.click(view.root.querySelector('.cc-remote-detach')!)
+    expect(view.emitted('detach-remote')).toHaveLength(1)
+    remote.console.detachRemote()
+    await settle()
+    expect(checked()).toEqual([true, false])
+    await userEvent.click(view.root.querySelector('.cc-attach-start')!)
+    expect(view.emitted('attach-remote')).toEqual([
+      ['never-ask'],
+      ['ask-server']
+    ])
   })
 })
 
