@@ -110,10 +110,84 @@ export const domClasses: ClassEntry[] = [
       '`labels.remote.connected` and when the binding was approved (C-102).'
   },
   {
+    name: 'cc-remote-level',
+    on: '.cc-remote > span',
+    description:
+      'The binding’s level from `state.remote.level`: `labels.remote.levelAskServer` or `levelNeverAsk` (C-119).'
+  },
+  {
     name: 'cc-remote-detach',
     on: '.cc-remote > button',
     description:
       '`labels.remote.detach`; emits `detach-remote`, the consumer ends the binding (C-102).'
+  },
+  {
+    name: 'cc-attach',
+    on: '.cc-console > div',
+    description:
+      'The CLI row while `attachable` is set and no CLI is bound: the level choice, the button and the line (C-119).'
+  },
+  {
+    name: 'cc-attach-levels',
+    on: '.cc-attach > fieldset',
+    description: 'The level choice: two radio buttons (C-119).'
+  },
+  {
+    name: 'cc-attach-legend',
+    on: '.cc-attach-levels > legend',
+    description: '`labels.remote.levelLegend` (C-119).'
+  },
+  {
+    name: 'cc-attach-level',
+    on: '.cc-attach-levels > label',
+    description:
+      'One level: its radio button and `labels.remote.levelAskServer` or `levelNeverAsk` (C-119).'
+  },
+  {
+    name: 'cc-attach-radio',
+    on: '.cc-attach-level > input',
+    description:
+      'The radio button of a level; `ask-server` is chosen at first (C-119).'
+  },
+  {
+    name: 'cc-attach-hint',
+    on: '.cc-attach-level > span',
+    description:
+      'Next to `never-ask`: `labels.remote.neverAskWarning`, part of its label (C-119).'
+  },
+  {
+    name: 'cc-attach-start',
+    on: '.cc-attach > button',
+    description:
+      '`labels.remote.attach`, or `attachAgain` while a line is shown; emits `attach-remote` with the level chosen (C-119).'
+  },
+  {
+    name: 'cc-attach-code',
+    on: '.cc-attach > div',
+    description:
+      'A named `role="group"` while the `attachCode` prop is set: the line, its copy button, the warning and the time left (C-119).'
+  },
+  {
+    name: 'cc-attach-line',
+    on: '.cc-attach-code > code',
+    description: '`labels.remote.attachLine(code)` (C-119).'
+  },
+  {
+    name: 'cc-attach-copy',
+    on: '.cc-attach-code > button',
+    description:
+      '`labels.remote.copy`, then `copied`; copies the line, or selects it where the clipboard cannot be reached (C-119).'
+  },
+  {
+    name: 'cc-attach-warning',
+    on: '.cc-attach-code > span',
+    description: '`labels.remote.attachWarning` (C-119).'
+  },
+  {
+    name: 'cc-attach-expires',
+    on: '.cc-attach-code > span',
+    description:
+      '`labels.remote.expiresIn(seconds)`, counted down each second, then `labels.remote.expired` (C-119).'
   },
   {
     name: 'cc-approval',
@@ -199,15 +273,37 @@ export const domAttributes: AttributeEntry[] = [
   },
   {
     name: 'role',
-    on: '.cc-log, .cc-status, .cc-completions, .cc-completion, .cc-input, .cc-approval, .cc-pairing',
+    on: '.cc-log, .cc-status, .cc-completions, .cc-completion, .cc-input, .cc-approval, .cc-pairing, .cc-attach-code',
     description:
-      '`log` on the log, `status` on the status element, `listbox` on the list, `option` on a candidate, `combobox` on the input (C-48), `alertdialog` on the approval window and the pairing question (C-103, C-104).'
+      '`log` on the log, `status` on the status element, `listbox` on the list, `option` on a candidate, `combobox` on the input (C-48), `alertdialog` on the approval window and the pairing question (C-103, C-104), `group` on the line of the CLI row (C-119).'
   },
   {
     name: 'aria-label',
-    on: '.cc-log, .cc-completions, .cc-input, .cc-approval, .cc-pairing',
+    on: '.cc-log, .cc-completions, .cc-input, .cc-approval, .cc-pairing, .cc-attach-code',
     description:
-      'From `labels.log`, `labels.completions`, `labels.input`, `labels.remote.approval` and `labels.remote.pairing` (C-47).'
+      'From `labels.log`, `labels.completions`, `labels.input`, `labels.remote.approval`, `labels.remote.pairing` and `labels.remote.attachCode` (C-47).'
+  },
+  {
+    name: 'data-expired',
+    on: '.cc-attach-code',
+    description:
+      'Present once the line’s `expiresAt` has passed, for the skin to mark it (C-119).'
+  },
+  {
+    name: 'name',
+    on: '.cc-attach-radio',
+    description:
+      'From Vue’s `useId()`: the group of the two level buttons, unique per console (C-119).'
+  },
+  {
+    name: 'value',
+    on: '.cc-attach-radio',
+    description: '`ask-server` or `never-ask` (C-119).'
+  },
+  {
+    name: 'checked',
+    on: '.cc-attach-radio',
+    description: 'On the level chosen (C-119).'
   },
   {
     name: 'data-kind',
@@ -269,8 +365,9 @@ export const domAttributes: AttributeEntry[] = [
   },
   {
     name: 'type',
-    on: '.cc-input, .cc-remote-detach, .cc-approve, .cc-reject, .cc-pair-accept, .cc-pair-decline',
-    description: '`text` on the input, `button` on a button.'
+    on: '.cc-input, .cc-remote-detach, .cc-approve, .cc-reject, .cc-pair-accept, .cc-pair-decline, .cc-attach-start, .cc-attach-copy, .cc-attach-radio',
+    description:
+      '`text` on the input, `button` on a button, `radio` on a level (C-119).'
   },
   {
     name: 'aria-autocomplete',

@@ -81,7 +81,10 @@ describe('Agent skill', () => {
       'Exit code 4',
       'retry is safe',
       'Exit code 5',
-      'do not retry, ask the user'
+      'do not retry, ask the user',
+      '`--dry-run`',
+      '`approval`',
+      'tell the user what ran without their approval'
     ]) {
       expect(skill).toContain(text)
     }

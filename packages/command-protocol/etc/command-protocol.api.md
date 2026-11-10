@@ -147,6 +147,7 @@ export interface CommandSpec {
         field: string;
     };
     danger?: Danger;
+    effect?: Effect;
     hidden?: boolean;
     input?: InputSchema;
     name: string;
@@ -201,6 +202,9 @@ export type Danger = 'read' | 'change' | 'irreversible';
 export const dataMaxBytes = 32768;
 
 // @public
+export type Effect = 'screen' | 'server';
+
+// @public
 export interface Envelope {
     actor: Actor;
     args: Record<string, JsonValue>;
@@ -247,6 +251,7 @@ export type ErrorCode = 'invalid-args' | 'unknown-command' | 'not-allowed' | 'ta
 
 // @public
 export interface FinishedReply {
+    approval?: RemoteApproval;
     // (undocumented)
     bytes: number;
     // (undocumented)
@@ -512,6 +517,9 @@ export function refusedCliRequest(raw: unknown): {
 } | undefined;
 
 // @public
+export type RemoteApproval = 'card' | 'none';
+
+// @public
 export const remoteArgvMaxItems = 256;
 
 // @public
@@ -526,6 +534,7 @@ export interface RemoteCommandSpec {
     aliases: string[];
     // (undocumented)
     danger: Exclude<Danger, 'irreversible'>;
+    effect?: Effect;
     // (undocumented)
     name: string;
 }

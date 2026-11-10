@@ -44,5 +44,6 @@ user's terminal.
   `gecko help <command>` come from the tab; an unknown name answers with the nearest one.
 - Use `--json` and give the line on `stdin` with `--line -`.
 - `stdout` carries only the result; progress and waiting go to `stderr`.
-- A change: take the preview first, then tell the user to approve it in the browser.
+- A change: `--dry-run` shows its preview. When it runs, its result has `approval`: `card` means the user approved
+  it in the browser, `none` means it ran with no card; tell the user what ran without their approval.
 - Exit code 4: the command did not run; retry is safe. Exit code 5: the outcome is unknown; do not retry, ask the user.

@@ -25,9 +25,11 @@ import { collectSuite, coveredIds, namedIds, rulesOf } from './test-names'
  * command's own outcome, C-88 for its data, C-89 to C-92 for what an agent
  * reads back, C-93 and C-94 for why it may not run and which namespace does
  * what, C-95 to C-104 for the remote entry of a desktop CLI, C-105 to C-112
- * for its 1.7.0 contract. A later rule raises it.
+ * for its 1.7.0 contract, C-113 and C-114 for help in the tab and frozen
+ * fixtures, C-115 to C-119 for the effect, the approval level, the dry run,
+ * the approval field and the CLI row of 1.8.0. A later rule raises it.
  */
-const ruleCount = 114
+const ruleCount = 119
 /**
  * The fewest runnable tests the specs must hold, so a broken reader that
  * finds none fails. Each piece raises it to about the count it leaves; 1.0 is

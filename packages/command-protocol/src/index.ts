@@ -23,7 +23,8 @@ export type {
   CommandResponse,
   CommandSpec,
   ConsoleEffect,
-  Danger
+  Danger,
+  Effect
 } from './command'
 export type { ContextFrame } from './context'
 export type { CommandOutcome, ErrorClass, ErrorCode } from './outcome'
@@ -68,6 +69,7 @@ export type {
   HelpRequest,
   HelpResultReply,
   ReceivedReply,
+  RemoteApproval,
   RemoteCommandSpec,
   RemoteOrigin,
   RemoteOutcome,

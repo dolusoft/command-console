@@ -9,6 +9,7 @@ import {
   CommandError,
   createConsole,
   type CommandDefinition,
+  type CommandReturn,
   type ConsoleGate,
   type ConsoleOptions,
   type RemoteBinding
@@ -433,7 +434,8 @@ describe('C-97 Attach remote', () => {
       sensitive: ['login', 'signin'],
       commands: [
         { name: 'search', aliases: ['s'], danger: 'read' },
-        { name: 'tasks.stop', aliases: [], danger: 'change' }
+        // C-115: a change without `effect` is published as `server`.
+        { name: 'tasks.stop', aliases: [], danger: 'change', effect: 'server' }
       ]
     })
     // The head is at the start of the first part; no confirm field.
@@ -516,6 +518,7 @@ describe('C-97 Attach remote', () => {
     expect(t.console.getState().remote).toEqual({
       bindingId: 'b1',
       approvedAt: 900_000,
+      level: 'ask-server',
       approval: null
     })
     t.console.detachRemote()
@@ -934,9 +937,9 @@ describe('C-99 Approval plan', () => {
     return { ...t, run: s.run }
   }
 
-  it('a confirm field that is not true runs the preview as read, flagged preview', () => {
+  it('--dry-run runs the preview as read, flagged preview', () => {
     const t = approvalSetup()
-    const id = t.request('tasks.stop --id 8812')
+    const id = t.request('tasks.stop --id 8812 --dry-run')
     expect(t.finished(id)).toMatchObject({
       outcome: { status: 'ok', summary: 'would stop 1' },
       preview: true
@@ -1319,8 +1322,8 @@ describe('C-110 Received fields', () => {
     const t = setup({ commands: [search(), stop().definition] })
     t.attach()
     const read = t.request('search --ip 1')
-    const preview = t.request('tasks.stop --id 1')
-    const change = t.request('tasks.stop --id 1 --yes')
+    const preview = t.request('tasks.stop --id 1 --dry-run')
+    const change = t.request('tasks.stop --id 1')
     expect(t.of('received', read)[0].change).toBe(false)
     expect(t.of('received', preview)[0].change).toBe(false)
     expect(t.of('received', change)[0].change).toBe(true)
@@ -1423,7 +1426,7 @@ describe('C-111 Remote suggestions', () => {
       ...extra
     })
 
-  it('a preview suggests its argv with the confirm field true, from the normalized input', () => {
+  it('a preview suggests nothing: the change needs no confirm field from the CLI', () => {
     const t = setup({
       commands: [
         stop(undefined, {
@@ -1432,9 +1435,9 @@ describe('C-111 Remote suggestions', () => {
       ]
     })
     t.attach()
-    const end = t.finished(t.request('tasks.stop --id 1'))
+    const end = t.finished(t.request('tasks.stop --id 1 --dry-run'))
     expect(end.preview).toBe(true)
-    expect(end.suggest).toEqual(['tasks.stop', '--id', '101', '--yes'])
+    expect(end).not.toHaveProperty('suggest')
     expect(end).not.toHaveProperty('outcome.line')
   })
 
@@ -1547,7 +1550,7 @@ describe('C-111 Remote suggestions', () => {
     expect(t.finished(t.request('plain.list --ip 1')).next).toBeUndefined()
   })
 
-  it('a not-allowed end of an accepted request suggests its canonical argv', () => {
+  it('a not-allowed end of an accepted request suggests its canonical argv without the confirm field', () => {
     const t = setup({ commands: [stop().definition] })
     t.attach()
     const id = t.request('tasks.stop --yes --id 3')
@@ -1558,7 +1561,8 @@ describe('C-111 Remote suggestions', () => {
       class: 'denied',
       message: 'The approval expired; nothing changed.'
     })
-    expect(end.suggest).toEqual(['tasks.stop', '--id', '3', '--yes'])
+    expect(end.suggest).toEqual(['tasks.stop', '--id', '3'])
+    expect(end).not.toHaveProperty('approval')
   })
 
   it('a change the user rejected is not suggested again', () => {
@@ -1758,5 +1762,489 @@ describe('C-112 Remote command name', () => {
     expect(ran).toEqual(['get', 'Get', 'Get'])
     await t.console.run('GET')
     expect(ran).toHaveLength(3)
+  })
+})
+
+const goInput: InputSchema = {
+  type: 'object',
+  properties: { to: { type: 'string' } },
+  required: ['to']
+}
+
+/** A `screen` change without a preview arm, as frontendx's `nav.go`. */
+const go = (run = vi.fn((): CommandReturn => ({ summary: 'opened' }))) => ({
+  run,
+  definition: command('nav.go', run, {
+    input: goInput,
+    danger: 'change',
+    effect: 'screen'
+  })
+})
+
+describe('C-115 Command effect', () => {
+  it('takes screen or server on a change command only', () => {
+    const make = (extra: Partial<CommandDefinition>) => () =>
+      createConsole({
+        commands: [
+          { name: 'a', input: goInput, run: () => undefined, ...extra }
+        ]
+      })
+    expect(make({ danger: 'change', effect: 'screen' })).not.toThrow()
+    expect(make({ danger: 'change', effect: 'server' })).not.toThrow()
+    expect(make({ danger: 'read', effect: 'screen' })).toThrow(/effect/)
+    expect(make({ danger: 'irreversible', effect: 'server' })).toThrow(/effect/)
+    expect(make({ effect: 'server' })).toThrow(/effect/)
+    expect(make({ danger: 'change', effect: 'disk' as never })).toThrow(
+      /effect/
+    )
+    const console = createConsole({ commands: [search()] })
+    expect(() =>
+      console.setOptions(options => ({
+        ...options,
+        commands: [
+          command('b', () => undefined, {
+            input: goInput,
+            danger: 'read',
+            effect: 'screen'
+          })
+        ]
+      }))
+    ).toThrow(/effect/)
+  })
+
+  it('getCommands copies effect into the spec', () => {
+    const console = createConsole({
+      commands: [go().definition, stop().definition]
+    })
+    const [nav, tasks] = console.getCommands()
+    expect(nav.effect).toBe('screen')
+    expect(tasks).not.toHaveProperty('effect')
+  })
+
+  it('the capabilities carry the effect of every change, server by default, none on a read', () => {
+    const t = setup({
+      commands: [
+        search(),
+        go().definition,
+        stop().definition,
+        stop(undefined, { name: 'tasks.clear', effect: 'server' }).definition
+      ]
+    })
+    t.attach()
+    expect(readCapabilitiesParts(t.published[0].parts)?.commands).toEqual([
+      { name: 'search', aliases: ['s'], danger: 'read' },
+      { name: 'nav.go', aliases: [], danger: 'change', effect: 'screen' },
+      { name: 'tasks.stop', aliases: [], danger: 'change', effect: 'server' },
+      { name: 'tasks.clear', aliases: [], danger: 'change', effect: 'server' }
+    ])
+    expect(readCapabilitiesParts(t.published[0].parts)?.features).toEqual(
+      expect.arrayContaining(['effect', 'dry-run', 'approval'])
+    )
+  })
+
+  it('publishes the capabilities-effect fixture as it is', () => {
+    const fixtures = JSON.parse(
+      readFileSync(
+        join(
+          dirname(fileURLToPath(import.meta.url)),
+          '..',
+          '..',
+          '..',
+          'fixtures',
+          'remote',
+          'valid',
+          'capabilities.json'
+        ),
+        'utf8'
+      )
+    ) as { name: string; parts: string[] }[]
+    const fixture = fixtures.find(item => item.name === 'capabilities-effect')!
+    const t = setup({
+      commands: [
+        search(),
+        go().definition,
+        stop().definition,
+        command('login', () => undefined, {
+          sensitive: true,
+          aliases: ['signin']
+        })
+      ]
+    })
+    t.attach()
+    expect(t.published[0].parts).toEqual(fixture.parts)
+  })
+
+  it('changes nothing for the local terminal or an agent', async () => {
+    const g = go()
+    const console = createConsole({ commands: [g.definition] })
+    await console.run('nav.go --to /a')
+    expect(g.run).toHaveBeenCalledTimes(1)
+    expect(
+      await console.request({
+        line: 'nav.go --to /a',
+        actor: 'external-agent'
+      })
+    ).toMatchObject({ status: 'error', code: 'not-allowed' })
+    expect(g.run).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('C-116 Approval level', () => {
+  it('the level is the binding’s, ask-server by default, and the state shows it', () => {
+    const t = setup({ commands: [search()] })
+    t.attach()
+    expect(t.console.getState().remote?.level).toBe('ask-server')
+    const never = setup({ commands: [search()] }, { level: 'never-ask' })
+    never.attach()
+    expect(never.console.getState().remote?.level).toBe('never-ask')
+  })
+
+  it('attachRemote throws for a level it does not know', () => {
+    const t = setup({ commands: [search()] })
+    expect(() =>
+      t.console.attachRemote({ ...t.binding, level: 'sometimes' as never })
+    ).toThrow(TypeError)
+    expect(t.console.getState().remote).toBeNull()
+  })
+
+  it('ask-server: a screen change runs without a card, a server change waits for one', () => {
+    const g = go()
+    const s = stop()
+    const t = setup({ commands: [g.definition, s.definition] })
+    t.attach()
+    const screen = t.request('nav.go --to /dashboard')
+    expect(t.of('awaiting-approval', screen)).toEqual([])
+    expect(g.run).toHaveBeenCalledTimes(1)
+    expect(t.of('received', screen)[0].change).toBe(true)
+    const server = t.request('tasks.stop --id 8812')
+    expect(t.of('awaiting-approval', server)).toHaveLength(1)
+    expect(s.run).not.toHaveBeenCalled()
+    expect(t.console.getState().running?.phase).toBe('approving')
+  })
+
+  it('never-ask: a server change runs without a card', () => {
+    const s = stop()
+    const t = setup({ commands: [s.definition] }, { level: 'never-ask' })
+    t.attach()
+    const id = t.request('tasks.stop --id 8812')
+    expect(t.of('awaiting-approval')).toEqual([])
+    expect(s.run).toHaveBeenCalledTimes(1)
+    expect(s.run.mock.calls[0][0].input).toEqual({ id: 8812, yes: true })
+    expect(t.finished(id).outcome).toEqual({ status: 'ok', summary: 'stopped' })
+  })
+
+  it('never-ask still refuses an irreversible or a sensitive command, and beforeRun still decides', async () => {
+    const run = vi.fn()
+    const t = setup(
+      {
+        commands: [
+          command('wipe', run, { input: stopInput, danger: 'irreversible' }),
+          command('login', run, { sensitive: true }),
+          stop(run as never).definition
+        ],
+        beforeRun: () => false
+      },
+      { level: 'never-ask' }
+    )
+    t.attach()
+    const ids = [t.request('wipe --id 1'), t.request('login x')]
+    for (const id of ids) {
+      expect(t.finished(id).outcome).toMatchObject({ code: 'not-allowed' })
+    }
+    const refused = t.request('tasks.stop --id 1')
+    await flush()
+    expect(t.finished(refused).outcome).toMatchObject({ code: 'not-allowed' })
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it('setRemoteLevel decides the next request and keeps a waiting approval', () => {
+    const s = stop()
+    const t = setup({ commands: [s.definition] })
+    t.attach()
+    const waiting = t.request('tasks.stop --id 1')
+    t.console.setRemoteLevel('never-ask')
+    expect(t.console.getState().remote).toMatchObject({
+      level: 'never-ask',
+      approval: { requestId: waiting }
+    })
+    t.clock.now += 1000
+    expect(t.console.approve(waiting)).toBe(true)
+    expect(t.finished(waiting).approval).toBe('card')
+    const next = t.request('tasks.stop --id 2')
+    expect(t.of('awaiting-approval', next)).toEqual([])
+    expect(t.finished(next).approval).toBe('none')
+    t.console.setRemoteLevel('ask-server')
+    const third = t.request('tasks.stop --id 3')
+    expect(t.of('awaiting-approval', third)).toHaveLength(1)
+  })
+
+  it('setRemoteLevel throws for an unknown level and does nothing without a binding', () => {
+    const t = setup({ commands: [search()] })
+    const listener = vi.fn()
+    t.console.subscribe(listener)
+    t.console.setRemoteLevel('never-ask')
+    expect(t.console.getState().remote).toBeNull()
+    expect(listener).not.toHaveBeenCalled()
+    expect(() => t.console.setRemoteLevel('ask' as never)).toThrow(TypeError)
+    t.attach()
+    t.console.detachRemote()
+    t.console.setRemoteLevel('never-ask')
+    expect(t.console.getState().remote).toBeNull()
+  })
+})
+
+describe('C-117 Remote dry run', () => {
+  it('a change runs without its confirm field: the plan and the run get it true', async () => {
+    const plan = vi.fn(() => ({ targets: ['1'] }))
+    const s = stop(undefined, { plan })
+    const t = setup({ commands: [s.definition] })
+    t.attach()
+    const id = t.request('tasks.stop --id 1')
+    await flush()
+    expect(plan).toHaveBeenCalledWith(
+      { id: 1, yes: true },
+      expect.any(AbortSignal)
+    )
+    expect(t.console.getState().remote?.approval?.line).toBe(
+      'tasks.stop --id 1 --yes'
+    )
+    t.clock.now += 1000
+    t.console.approve(id)
+    expect(s.run.mock.calls[0][0].input).toEqual({ id: 1, yes: true })
+    expect(t.finished(id).preview).toBeUndefined()
+  })
+
+  it('--dry-run gives the preview, even with --yes or as argv, and suggests nothing', () => {
+    const s = stop()
+    const t = setup({ commands: [s.definition] })
+    t.attach()
+    const ids = [
+      t.request('tasks.stop --id 1 --dry-run'),
+      t.request('tasks.stop --dry-run --id 1 --yes'),
+      t.requestArgv(['tasks.stop', '--id', '1', '--dry-run'])
+    ]
+    for (const id of ids) {
+      expect(t.of('received', id)[0].change).toBe(false)
+      expect(t.finished(id)).toEqual({
+        v: 1,
+        kind: 'finished',
+        id,
+        outcome: { status: 'ok', summary: 'would stop 1' },
+        chunks: 0,
+        bytes: 0,
+        preview: true
+      })
+    }
+    expect(t.of('awaiting-approval')).toEqual([])
+    expect(s.run.mock.calls.map(call => call[0].input)).toEqual([
+      { id: 1, yes: false },
+      { id: 1, yes: false },
+      { id: 1, yes: false }
+    ])
+    const [entry] = t.console.getState().entries
+    expect(entry.kind === 'input' && entry.text).toBe(
+      'tasks.stop --id 1 --yes false'
+    )
+  })
+
+  it('--dry-run on a change without a confirm field is invalid-args and nothing runs', () => {
+    const g = go()
+    const t = setup({ commands: [g.definition] }, { level: 'never-ask' })
+    t.attach()
+    const id = t.request('nav.go --to /a --dry-run')
+    expect(g.run).not.toHaveBeenCalled()
+    expect(t.of('received', id)).toEqual([])
+    expect(t.finished(id)).toMatchObject({
+      outcome: { code: 'invalid-args', class: 'usage' },
+      help: 'nav.go'
+    })
+    expect(t.console.getState().entries).toEqual([])
+  })
+
+  it('--dry-run on a read command is dropped and the command runs as it is', () => {
+    const seen: unknown[] = []
+    const t = setup({
+      commands: [
+        search(request => {
+          seen.push(request.input)
+          return { summary: 'found' }
+        })
+      ]
+    })
+    t.attach()
+    const id = t.request('search --dry-run --ip 1')
+    expect(seen).toEqual([{ ip: '1' }])
+    expect(t.finished(id).preview).toBeUndefined()
+  })
+
+  it('--yes is taken and changes nothing', () => {
+    const s = stop()
+    const t = setup({ commands: [s.definition] }, { level: 'never-ask' })
+    t.attach()
+    const a = t.request('tasks.stop --id 1 --yes')
+    const b = t.request('tasks.stop --id 1')
+    const c = t.request('tasks.stop --id 1 --yes false')
+    for (const id of [a, b, c]) {
+      expect(t.finished(id)).toMatchObject({
+        outcome: { status: 'ok', summary: 'stopped' },
+        approval: 'none'
+      })
+    }
+  })
+
+  it('the local terminal and the agent keep the preview without the confirm field', async () => {
+    const s = stop()
+    const console = createConsole({ commands: [s.definition] })
+    expect(
+      await console.request({
+        line: 'tasks.stop --id 1',
+        actor: 'external-agent'
+      })
+    ).toEqual({ status: 'ok', summary: 'would stop 1' })
+    await console.run('tasks.stop --id 2')
+    expect(s.run.mock.calls.map(call => call[0].input)).toEqual([
+      { id: 1 },
+      { id: 2 }
+    ])
+    await console.run('tasks.stop --id 3 --dry-run')
+    expect(s.run).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('C-118 Approval field', () => {
+  it('a change says card after the window and none without it', () => {
+    const t = setup({ commands: [go().definition, stop().definition] })
+    t.attach()
+    const screen = t.request('nav.go --to /a')
+    expect(t.finished(screen).approval).toBe('none')
+    const server = t.request('tasks.stop --id 1')
+    t.clock.now += 1000
+    t.console.approve(server)
+    expect(t.finished(server).approval).toBe('card')
+  })
+
+  it('a change whose command was called says how even when it failed or was cancelled', () => {
+    const slow = deferred<undefined>()
+    const t = setup(
+      {
+        commands: [
+          go(
+            vi.fn(() => {
+              throw new Error('no')
+            })
+          ).definition,
+          stop(vi.fn(() => slow.promise) as never).definition
+        ]
+      },
+      { level: 'never-ask' }
+    )
+    t.attach()
+    const failed = t.request('nav.go --to /a')
+    expect(t.finished(failed)).toMatchObject({
+      outcome: { code: 'failed' },
+      approval: 'none'
+    })
+    const cancelled = t.request('tasks.stop --id 1')
+    t.cancel(cancelled)
+    expect(t.of('cancel-requested', cancelled)).toHaveLength(1)
+    expect(t.finished(cancelled)).toMatchObject({
+      outcome: { code: 'cancelled' },
+      approval: 'none'
+    })
+  })
+
+  it('a read, a preview and a request that did not reach its command carry none', async () => {
+    const t = setup({
+      commands: [search(), stop().definition],
+      beforeRun: info => (info.command === 'search' ? undefined : false)
+    })
+    t.attach()
+    const ids = [
+      t.request('search --ip 1'),
+      t.request('tasks.stop --id 1 --dry-run'),
+      t.request('tasks.stop --id 1'),
+      t.request('nope')
+    ]
+    await flush()
+    for (const id of ids) {
+      expect(t.finished(id)).not.toHaveProperty('approval')
+    }
+    const plain = setup({ commands: [stop().definition] })
+    plain.attach()
+    const rejected = plain.request('tasks.stop --id 1')
+    plain.console.reject(rejected)
+    const cancelled = plain.request('tasks.stop --id 2')
+    plain.cancel(cancelled)
+    expect(plain.of('cancelled-before-start', cancelled)).toHaveLength(1)
+    for (const id of [rejected, cancelled]) {
+      expect(plain.finished(id)).not.toHaveProperty('approval')
+    }
+  })
+
+  describe('fixtures/remote/sequence/approval.json', () => {
+    interface Item {
+      name: string
+      tab: {
+        level: 'ask-server' | 'never-ask'
+        command: {
+          name: string
+          danger: 'change'
+          effect?: 'screen' | 'server'
+          confirm?: string
+          input: InputSchema
+        }
+        summary: string
+        approve?: boolean
+      }
+      request: Record<string, unknown>
+      replies: CliReply[]
+    }
+    const items = JSON.parse(
+      readFileSync(
+        join(
+          dirname(fileURLToPath(import.meta.url)),
+          '..',
+          '..',
+          '..',
+          'fixtures',
+          'remote',
+          'sequence',
+          'approval.json'
+        ),
+        'utf8'
+      )
+    ) as Item[]
+
+    for (const item of items) {
+      it(`"${item.name}" gives the replies of the example`, () => {
+        const { level, command: spec, summary, approve } = item.tab
+        const t = setup(
+          {
+            commands: [
+              command(spec.name, () => ({ summary }), {
+                input: spec.input,
+                danger: spec.danger,
+                ...(spec.effect !== undefined && { effect: spec.effect }),
+                ...(spec.confirm !== undefined && {
+                  confirm: { field: spec.confirm }
+                })
+              })
+            ]
+          },
+          { level }
+        )
+        t.clock.now = item.request.stampedAt as number
+        t.attach()
+        t.deliver(item.request)
+        if (approve !== undefined) {
+          t.clock.now += 1000
+          const id = item.request.id as string
+          expect(approve ? t.console.approve(id) : t.console.reject(id)).toBe(
+            true
+          )
+        }
+        expect(t.replies).toEqual(item.replies)
+      })
+    }
   })
 })

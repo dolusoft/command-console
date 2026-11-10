@@ -48,6 +48,7 @@ export type {
   NamespaceDefinition,
   NamespaceSpec,
   RemoteBinding,
+  RemoteLevel,
   RunContext,
   RunInfo
 } from './core/dispatch/dispatch.types'

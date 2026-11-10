@@ -105,7 +105,22 @@ const defaultLabels: ConsoleLabels = {
     pairingDetails: (time, environment) =>
       `CLI access created at ${time} for ${environment}.`,
     pairAccept: 'Connect',
-    pairDecline: 'Cancel'
+    pairDecline: 'Cancel',
+    attach: 'Connect CLI',
+    attachAgain: 'New line',
+    levelLegend: 'When the CLI makes a change',
+    levelAskServer: 'Ask before changes on the server',
+    levelNeverAsk: 'Never ask',
+    neverAskWarning:
+      'An agent in the terminal can then make changes for you without asking.',
+    attachCode: 'Line to connect the CLI',
+    attachLine: code => `gecko attach ${code}`,
+    copy: 'Copy',
+    copied: 'Copied',
+    attachWarning: 'This line gives access to your session; do not share it.',
+    expiresIn: seconds =>
+      `Valid for ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}.`,
+    expired: 'This line expired; ask for a new one.'
   },
   formatTime: time => new Date(time).toISOString()
 }

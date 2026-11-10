@@ -16,6 +16,7 @@ import type {
   ConsoleGate,
   NamespaceDefinition,
   RemoteBinding,
+  RemoteLevel,
   NamespaceSpec,
   RunInfo
 } from '../dispatch/dispatch.types'
@@ -53,6 +54,8 @@ export interface RemoteState {
   bindingId: string
   /** When the user approved the binding, in ms since the epoch. */
   approvedAt: number
+  /** When a change from the CLI asks the user (C-116). */
+  level: RemoteLevel
   /** The change waiting for the user's approval, if any. */
   approval: ApprovalPlan | null
 }
@@ -326,6 +329,12 @@ export interface CoreConsoleAPI<
   attachRemote(binding: RemoteBinding): void
   /** Ends the binding: a waiting approval is dropped; nothing more is sent. */
   detachRemote(): void
+  /**
+   * The user changed the binding's level (C-116): the next request of the
+   * CLI is decided by it; a waiting approval stays. Throws a `TypeError` for
+   * a value that is not a level; does nothing without a binding.
+   */
+  setRemoteLevel(level: RemoteLevel): void
   /**
    * The bound tab lost its connection (C-99): a waiting approval is dropped,
    * the binding stays.

@@ -72,6 +72,18 @@ describe('C-48 accessibility', () => {
     expect(await violations(view.root)).toEqual([])
   })
 
+  test('C-48 C-119 axe finds no violation with the CLI row, its level choice and its line', async () => {
+    const view = mountConsole({
+      props: {
+        attachable: true,
+        attachCode: { code: 'gk1_abc', expiresAt: Date.now() + 60_000 }
+      }
+    })
+    await settle()
+    expect(view.root.querySelector('.cc-attach-code')).not.toBeNull()
+    expect(await violations(view.root)).toEqual([])
+  })
+
   test('C-48 axe finds no violation with output of every kind and the list closed', async () => {
     const view = mountConsole()
     await view.api.run('blocks')

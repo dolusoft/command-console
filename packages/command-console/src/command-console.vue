@@ -8,7 +8,9 @@
 // it last reported.
 import {
   computed,
+  onBeforeUnmount,
   onMounted,
+  ref,
   toRef,
   useId,
   useTemplateRef,
@@ -22,6 +24,7 @@ import {
   contextFeature,
   recallFeature,
   type OptionalFeatures,
+  type RemoteLevel,
   type Updater
 } from '@dolusoft/command-console-core'
 import type { ConsoleEntry, ContextFrame } from '@dolusoft/command-protocol'
@@ -40,6 +43,7 @@ import { renderCompletions, optionId } from './parts/completions-view'
 import { renderEntry, renderPrompt } from './parts/entry-view'
 import {
   renderApproval,
+  renderAttach,
   renderPairing,
   renderRemote
 } from './parts/remote-view'
@@ -65,7 +69,9 @@ const props = withDefaults(defineProps<ConsoleProps>(), {
   entries: undefined,
   recall: undefined,
   context: undefined,
-  pairing: undefined
+  pairing: undefined,
+  attachable: false,
+  attachCode: undefined
 })
 
 const emit = defineEmits<ConsoleEmits>()
@@ -217,13 +223,89 @@ const completionsView: FunctionalComponent = () =>
     ? renderCompletions(session.value, listId, labels.value.completions, slots)
     : null
 const promptView: FunctionalComponent = () => renderPrompt(prompt.value, slots)
-// C-102 to C-104: the bound CLI, its approval window, the pairing question.
+// C-119: the CLI row without a binding. The level picked, whether the line
+// was copied and the clock that counts the line down belong to the DOM, not
+// to the console (P15).
+const attachGroup = useId()
+const attachLevel = ref<RemoteLevel>('ask-server')
+const copied = ref(false)
+const clock = ref(Date.now())
+let ticking: ReturnType<typeof setInterval> | undefined
+const stopTicking = () => {
+  if (ticking !== undefined) {
+    clearInterval(ticking)
+    ticking = undefined
+  }
+}
+watch(
+  () => props.attachCode,
+  code => {
+    copied.value = false
+    clock.value = Date.now()
+    stopTicking()
+    if (code && code.expiresAt > clock.value) {
+      ticking = setInterval(() => {
+        clock.value = Date.now()
+        if (clock.value >= code.expiresAt) {
+          stopTicking()
+        }
+      }, 1000)
+    }
+  },
+  { immediate: true }
+)
+onBeforeUnmount(stopTicking)
+
+/**
+ * Copies the line; where the clipboard is out of reach (an insecure page, a
+ * refused permission) the line is selected for the user to copy.
+ */
+const copyLine = (line: string, element: Element | null) => {
+  const select = () => {
+    if (element) {
+      element.ownerDocument.getSelection()?.selectAllChildren(element)
+    }
+  }
+  const clipboard =
+    typeof navigator === 'undefined'
+      ? undefined
+      : (navigator.clipboard as Clipboard | undefined)
+  if (!clipboard) {
+    select()
+    return
+  }
+  clipboard.writeText(line).then(() => {
+    copied.value = true
+  }, select)
+}
+
+// C-102 to C-104, C-119: the bound CLI, its approval window, the pairing
+// question, and the CLI row without a binding.
 const remoteView: FunctionalComponent = () => {
   const remote = state.value.remote
   return [
     props.pairing
       ? renderPairing(props.pairing, labels.value, accepted =>
           emit('pair', accepted)
+        )
+      : null,
+    props.attachable && !remote
+      ? renderAttach(
+          {
+            group: attachGroup,
+            level: attachLevel.value,
+            code: props.attachCode ?? null,
+            now: clock.value,
+            copied: copied.value
+          },
+          labels.value,
+          {
+            choose: level => {
+              attachLevel.value = level
+            },
+            start: () => emit('attach-remote', attachLevel.value),
+            copy: copyLine
+          }
         )
       : null,
     remote

@@ -40,6 +40,7 @@ import type {
   CommandRequest,
   CommandReturn,
   RemoteBinding,
+  RemoteLevel,
   RunContext,
   RunInfo
 } from './dispatch.types'
@@ -64,7 +65,10 @@ import {
   approvalMs,
   capabilitiesOf,
   checkBinding,
+  effectOf,
   finishedReplies,
+  isLevel,
+  levelOf,
   openToCli,
   stampRefusal,
   type Hints
@@ -167,15 +171,19 @@ interface Run {
 interface Holder {
   binding: RemoteBinding
   alive: boolean
+  /** The level the shell gave last (C-116). */
+  level: RemoteLevel
 }
 
 /** What a run of a CLI request carries. */
 interface RemoteRun {
   requestId: string
   holder: Holder
-  /** The command needs the user's approval before it runs (C-99). */
+  /** The request runs the path that changes data (C-110). */
   change: boolean
-  /** The command runs as its preview (C-95). */
+  /** The change needs the user's approval before it runs (C-99, C-116). */
+  card: boolean
+  /** The command runs as its preview (`--dry-run`, C-117). */
   preview: boolean
   /** True once the command's `run` was called. */
   started: boolean
@@ -755,7 +763,7 @@ const structuredCopy = <T>(value: T): T =>
 
 /** After `beforeRun` lets the run go: the gate, or the command at once. */
 const proceed = (console: object, run: Run) => {
-  if (run.remote?.change) {
+  if (run.remote?.card) {
     askApproval(console, run, run.remote)
   } else if (run.gated) {
     send(console, run)
@@ -1324,16 +1332,16 @@ const refuseRemote = (
 
 /**
  * What the end of an accepted CLI request suggests (C-111), from the
- * normalized `input`: a preview's argv with its confirm field `true`, the
- * next page's argv with `cursor` set to the data's `nextCursor`, the
- * canonical argv of a `not-allowed` the user did not reject, the command's name for its help on an
- * `invalid-args`. An argv the schema refuses is left out.
+ * normalized `input`: the next page's argv with `cursor` set to the data's
+ * `nextCursor`, the canonical argv of a `not-allowed` the user did not reject
+ * (without the confirm field, which the remote entry sets itself, C-117), the
+ * command's name for its help on an `invalid-args`. A preview suggests
+ * nothing. An argv the schema refuses is left out.
  */
 const hintsOf = (
   command: CommandDefinition,
   outcome: CommandOutcome,
-  input: Input | undefined,
-  preview: boolean
+  input: Input | undefined
 ): Hints => {
   const schema = command.input!
   const argvOf = (value: Input): string[] | undefined => {
@@ -1348,15 +1356,16 @@ const hintsOf = (
     if (outcome.code === 'invalid-args') {
       hints.help = command.name
     } else if (outcome.code === 'not-allowed' && input) {
-      hints.suggest = argvOf(input)
+      const retry = { ...input }
+      if (command.confirm) {
+        delete retry[command.confirm.field]
+      }
+      hints.suggest = argvOf(retry)
     }
     return hints
   }
   if (!input) {
     return hints
-  }
-  if (preview && command.confirm) {
-    hints.suggest = argvOf({ ...input, [command.confirm.field]: true })
   }
   const { data } = outcome
   const cursor =
@@ -1373,11 +1382,16 @@ const hintsOf = (
   return hints
 }
 
+/** The remote entry's own flag: the preview of a change (C-117). */
+const dryRunFlag = '--dry-run'
+
 /**
  * A stamped request (C-98): its id seen once, its stamp checked with `now`,
  * then the path of an agent's line with `actor: 'cli'`: no queue (`busy`), a
  * sensitive, `irreversible` or undescribed command refused, the options
- * read; a preview runs as `read`, a change waits for approval (C-99).
+ * read. A change runs without its confirm field and `--dry-run` asks for its
+ * preview (C-117); the change waits for approval or runs by its effect and
+ * the binding's level (C-116).
  */
 const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
   const state = stateOf(console)
@@ -1473,7 +1487,20 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     )
     return
   }
+  // `--dry-run` is the remote entry's, never the command's (C-117).
+  const dryRun = args.includes(dryRunFlag)
+  if (dryRun) {
+    args = args.filter(arg => arg !== dryRunFlag)
+  }
   const schema = command.input!
+  if (dryRun && command.danger === 'change' && !command.confirm) {
+    refuse(
+      'invalid-args',
+      `${command.name} has no preview, so --dry-run cannot be used with it.`,
+      { help: command.name }
+    )
+    return
+  }
   const read = parseOptions(args, schema)
   if (!read.ok) {
     const fix = positionalFix(command.name, args, schema)
@@ -1483,19 +1510,29 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     })
     return
   }
-  const line = formatCommandLine(command.name, read.value, schema)
+  // A change asks for itself without its confirm field; `--dry-run` asks
+  // for the preview, whatever the field says (C-117).
+  const value: Input =
+    command.danger === 'change' && command.confirm
+      ? { ...read.value, [command.confirm.field]: !dryRun }
+      : read.value
+  const line = formatCommandLine(command.name, value, schema)
   if (lookup.isSensitive(line)) {
     sensitiveRefusal()
     return
   }
   // The decision reads the input the command would run with (C-95); one
   // that cannot be normalized fails on start, as C-77 says.
-  const mapped = mapInput(command, read.value)
-  const preview = isPreview(command, mapped.ok ? mapped.value : read.value)
+  const mapped = mapInput(command, value)
+  const preview = isPreview(command, mapped.ok ? mapped.value : value)
+  const change = command.danger === 'change' && !preview
   const remote: RemoteRun = {
     requestId: id,
     holder,
-    change: command.danger === 'change' && !preview,
+    change,
+    // C-116: a `server` change asks unless the user chose `never-ask`.
+    card:
+      change && effectOf(command) === 'server' && holder.level === 'ask-server',
     preview: command.confirm !== undefined && preview,
     started: false,
     approval: null,
@@ -1547,7 +1584,7 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     { name: command.name, command: command.name, args: [], rest: '', line },
     inputId,
     false,
-    { value: read.value, view: () => shown, actor: 'cli', mapped },
+    { value, view: () => shown, actor: 'cli', mapped },
     outcome =>
       reply(
         console,
@@ -1562,9 +1599,14 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
             command,
             outcome,
             // A change the user rejected is not offered again.
-            mapped.ok && !remote.rejected ? mapped.value : undefined,
-            remote.preview
-          )
+            mapped.ok && !remote.rejected ? mapped.value : undefined
+          ),
+          // C-118: only a change whose command was called says how.
+          remote.change && remote.started
+            ? remote.card
+              ? 'card'
+              : 'none'
+            : undefined
         )
       ),
     remote
@@ -1631,15 +1673,32 @@ const attach = (console: object, given: RemoteBinding) => {
   }
   record.store.action(() => {
     detach(console)
-    const holder: Holder = { binding, alive: true }
+    const holder: Holder = { binding, alive: true, level: levelOf(binding) }
     state.remote = holder
     record.store.update('remote', () => ({
       bindingId: binding.bindingId,
       approvedAt: binding.approvedAt,
+      level: holder.level,
       approval: null
     }))
     publish(console, holder, capabilities)
   })
+}
+
+/**
+ * The shell's new level for the binding (C-116): later requests follow it,
+ * a waiting approval stays. Nothing without a binding.
+ */
+const setLevel = (console: object, level: RemoteLevel) => {
+  const holder = stateOf(console).remote
+  if (!holder?.alive || holder.level === level) {
+    return
+  }
+  holder.level = level
+  liveRecord(console).store.update(
+    'remote',
+    remote => remote && { ...remote, level }
+  )
 }
 
 /**
@@ -1817,6 +1876,14 @@ export const dispatchFeature: ConsoleFeature = {
         },
         detachRemote() {
           inAction(() => detach(console))
+        },
+        setRemoteLevel(level: RemoteLevel) {
+          if (!isLevel(level)) {
+            throw new TypeError(
+              "setRemoteLevel needs 'ask-server' or 'never-ask'."
+            )
+          }
+          inAction(() => setLevel(console, level))
         },
         suspendRemote() {
           inAction(() =>

@@ -267,6 +267,7 @@ export interface CoreConsoleAPI<TFeatures extends Partial<OptionalFeatures> = {}
     run(line: string): Promise<boolean>;
     setInput(value: string, caret?: number): void;
     setOptions(updater: Updater<ConsoleOptions<TFeatures>>): void;
+    setRemoteLevel(level: RemoteLevel): void;
     submit(): Promise<boolean>;
     subscribe(listener: (state: ConsoleState) => void): () => void;
     suspendRemote(): void;
@@ -348,6 +349,7 @@ export interface RemoteBinding {
     approvedAt: number;
     bindingId: string;
     grantId: string;
+    level?: RemoteLevel;
     minCli?: string;
     publishCapabilities(payload: {
         revision: string;
@@ -364,11 +366,15 @@ export interface RemoteBinding {
 }
 
 // @public
+export type RemoteLevel = 'ask-server' | 'never-ask';
+
+// @public
 export interface RemoteState {
     approval: ApprovalPlan | null;
     approvedAt: number;
     // (undocumented)
     bindingId: string;
+    level: RemoteLevel;
 }
 
 // @public

@@ -6,7 +6,7 @@
 // (`capabilitiesParts`). JSON only, no transport. `docs/remote-contract.md`
 // is the normative description; `fixtures/remote/` holds its examples.
 
-import type { Danger } from './command'
+import type { Danger, Effect } from './command'
 import type { EnvelopeErrorCode } from './envelope'
 import { envelopeMaxBytes } from './envelope'
 import { codePoints, isPlainObject } from './input/validate'
@@ -23,8 +23,11 @@ export const remoteEnvelopes: readonly number[] = [1]
  * `CapabilitiesPayload.features` (C-108): `argv` (`cli-request.argv`),
  * `received-v2` (`received.change` and `viewRelevant`), `suggest-argv`
  * (`suggest`, `next` and `help` as argv), `help-v2` (`help-request` and
- * `help-result`), `error-class` (`class` on every error) and
- * `capabilities-v2` (the list published in parts).
+ * `help-result`), `error-class` (`class` on every error),
+ * `capabilities-v2` (the list published in parts), `effect` (each `change`
+ * command of the list carries its `effect`, C-115), `dry-run` (a change runs
+ * without its confirm field and `--dry-run` asks for the preview, C-117) and
+ * `approval` (`finished.approval`, C-118).
  */
 export const remoteFeatures: readonly string[] = [
   'argv',
@@ -32,7 +35,10 @@ export const remoteFeatures: readonly string[] = [
   'suggest-argv',
   'help-v2',
   'error-class',
-  'capabilities-v2'
+  'capabilities-v2',
+  'effect',
+  'dry-run',
+  'approval'
 ]
 
 /** The most parts the `data` of one result, or the capabilities, take. */
@@ -114,6 +120,12 @@ export interface RemoteCommandSpec {
   name: string
   aliases: string[]
   danger: Exclude<Danger, 'irreversible'>
+  /**
+   * Where a `change` command makes its change (C-115); never on a `read`
+   * command. A reader takes a `change` command without it, or with a value it
+   * does not know, as `server`.
+   */
+  effect?: Effect
 }
 
 /**
@@ -179,6 +191,14 @@ export type RemoteOutcome =
   | { status: 'ok'; summary?: string }
   | { status: 'error'; code: ErrorCode; class: ErrorClass; message?: string }
 
+/**
+ * How a change from the CLI was let run (C-118): `card` the user approved it
+ * in the tab, `none` it ran without asking (a `screen` change, or the
+ * binding's level is `never-ask`). A reader takes a value it does not know as
+ * `none`.
+ */
+export type RemoteApproval = 'card' | 'none'
+
 /** The end of a request. `chunks` parts of `bytes` UTF-8 bytes came before it. */
 export interface FinishedReply {
   v: 1
@@ -189,8 +209,13 @@ export interface FinishedReply {
   bytes: number
   /** The view the command ran in. */
   view?: { id: string; title?: string }
-  /** The command ran as its preview (its confirm field was not `true`). */
+  /** The command ran as its preview (`--dry-run`, C-117). */
   preview?: true
+  /**
+   * How a change was let run, once its command was called (C-118); absent
+   * for a read, a preview and a request that did not reach its command.
+   */
+  approval?: RemoteApproval
   /** A command to run instead or next, as argv without the CLI's name. */
   suggest?: string[]
   /** The next page of a paged result, as argv without the CLI's name. */
@@ -531,10 +556,11 @@ export function capabilitiesParts(payload: CapabilitiesPayload): string[] {
     ...(minCli !== undefined && { minCli }),
     revision,
     sensitive,
-    commands: commands.map(({ name, aliases, danger }) => ({
+    commands: commands.map(({ name, aliases, danger, effect }) => ({
       name,
       aliases,
-      danger
+      danger,
+      ...(danger === 'change' && effect !== undefined && { effect })
     }))
   })
   const parts = slices(text, part => utf8(part) <= envelopeMaxBytes)
@@ -551,7 +577,9 @@ export function capabilitiesParts(payload: CapabilitiesPayload): string[] {
  * (C-108): joins one to `remoteChunksMax` strings of at most
  * `envelopeMaxBytes` bytes each and reads the JSON object. `undefined` when
  * the parts or a known field are malformed. Unknown fields are left out; an
- * unknown `danger` is read as `change`.
+ * unknown `danger` is read as `change`. A `change` command's `effect` is kept
+ * when given, an unknown one read as `server` (C-115); a `read` command's is
+ * left out.
  */
 export function readCapabilitiesParts(
   parts: readonly unknown[]
@@ -591,7 +619,8 @@ export function readCapabilitiesParts(
         isName(item.name) &&
         Array.isArray(item.aliases) &&
         item.aliases.every(isName) &&
-        isName(item.danger)
+        isName(item.danger) &&
+        (item.effect === undefined || isName(item.effect))
     )
   ) {
     return undefined
@@ -602,11 +631,17 @@ export function readCapabilitiesParts(
     ...(minCli !== undefined && { minCli }),
     revision,
     sensitive: [...sensitive],
-    commands: (commands as Record<string, unknown>[]).map(item => ({
-      name: item.name as string,
-      aliases: [...(item.aliases as string[])],
-      danger: item.danger === 'read' ? 'read' : 'change'
-    }))
+    commands: (commands as Record<string, unknown>[]).map(item => {
+      const spec: RemoteCommandSpec = {
+        name: item.name as string,
+        aliases: [...(item.aliases as string[])],
+        danger: item.danger === 'read' ? 'read' : 'change'
+      }
+      if (spec.danger === 'change' && item.effect !== undefined) {
+        spec.effect = item.effect === 'screen' ? 'screen' : 'server'
+      }
+      return spec
+    })
   }
 }
 
@@ -671,6 +706,7 @@ export function isCliReply(raw: unknown): raw is CliReply {
           typeof raw.outcome.class === 'string') &&
         Number.isInteger(raw.chunks) &&
         Number.isInteger(raw.bytes) &&
+        (raw.approval === undefined || isName(raw.approval)) &&
         hasHints(raw)
       )
     case 'help-result':

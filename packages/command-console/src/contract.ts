@@ -11,6 +11,7 @@ import type {
   ConsoleState,
   ControllableState,
   OptionalFeatures,
+  RemoteLevel,
   RunInfo,
   RunningCommand
 } from '@dolusoft/command-console-core'
@@ -48,6 +49,7 @@ export type {
   OptionalFeatures,
   ApprovalPlan,
   RemoteBinding,
+  RemoteLevel,
   RemoteState,
   RunContext,
   RunInfo,
@@ -120,7 +122,7 @@ export interface ConsoleLabels {
 /** The label of each actor other than the user (C-85, C-102). */
 export type ActorLabels = Record<Exclude<Actor, 'user'>, string>
 
-/** The texts of the remote entry (C-102 to C-104). */
+/** The texts of the remote entry (C-102 to C-104, C-119). */
 export interface RemoteLabels {
   /** In `.cc-remote` while a CLI is bound. */
   connected: string
@@ -142,9 +144,48 @@ export interface RemoteLabels {
   pairingDetails: (time: string, environment: string) => string
   pairAccept: string
   pairDecline: string
+  /** The button that asks for a line to connect a CLI (C-119). */
+  attach: string
+  /** The same button while a line is shown: it asks for a new one. */
+  attachAgain: string
+  /** The legend of the level choice. */
+  levelLegend: string
+  /** The `ask-server` level, in the choice and in `.cc-remote`. */
+  levelAskServer: string
+  /** The `never-ask` level, in the choice and in `.cc-remote`. */
+  levelNeverAsk: string
+  /** Next to `never-ask`: an agent in the terminal may change things unasked. */
+  neverAskWarning: string
+  /** The accessible name of the line's panel. */
+  attachCode: string
+  /** The line the user copies into the terminal. Default `gecko attach <code>`. */
+  attachLine: (code: string) => string
+  /** The button that copies the line. */
+  copy: string
+  /** The copy button once the line was copied. */
+  copied: string
+  /** Under the line: it gives access to the session; do not share it. */
+  attachWarning: string
+  /** How long the line is still valid, in whole seconds. */
+  expiresIn: (seconds: number) => string
+  /** The line is no longer valid. */
+  expired: string
 }
 
-/** A pairing the user is asked to approve (C-104): the server's facts only. */
+/** The line the shell got for the CLI to connect with (C-119). */
+export interface AttachCode {
+  /** The code the CLI takes: the panel shows `gecko attach <code>`. */
+  code: string
+  /** When the code stops working, in ms since the epoch. */
+  expiresAt: number
+}
+
+/**
+ * A pairing the user is asked to approve (C-104): the server's facts only.
+ *
+ * @deprecated The CLI connects with a line from the tab now (`attachable`,
+ * `attachCode`, C-119); the pairing question goes in a later minor.
+ */
 export interface PairingRequest {
   /** When the CLI grant was created, in ms since the epoch. */
   createdAt: number
@@ -222,8 +263,24 @@ export interface ConsoleProps {
    * A pairing to ask the user about (C-104): `.cc-pairing` shows its facts
    * and answers with the `pair` event. Never the computer name the CLI
    * declares.
+   *
+   * @deprecated Use `attachable` and `attachCode` (C-119); it goes in a
+   * later minor.
    */
   pairing?: PairingRequest | null
+  /**
+   * The user may connect a CLI (C-119): while none is bound, `.cc-attach`
+   * offers the level choice and "Connect CLI", which emits `attach-remote`.
+   * Default `false`: without terminal access there is no button.
+   */
+  attachable?: boolean
+  /**
+   * The line the shell got from the hub after `attach-remote` (C-119):
+   * `.cc-attach-code` shows `gecko attach <code>` with a copy button, a
+   * warning and how long it is still valid. Shown only with `attachable`
+   * and while no CLI is bound.
+   */
+  attachCode?: AttachCode | null
 }
 
 /** What the `submit` event carries: never the line (C-64). */
@@ -254,8 +311,19 @@ export interface ConsoleEmits {
    * the hub and calls `detachRemote()`.
    */
   'detach-remote': []
-  /** The user answered the pairing question (C-104). */
+  /**
+   * The user answered the pairing question (C-104).
+   *
+   * @deprecated Use `attach-remote` (C-119); it goes in a later minor.
+   */
   pair: [accepted: boolean]
+  /**
+   * The user asked for a line to connect a CLI, with the level chosen
+   * (C-119). The shell asks the hub for a code and gives it back as
+   * `attachCode`; once the CLI used it, the shell calls `attachRemote` with
+   * the same level.
+   */
+  'attach-remote': [level: RemoteLevel]
 }
 
 /** What a `block-<type>` slot receives. */

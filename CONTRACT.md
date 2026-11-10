@@ -28,6 +28,8 @@ This is the public contract of `@dolusoft/command-console`: the component surfac
 | `recall` | `string[]` |  | `undefined` | The recall list, for `v-model:recall`; controlled when bound. |
 | `context` | `ContextFrame[]` |  | `undefined` | The context frames, for `v-model:context`; controlled when bound. |
 | `pairing` | `PairingRequest \| null` |  | `undefined` | A pairing to ask the user about (C-104): `.cc-pairing` shows its facts and answers with the `pair` event. Never the computer name the CLI declares. |
+| `attachable` | `boolean` |  | `false` | The user may connect a CLI (C-119): while none is bound, `.cc-attach` offers the level choice and "Connect CLI", which emits `attach-remote`. Default `false`: without terminal access there is no button. |
+| `attachCode` | `AttachCode \| null` |  | `undefined` | The line the shell got from the hub after `attach-remote` (C-119): `.cc-attach-code` shows `gecko attach <code>` with a copy button, a warning and how long it is still valid. Shown only with `attachable` and while no CLI is bound. |
 
 ### Events
 
@@ -40,6 +42,7 @@ This is the public contract of `@dolusoft/command-console`: the component surfac
 | `submit` | `[submit: ConsoleSubmit]` | A line was submitted with Enter or the exposed `run` (C-64). |
 | `detach-remote` | `[]` | The user pressed "Disconnect" (C-102). The consumer ends the binding at the hub and calls `detachRemote()`. |
 | `pair` | `[accepted: boolean]` | The user answered the pairing question (C-104). |
+| `attach-remote` | `[level: RemoteLevel]` | The user asked for a line to connect a CLI, with the level chosen (C-119). The shell asks the hub for a code and gives it back as `attachCode`; once the CLI used it, the shell calls `attachRemote` with the same level. |
 
 ### Slots
 
@@ -93,6 +96,7 @@ import type {
   ConsoleState,
   ControllableState,
   OptionalFeatures,
+  RemoteLevel,
   RunInfo,
   RunningCommand
 } from '@dolusoft/command-console-core'
@@ -130,6 +134,7 @@ export type {
   OptionalFeatures,
   ApprovalPlan,
   RemoteBinding,
+  RemoteLevel,
   RemoteState,
   RunContext,
   RunInfo,
@@ -202,7 +207,7 @@ export interface ConsoleLabels {
 /** The label of each actor other than the user (C-85, C-102). */
 export type ActorLabels = Record<Exclude<Actor, 'user'>, string>
 
-/** The texts of the remote entry (C-102 to C-104). */
+/** The texts of the remote entry (C-102 to C-104, C-119). */
 export interface RemoteLabels {
   /** In `.cc-remote` while a CLI is bound. */
   connected: string
@@ -224,9 +229,48 @@ export interface RemoteLabels {
   pairingDetails: (time: string, environment: string) => string
   pairAccept: string
   pairDecline: string
+  /** The button that asks for a line to connect a CLI (C-119). */
+  attach: string
+  /** The same button while a line is shown: it asks for a new one. */
+  attachAgain: string
+  /** The legend of the level choice. */
+  levelLegend: string
+  /** The `ask-server` level, in the choice and in `.cc-remote`. */
+  levelAskServer: string
+  /** The `never-ask` level, in the choice and in `.cc-remote`. */
+  levelNeverAsk: string
+  /** Next to `never-ask`: an agent in the terminal may change things unasked. */
+  neverAskWarning: string
+  /** The accessible name of the line's panel. */
+  attachCode: string
+  /** The line the user copies into the terminal. Default `gecko attach <code>`. */
+  attachLine: (code: string) => string
+  /** The button that copies the line. */
+  copy: string
+  /** The copy button once the line was copied. */
+  copied: string
+  /** Under the line: it gives access to the session; do not share it. */
+  attachWarning: string
+  /** How long the line is still valid, in whole seconds. */
+  expiresIn: (seconds: number) => string
+  /** The line is no longer valid. */
+  expired: string
 }
 
-/** A pairing the user is asked to approve (C-104): the server's facts only. */
+/** The line the shell got for the CLI to connect with (C-119). */
+export interface AttachCode {
+  /** The code the CLI takes: the panel shows `gecko attach <code>`. */
+  code: string
+  /** When the code stops working, in ms since the epoch. */
+  expiresAt: number
+}
+
+/**
+ * A pairing the user is asked to approve (C-104): the server's facts only.
+ *
+ * @deprecated The CLI connects with a line from the tab now (`attachable`,
+ * `attachCode`, C-119); the pairing question goes in a later minor.
+ */
 export interface PairingRequest {
   /** When the CLI grant was created, in ms since the epoch. */
   createdAt: number
@@ -304,8 +348,24 @@ export interface ConsoleProps {
    * A pairing to ask the user about (C-104): `.cc-pairing` shows its facts
    * and answers with the `pair` event. Never the computer name the CLI
    * declares.
+   *
+   * @deprecated Use `attachable` and `attachCode` (C-119); it goes in a
+   * later minor.
    */
   pairing?: PairingRequest | null
+  /**
+   * The user may connect a CLI (C-119): while none is bound, `.cc-attach`
+   * offers the level choice and "Connect CLI", which emits `attach-remote`.
+   * Default `false`: without terminal access there is no button.
+   */
+  attachable?: boolean
+  /**
+   * The line the shell got from the hub after `attach-remote` (C-119):
+   * `.cc-attach-code` shows `gecko attach <code>` with a copy button, a
+   * warning and how long it is still valid. Shown only with `attachable`
+   * and while no CLI is bound.
+   */
+  attachCode?: AttachCode | null
 }
 
 /** What the `submit` event carries: never the line (C-64). */
@@ -336,8 +396,19 @@ export interface ConsoleEmits {
    * the hub and calls `detachRemote()`.
    */
   'detach-remote': []
-  /** The user answered the pairing question (C-104). */
+  /**
+   * The user answered the pairing question (C-104).
+   *
+   * @deprecated Use `attach-remote` (C-119); it goes in a later minor.
+   */
   pair: [accepted: boolean]
+  /**
+   * The user asked for a line to connect a CLI, with the level chosen
+   * (C-119). The shell asks the hub for a code and gives it back as
+   * `attachCode`; once the CLI used it, the shell calls `attachRemote` with
+   * the same level.
+   */
+  'attach-remote': [level: RemoteLevel]
 }
 
 /** What a `block-<type>` slot receives. */
@@ -609,6 +680,13 @@ export interface CommandSpec {
    * field is `true` is the change.
    */
   confirm?: { field: string }
+  /**
+   * What a `change` command changes (C-115): `screen` only the user's own tab
+   * (a page, a view it opens, a download), `server` a job or a record on the
+   * server. Only for `danger: 'change'`; a `change` command without it is
+   * `server`. The remote entry runs a `screen` change without asking.
+   */
+  effect?: Effect
 }
 
 // packages/command-protocol/src/command.ts
@@ -759,6 +837,8 @@ export interface RemoteState {
   bindingId: string
   /** When the user approved the binding, in ms since the epoch. */
   approvedAt: number
+  /** When a change from the CLI asks the user (C-116). */
+  level: RemoteLevel
   /** The change waiting for the user's approval, if any. */
   approval: ApprovalPlan | null
 }
@@ -986,6 +1066,12 @@ export interface RemoteBinding {
   grantId: string
   /** When the user approved the binding, in ms since the epoch. */
   approvedAt: number
+  /**
+   * When a change from the CLI asks the user (C-116): the level the user
+   * chose for the binding. Default `ask-server`. The shell gives it here and
+   * through `setRemoteLevel`; the console never reads it from a message.
+   */
+  level?: RemoteLevel
   /** Sends a reply to the bound CLI (the hub's `SendToCli`). */
   send(reply: CliReply): void | Promise<void>
   /**
@@ -1013,6 +1099,15 @@ export interface RemoteBinding {
   /** The title of a view instance, for `finished`. */
   viewTitle?(view: string): string | undefined
 }
+
+// packages/command-console-core/src/core/dispatch/dispatch.types.ts
+/**
+ * When a change from the CLI asks the user (C-116): `ask-server` a change
+ * with `effect: 'server'` opens the approval window and a `screen` change
+ * runs; `never-ask` every change runs without asking. A `read` command always
+ * runs; an `irreversible` one never does.
+ */
+export type RemoteLevel = 'ask-server' | 'never-ask'
 
 // packages/command-console-core/src/core/dispatch/dispatch.types.ts
 /** A change from the CLI that waits for the user (ADR 0014, C-99). */
@@ -1685,9 +1780,9 @@ lists no summary.
 
 A command's `confirm` is `{ field }` naming a boolean property of its `input`, on a `change` command only; anything
 else throws at creation and on `setOptions`, as does a `plan` that is not a function. `getCommands()` copies it into
-the spec. For an agent's `request()` (C-82) and a CLI request (C-98), a call whose field is not `true` is the
-command's preview and runs as `read`; one whose field is `true` is the change: `not-allowed` with its line for the
-agent (C-93), an approval plan for the CLI (C-99). The decision reads the input after `normalize` and the schema,
+the spec. For an agent's `request()` (C-82), a call whose field is not `true` is the command's preview and runs as
+`read`; one whose field is `true` is the change: `not-allowed` with its line (C-93). A CLI request (C-98) sets the
+field itself: `true`, or `false` with `--dry-run` (C-117). The decision reads the input after `normalize` and the schema,
 normalized once: the same input the plan and the run get; an input that cannot be normalized fails as C-77 says. The agent's `help` of such a command gives `confirm` (the field name), and the `help` and `run` descriptions and the skill say that it runs first as a preview, without its field. Options the schema refuses are `invalid-args` for a command with
 `confirm`. A line the user types is not changed by it.
 
@@ -1704,19 +1799,20 @@ a JSON text into at most `remoteChunksMax` (3) chunk replies, each within `envel
 cut between code points, or returns `undefined`; `joinChunks(finished, chunks)` gives the text back only when every
 part from 0 to `chunks - 1` is there once, of that request, and the byte counts hold. `isCliReply` checks the shape of
 a `received` (with the booleans `change` and `viewRelevant`), `awaiting-approval`, `chunk`, `finished` (an
-`outcome` with a non-empty `status`; `suggest` and `next` arrays of strings, `help` a non-empty string, each
-optional) or `help-result` (never both `text` and `result`), `cancelled-before-start` or `cancel-requested` reply; an
+`outcome` with a non-empty `status`; `suggest` and `next` arrays of strings, `help` and `approval` (C-118) non-empty
+strings, each optional) or `help-result` (never both `text` and `result`), `cancelled-before-start` or `cancel-requested` reply; an
 unknown field is ignored and a `status` or `class` it does not know is still read (C-109). The list of commands is
 not a reply (C-108).
 
 #### C-97 Attach remote
 
 `attachRemote(binding)` needs the `gate` and `now` options and a binding with a non-empty `bindingId` and `grantId`,
-a finite `approvedAt`, a `send` and a `publishCapabilities` function, and a `minCli` that is a non-empty string when
-given; otherwise it throws a `TypeError`. It subscribes to the gate at once, puts `{ bindingId, approvedAt, approval:
-null }` in `state.remote`, replaces a binding already attached, and calls `publishCapabilities({ revision, parts })`
-(no reply goes through `send`): `parts` is `capabilitiesParts` (C-108) of the commands that are neither `hidden` nor
-`irreversible` and have `input` and `danger` without `sensitive` (name, aliases, danger), the names and aliases of
+a finite `approvedAt`, a `send` and a `publishCapabilities` function, a `minCli` that is a non-empty string when
+given and a `level` of C-116 when given; otherwise it throws a `TypeError`. It subscribes to the gate at once, puts
+`{ bindingId, approvedAt, level, approval: null }` in `state.remote`, replaces a binding already attached, and calls
+`publishCapabilities({ revision, parts })` (no reply goes through `send`): `parts` is `capabilitiesParts` (C-108) of
+the commands that are neither `hidden` nor `irreversible` and have `input` and `danger` without `sensitive` (name,
+aliases, danger, and a `change` command's `effect`, C-115), the names and aliases of
 every sensitive command, `remoteEnvelopes`, `remoteFeatures` and the binding's `minCli`; `revision` is 8 hex digits
 made from the commands and the sensitive names only, the same for the same list, with no clock and no randomness. A
 list that does not fit in three parts makes `attachRemote` throw that `RangeError` before anything changes. A message
@@ -1743,12 +1839,12 @@ unparsable or empty line or a name C-112 refuses is `invalid-args`, an unknown o
 schema refuses are `invalid-args` with a `message`. Each of these sends only `finished`, and adds no entry.
 Otherwise the tab sends `received` (`hidden` and `dataAgeMs` from
 the binding's `status`, else `false` and `null`; `change` and `viewRelevant` as C-110 says), appends an input entry with the canonical line and
-`actor: 'cli'`, and starts the run without an envelope: `beforeRun`, then a `read` command or a preview (C-95) runs,
-and a change waits for approval (C-99). The view is the request's, else `activeView()` on accept.
+`actor: 'cli'`, and starts the run without an envelope: `beforeRun`, then a `read` command or a preview (C-117) runs,
+and a change runs or waits for approval (C-99) as C-116 says. The view is the request's, else `activeView()` on accept.
 
 #### C-99 Approval plan
 
-A change from the CLI is in `phase: 'approving'` while it waits. The command's `plan(input, signal)`, when it has
+A change from the CLI that asks the user (C-116) is in `phase: 'approving'` while it waits. The command's `plan(input, signal)`, when it has
 one, is called with the normalized input and may return a promise; a throw or rejection fails the request and
 nothing runs. Its error is classed as one `run` threw: a `CommandError` gives its code and message (C-86, C-89),
 any other error `failed` without a message. Then `state.remote.approval` holds the plan (the request id, the command, the canonical line, the
@@ -1764,8 +1860,8 @@ command's `run` once with the plan's input; the line is not read again. `reject(
 
 The end of a CLI request sends its outcome as the agent's `request()` would give it (C-82, C-86 to C-89): when it has
 `data`, first its JSON in at most three `chunk` replies (C-96), then `finished` with the outcome without `data`,
-`chunks`, `bytes`, `view` (`{ id, title? }`, the title from the binding's `viewTitle`) and `preview: true` for a
-preview that ended `ok`. Every error outcome, the refusals of C-98 included, carries `class: errorClassOf(code)`
+`chunks`, `bytes`, `view` (`{ id, title? }`, the title from the binding's `viewTitle`), `preview: true` for a
+preview that ended `ok`, and `approval` as C-118 says. Every error outcome, the refusals of C-98 included, carries `class: errorClassOf(code)`
 (C-105); the local `line` of `not-allowed` does not go to the CLI (`suggest` takes its place, C-111). Data that does
 not fit in three chunks makes the outcome `too-large` without chunks. The terminal's blocks never go to the CLI, nor
 the text of an error other than C-89's.
@@ -1793,7 +1889,8 @@ shows a computer name.
 
 #### C-104 Pairing question (Vue)
 
-With the `pairing` prop, `div.cc-pairing` (a `role="alertdialog"` named by `labels.remote.pairing`) shows the question
+Deprecated in 1.8.0: the CLI row (C-119) takes its place, and the `pairing` prop and the `pair` event go in a later
+minor. With the `pairing` prop, `div.cc-pairing` (a `role="alertdialog"` named by `labels.remote.pairing`) shows the question
 and the server's facts (`createdAt` through `labels.formatTime`, `environment`) and the buttons `cc-pair-accept` and
 `cc-pair-decline`, which emit `pair` with `true` and `false`. A click on any of the library's buttons does not move
 the focus to the input (C-51).
@@ -1822,12 +1919,13 @@ most one of `text` (lines) and `result`; optional `suggest`, `next` and `help` a
 #### C-108 Capabilities parts
 
 What a bound tab runs for the CLI is a `CapabilitiesPayload` (`envelopes`, `features`, `minCli` when the shell gives
-one, `revision`, `sensitive`, `commands` of `{ name, aliases, danger }`), not an envelope. `capabilitiesParts(payload)`
+one, `revision`, `sensitive`, `commands` of `{ name, aliases, danger, effect? }`), not an envelope. `capabilitiesParts(payload)`
 writes its JSON with the fields in that order and cuts it between code points into one to `remoteChunksMax` parts of
 at most `envelopeMaxBytes` UTF-8 bytes; when it does not fit it throws a `RangeError`. `readCapabilitiesParts(parts)`
-joins one to three such strings and reads the object, leaving unknown fields out and reading an unknown `danger` as
-`change`; malformed parts or fields give `undefined`. `remoteEnvelopes` is `[1]` and `remoteFeatures` names `argv`,
-`received-v2`, `suggest-argv`, `help-v2`, `error-class` and `capabilities-v2`.
+joins one to three such strings and reads the object, leaving unknown fields out, reading an unknown `danger` as
+`change` and an `effect` as C-115 says; malformed parts or fields give `undefined`. `remoteEnvelopes` is `[1]` and
+`remoteFeatures` names `argv`, `received-v2`, `suggest-argv`, `help-v2`, `error-class`, `capabilities-v2`, `effect`
+(C-115), `dry-run` (C-117) and `approval` (C-118).
 
 #### C-109 Remote fixtures
 
@@ -1841,7 +1939,7 @@ where those are tested.
 #### C-110 Received fields
 
 `received` tells the CLI `change`: the request runs the path that changes data, after `normalize` and the schema (not
-a `read` command, not a preview, C-95); and `viewRelevant`: the request carries a `view`, or the command's
+a `read` command, not a preview, C-117), whether or not it asks the user (C-116); and `viewRelevant`: the request carries a `view`, or the command's
 `usesView` is `true` (else, when the command does not set it, its namespace's `usesView`), so the CLI prints the
 view. An `activeView()` alone does not make it `true`; `finished.view` still names the view the command ran in.
 `usesView` changes nothing for the local terminal or an agent. The binding's `status` is called
@@ -1852,8 +1950,7 @@ that is not a finite number at or above 0 is `null`).
 
 A `finished` reply carries `suggest`, `next` and `help` as argv without the CLI's name, and never `outcome.line`.
 `formatCommandArgv(name, value, schema)` is the canonical argv: the items `formatCommandLine` quotes, so
-`tokenize(formatCommandLine(...))` gives it back. A preview that ends `ok` suggests the argv of its normalized input
-with the confirm field `true`. `unknown-command` has the message `unknown command: <name>`, with no near name in it,
+`tokenize(formatCommandLine(...))` gives it back. A preview suggests nothing (C-117). `unknown-command` has the message `unknown command: <name>`, with no near name in it,
 and suggests `[a]`, the nearest name, never its arguments: the near names are at most
 three commands within Damerau-Levenshtein distance 2 of the name (optimal string alignment, by code point, the ASCII
 case ignored), an alias counting for its command, nearest first and a tie by name; only commands the CLI may run
@@ -1861,8 +1958,8 @@ case ignored), an alias counting for its command, nearest first and a tie by nam
 names the command in `help`; when no argument starts with `-`, there is at least one and the command's only
 required field is a string, it suggests `[name, '--field', arguments joined by one space]`. The `invalid-args` end
 of a run also names the command in `help`. A `not-allowed` end of an accepted request (an approval expired or
-dropped, `beforeRun`) suggests the canonical argv of its normalized input; an approval the user rejected suggests
-nothing. An `ok` end whose `data` is a
+dropped, `beforeRun`) suggests the canonical argv of its normalized input without the confirm field; an approval the
+user rejected suggests nothing. An `ok` end whose `data` is a
 plain object with a non-empty string `nextCursor`, of a command whose schema has a `cursor` field, has `next`: the
 argv of the normalized input with `cursor` set to it. An argv the schema refuses is left out, and so are `suggest`
 and `next` when `finished` would not fit in `envelopeMaxBytes`. A sensitive request's reply (C-98) has none of
@@ -1893,7 +1990,7 @@ them gives that page; none gives the whole list. Any other target is `unknown-co
 `help` when it has one. `want: 'json'` gives the result as `result`; `want: 'text'` gives `text`, English lines at most
 `width` (else 80) code points long, wrapped at spaces, with no control character and no CLI name: a page lists the
 namespaces (at the top level) and the commands with their danger and summary; a command shows its danger, summary,
-usage, the line "Runs as a preview without --<field>" when it has `confirm`, and each field with its type, whether it
+usage, the line "Makes the change; with --dry-run it shows the preview." when it has `confirm` (C-117), and each field with its type, whether it
 is required and its description. The JSON of `text` is at most 12 KB: a page that does not fit lists fewer commands,
 and a command that does not fit is cut with a last line that says so. A page with a `nextCursor` has `next`:
 `['help', target?, '--cursor', <n>, '--limit', <n> when given]`. A reply over `envelopeMaxBytes` is `too-large`.
@@ -1906,6 +2003,63 @@ the latest published GitHub Release: every example of every published file must 
 with the same content (a file that was a single object must be equal). A release without that asset, or no release,
 passes. A failed download fails with a message that says to run it again. CI runs it on every pull request, and
 `release.yml` attaches the archive of `fixtures/remote/` and `docs/remote-contract.md` to each release.
+
+#### C-115 Command effect
+
+A `change` command may declare `effect`: `screen` (only the user's own tab changes: a page, a view it opens, a
+download) or `server` (a job or a record on the server); without it the command is `server`. An `effect` on a command
+whose `danger` is not `change`, or another value, throws at creation and on `setOptions`. `getCommands()` copies it
+into the spec. The capabilities (C-97) give every `change` command its `effect`, `server` when it declares none, and
+a `read` command none; `capabilitiesParts` writes `effect` only on a `change` command, and `readCapabilitiesParts`
+keeps it, reads a string it does not know as `server`, leaves it out on a `read` command and refuses one that is not a
+non-empty string. The local terminal and an agent's `request()` do not read it.
+
+#### C-116 Approval level
+
+A binding carries a `level`: `ask-server` (the default) or `never-ask`; another value makes `attachRemote` throw a
+`TypeError`. The console takes the level only from the shell (`attachRemote`, `setRemoteLevel`), never from a
+message, and shows it in `state.remote.level`. For a CLI request C-98 accepts, a `read` command and a preview run; a
+change (C-117) with `effect: 'screen'` runs without asking; one with `effect: 'server'` waits for the user's approval
+(C-99) at `ask-server` and runs without asking at `never-ask`. At both levels an `irreversible` or sensitive command
+stays refused and `beforeRun` still decides. `setRemoteLevel(level)` sets the level for the next request in its own
+action and keeps a waiting approval; it does nothing without a binding or with the same level, and throws a
+`TypeError` for another value.
+
+#### C-117 Remote dry run
+
+From the CLI a change asks for itself: a `change` command with `confirm` runs with its confirm field `true` whether
+or not the request gives it, and a `--yes` (or `--yes false`) changes nothing. `--dry-run` is the remote entry's own
+flag: every argument that is exactly `--dry-run` is taken out before the options are read, the confirm field is then
+`false` and the command runs as its preview (`received.change: false`, and `finished.preview: true` when it ends
+`ok`). On a `change` command without `confirm` it is `invalid-args` with `help` and a `message`, and nothing runs; on a
+`read` command it is dropped. A preview's `finished` has no `suggest`. The input entry and the approval show the
+canonical line of the input the command gets. The local terminal and an agent's `request()` keep C-95: their preview
+is the call without its confirm field, and `--dry-run` is an unknown option there.
+
+#### C-118 Approval field
+
+The `finished` of a change from the CLI whose command's `run` was called carries `approval`: `card` when the user
+approved it in the window (C-99), `none` when it ran without asking (C-116), whether it then ended `ok`, failed or
+was cancelled. A `read` command, a preview, and a request that ended before its `run` (a refusal, `beforeRun`, an
+approval rejected, expired or dropped, a cancel before the start) carry none. `isCliReply` takes an `approval` that
+is a non-empty string; a reader takes a value it does not know as `none`. Each example of
+`fixtures/remote/sequence/approval.json` runs through `attachRemote` with the level, the command and the user's
+answer of its `tab`, and gives its `replies`.
+
+#### C-119 CLI row (Vue)
+
+With the `attachable` prop and while `state.remote` is `null`, `div.cc-attach` shows the level choice
+(`fieldset.cc-attach-levels` named by `labels.remote.levelLegend`, with the radio buttons `ask-server`, chosen at
+first, and `never-ask`, whose label holds `labels.remote.neverAskWarning`) and `button.cc-attach-start`
+(`labels.remote.attach`), which emits `attach-remote` with the chosen level. With the `attachCode` prop
+(`{ code, expiresAt }`) it also shows `div.cc-attach-code`, a `role="group"` named by `labels.remote.attachCode`:
+`labels.remote.attachLine(code)` in `code.cc-attach-line`; `button.cc-attach-copy`, which writes the line to the
+clipboard and then shows `labels.remote.copied`, or selects the line when the clipboard cannot be reached;
+`labels.remote.attachWarning`; and the time left, `labels.remote.expiresIn(seconds)` counted each second, then
+`labels.remote.expired` with `data-expired` on the panel. The start button then shows `labels.remote.attachAgain`;
+a new `attachCode` resets the copy button. While `state.remote` is set the row is `div.cc-remote` (C-102), whose
+`span.cc-remote-level` shows `labels.remote.levelAskServer` or `levelNeverAsk`. A click on one of its controls or
+labels does not move the focus to the input (C-51). The texts come from `labels` only (C-47).
 
 ## DOM contract
 
@@ -1929,7 +2083,20 @@ The classes and attributes below are the only hooks a skin can select (P6). The 
 | `cc-completion` | `.cc-completions > li` | One candidate, a `role="option"`. The `completion` slot renders inside it (C-67). |
 | `cc-remote` | `.cc-console > div` | While a CLI is bound to the console (`state.remote`): its text and the "Disconnect" button (C-102). |
 | `cc-remote-text` | `.cc-remote > span` | `labels.remote.connected` and when the binding was approved (C-102). |
+| `cc-remote-level` | `.cc-remote > span` | The binding’s level from `state.remote.level`: `labels.remote.levelAskServer` or `levelNeverAsk` (C-119). |
 | `cc-remote-detach` | `.cc-remote > button` | `labels.remote.detach`; emits `detach-remote`, the consumer ends the binding (C-102). |
+| `cc-attach` | `.cc-console > div` | The CLI row while `attachable` is set and no CLI is bound: the level choice, the button and the line (C-119). |
+| `cc-attach-levels` | `.cc-attach > fieldset` | The level choice: two radio buttons (C-119). |
+| `cc-attach-legend` | `.cc-attach-levels > legend` | `labels.remote.levelLegend` (C-119). |
+| `cc-attach-level` | `.cc-attach-levels > label` | One level: its radio button and `labels.remote.levelAskServer` or `levelNeverAsk` (C-119). |
+| `cc-attach-radio` | `.cc-attach-level > input` | The radio button of a level; `ask-server` is chosen at first (C-119). |
+| `cc-attach-hint` | `.cc-attach-level > span` | Next to `never-ask`: `labels.remote.neverAskWarning`, part of its label (C-119). |
+| `cc-attach-start` | `.cc-attach > button` | `labels.remote.attach`, or `attachAgain` while a line is shown; emits `attach-remote` with the level chosen (C-119). |
+| `cc-attach-code` | `.cc-attach > div` | A named `role="group"` while the `attachCode` prop is set: the line, its copy button, the warning and the time left (C-119). |
+| `cc-attach-line` | `.cc-attach-code > code` | `labels.remote.attachLine(code)` (C-119). |
+| `cc-attach-copy` | `.cc-attach-code > button` | `labels.remote.copy`, then `copied`; copies the line, or selects it where the clipboard cannot be reached (C-119). |
+| `cc-attach-warning` | `.cc-attach-code > span` | `labels.remote.attachWarning` (C-119). |
+| `cc-attach-expires` | `.cc-attach-code > span` | `labels.remote.expiresIn(seconds)`, counted down each second, then `labels.remote.expired` (C-119). |
 | `cc-approval` | `.cc-console > div` | A named `role="alertdialog"` while a change from the CLI waits for the user (C-103). |
 | `cc-approval-source` | `.cc-approval > span` | `labels.remote.fromCli` and when the binding was approved; never a computer name (C-103). |
 | `cc-approval-preview` | `.cc-approval > span` | The plan’s preview, else its canonical line (C-103). |
@@ -1949,8 +2116,12 @@ The classes and attributes below are the only hooks a skin can select (P6). The 
 | --- | --- | --- |
 | `data-busy` | `.cc-console` | Present while a command runs (C-44). |
 | `data-context-depth` | `.cc-console` | The number of context frames, `0` at the root (C-66). A skin may change the look of a nested context with it. |
-| `role` | `.cc-log, .cc-status, .cc-completions, .cc-completion, .cc-input, .cc-approval, .cc-pairing` | `log` on the log, `status` on the status element, `listbox` on the list, `option` on a candidate, `combobox` on the input (C-48), `alertdialog` on the approval window and the pairing question (C-103, C-104). |
-| `aria-label` | `.cc-log, .cc-completions, .cc-input, .cc-approval, .cc-pairing` | From `labels.log`, `labels.completions`, `labels.input`, `labels.remote.approval` and `labels.remote.pairing` (C-47). |
+| `role` | `.cc-log, .cc-status, .cc-completions, .cc-completion, .cc-input, .cc-approval, .cc-pairing, .cc-attach-code` | `log` on the log, `status` on the status element, `listbox` on the list, `option` on a candidate, `combobox` on the input (C-48), `alertdialog` on the approval window and the pairing question (C-103, C-104), `group` on the line of the CLI row (C-119). |
+| `aria-label` | `.cc-log, .cc-completions, .cc-input, .cc-approval, .cc-pairing, .cc-attach-code` | From `labels.log`, `labels.completions`, `labels.input`, `labels.remote.approval`, `labels.remote.pairing` and `labels.remote.attachCode` (C-47). |
+| `data-expired` | `.cc-attach-code` | Present once the line’s `expiresAt` has passed, for the skin to mark it (C-119). |
+| `name` | `.cc-attach-radio` | From Vue’s `useId()`: the group of the two level buttons, unique per console (C-119). |
+| `value` | `.cc-attach-radio` | `ask-server` or `never-ask` (C-119). |
+| `checked` | `.cc-attach-radio` | On the level chosen (C-119). |
 | `data-kind` | `.cc-entry` | `input` for an ended line, `output` for what a command returned. |
 | `data-tone` | `.cc-entry` | The tone of an output entry as the command gave it (for example an error), for the skin to colour. |
 | `data-status` | `.cc-entry` | How an input line ended (for example `cancelled` or `failed`), for the skin to mark it. |
@@ -1961,7 +2132,7 @@ The classes and attributes below are the only hooks a skin can select (P6). The 
 | `scope` | `.cc-block th` | `col` on each header cell of a table block. |
 | `id` | `.cc-completions, .cc-completion` | From Vue’s `useId()`: the list id, and `<list id>-<n>` per candidate, unique per console (C-08). |
 | `aria-selected` | `.cc-completion` | `true` on the selected candidate, `false` on the others. |
-| `type` | `.cc-input, .cc-remote-detach, .cc-approve, .cc-reject, .cc-pair-accept, .cc-pair-decline` | `text` on the input, `button` on a button. |
+| `type` | `.cc-input, .cc-remote-detach, .cc-approve, .cc-reject, .cc-pair-accept, .cc-pair-decline, .cc-attach-start, .cc-attach-copy, .cc-attach-radio` | `text` on the input, `button` on a button, `radio` on a level (C-119). |
 | `aria-autocomplete` | `.cc-input` | `list`. |
 | `aria-expanded` | `.cc-input` | `true` while the completion list is open, else `false`. |
 | `aria-controls` | `.cc-input` | The list id, only while the list is open (C-48). |

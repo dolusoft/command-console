@@ -1,6 +1,6 @@
 # Remote contract
 
-The messages between a desktop CLI and the one browser tab it is bound to (ADR 0014), as of command-console 1.7.2. This document is normative: the types in `@dolusoft/command-protocol` (`src/remote.ts`, `src/outcome.ts`) implement it, and the examples in [`fixtures/remote/`](../fixtures/remote/README.md) illustrate it without replacing it. The hub between the two is opaque: it stamps the CLI's messages and routes them, and it stores the tab's capabilities without reading them; its own protocol lives in gecko-cli (`docs/hub-protocol.md`).
+The messages between a desktop CLI and the one browser tab it is bound to (ADR 0014), as of command-console 1.8.0. This document is normative: the types in `@dolusoft/command-protocol` (`src/remote.ts`, `src/outcome.ts`) implement it, and the examples in [`fixtures/remote/`](../fixtures/remote/README.md) illustrate it without replacing it. The hub between the two is opaque: it stamps the CLI's messages and routes them, and it stores the tab's capabilities without reading them; its own protocol lives in gecko-cli (`docs/hub-protocol.md`).
 
 Every envelope is one JSON object of at most 16384 UTF-8 bytes (`envelopeMaxBytes`). Text limits count Unicode code points (a character outside the BMP, such as an emoji, is one). "Reader" below means the side that receives the message: the tab (`parseCliMessage`) for messages from the CLI, the CLI for replies from the tab.
 
@@ -13,6 +13,8 @@ Every envelope is one JSON object of at most 16384 UTF-8 bytes (`envelopeMaxByte
 | An unknown `kind` from the CLI            | The tab refuses it as `invalid` and stays silent.                 |
 | An unknown `kind` from the tab            | The CLI ignores it.                                               |
 | An unknown `danger` in the capabilities   | Read as `change`.                                                 |
+| An unknown `effect` in the capabilities   | Read as `server`.                                                 |
+| An unknown `finished.approval`            | Read as `none`.                                                   |
 | An unknown `outcome.status`               | Read as `error`, exit code 1.                                     |
 | An unknown or missing `class` on an error | Exit code 1. The CLI does not fall back on its own code table.    |
 
@@ -97,20 +99,21 @@ Chunks come before their `finished`. A missing or repeated part, or byte counts 
 
 ### `finished`
 
-| Field             | Type                | Required   | Notes                                                                                                                                                                                                                                                         |
-| ----------------- | ------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `v`, `kind`, `id` |                     | yes        |                                                                                                                                                                                                                                                               |
-| `outcome.status`  | `"ok"` or `"error"` | yes        | Unknown: read as `error`.                                                                                                                                                                                                                                     |
-| `outcome.summary` | string              | no         | On `ok`.                                                                                                                                                                                                                                                      |
-| `outcome.code`    | `ErrorCode`         | on `error` |                                                                                                                                                                                                                                                               |
-| `outcome.class`   | `ErrorClass`        | on `error` | See the table below.                                                                                                                                                                                                                                          |
-| `outcome.message` | string              | no         | English; never on a sensitive line's reply.                                                                                                                                                                                                                   |
-| `chunks`, `bytes` | integer             | yes        | The parts and UTF-8 bytes of `data` that came before.                                                                                                                                                                                                         |
-| `view`            | `{ id, title? }`    | no         | The view the command ran in.                                                                                                                                                                                                                                  |
-| `preview`         | `true`              | no         | The command ran as its preview.                                                                                                                                                                                                                               |
-| `suggest`         | string[]            | no         | Argv without the CLI's name: a preview's argv with its confirm field `true`; the nearest name of an `unknown-command` (never its arguments); a positional fix of an `invalid-args`; the canonical argv of a `not-allowed`, except a change the user rejected. |
-| `next`            | string[]            | no         | Argv of the next page of a paged result.                                                                                                                                                                                                                      |
-| `help`            | string              | no         | On an `invalid-args`: the command whose help the CLI points to.                                                                                                                                                                                               |
+| Field             | Type                 | Required   | Notes                                                                                                                                                                                                                                                        |
+| ----------------- | -------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `v`, `kind`, `id` |                      | yes        |                                                                                                                                                                                                                                                              |
+| `outcome.status`  | `"ok"` or `"error"`  | yes        | Unknown: read as `error`.                                                                                                                                                                                                                                    |
+| `outcome.summary` | string               | no         | On `ok`.                                                                                                                                                                                                                                                     |
+| `outcome.code`    | `ErrorCode`          | on `error` |                                                                                                                                                                                                                                                              |
+| `outcome.class`   | `ErrorClass`         | on `error` | See the table below.                                                                                                                                                                                                                                         |
+| `outcome.message` | string               | no         | English; never on a sensitive line's reply.                                                                                                                                                                                                                  |
+| `chunks`, `bytes` | integer              | yes        | The parts and UTF-8 bytes of `data` that came before.                                                                                                                                                                                                        |
+| `view`            | `{ id, title? }`     | no         | The view the command ran in.                                                                                                                                                                                                                                 |
+| `preview`         | `true`               | no         | The command ran as its preview (`--dry-run`).                                                                                                                                                                                                                |
+| `approval`        | `"card"` or `"none"` | no         | How a change was let run, once its command was called: `card` after the user approved it in the tab, `none` with no card. Absent for a read, a preview and a request that did not reach its command. Unknown: read as `none`.                                |
+| `suggest`         | string[]             | no         | Argv without the CLI's name: the nearest name of an `unknown-command` (never its arguments); a positional fix of an `invalid-args`; the canonical argv of a `not-allowed`, without the confirm field, except a change the user rejected. A preview has none. |
+| `next`            | string[]             | no         | Argv of the next page of a paged result.                                                                                                                                                                                                                     |
+| `help`            | string               | no         | On an `invalid-args`: the command whose help the CLI points to.                                                                                                                                                                                              |
 
 `suggest` and `next` are printed by the CLI with its own quoting and its own prefix; they never run by themselves. A sensitive line's reply has no `suggest`, `next`, `help` or `message`.
 
@@ -141,7 +144,7 @@ tasks.stop · change
 Stops a task.
 Usage:
   tasks.stop --id <integer> [options]
-Runs as a preview without --yes; with --yes it makes the change.
+Makes the change; with --dry-run it shows the preview.
 Fields:
   --id <integer> · required
   --yes <boolean> · optional
@@ -159,14 +162,16 @@ Fields:
 
 What a bound tab runs for the CLI is not an envelope. The tab calls the hub method `publishCapabilities { revision, parts }` when a binding is attached and whenever its commands change; the hub replaces its stored list with it, whole and atomically, and gives it in its `status` reply as `binding.capabilities = { revision, parts } | null`. `parts` is the JSON text of one object cut between code points (`capabilitiesParts`): one to 3 strings of at most 16384 UTF-8 bytes each, always an array. The CLI joins them and reads the object (`readCapabilitiesParts`).
 
-| Field       | Type                          | Required | Notes                                                                                                                                                       |
-| ----------- | ----------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `envelopes` | integer[]                     | yes      | The envelope versions the tab speaks: `[1]` (`remoteEnvelopes`). The CLI picks the highest one both speak.                                                  |
-| `features`  | string[]                      | yes      | See below.                                                                                                                                                  |
-| `minCli`    | string                        | no       | The oldest CLI version the tab supports, from the shell. Below it the CLI prints how to update and exits 2.                                                 |
-| `revision`  | string                        | yes      | Not empty. Changes whenever the commands or the sensitive names change.                                                                                     |
-| `sensitive` | string[]                      | yes      | The names and aliases of sensitive commands: their lines never leave the CLI.                                                                               |
-| `commands`  | `{ name, aliases, danger }[]` | yes      | The commands a CLI may send: not `hidden`, not `irreversible`, with `input` and `danger`, not sensitive. `danger` is `read` or `change`; unknown: `change`. |
+| Field       | Type                                   | Required | Notes                                                                                                                                                                                                                                                                |
+| ----------- | -------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `envelopes` | integer[]                              | yes      | The envelope versions the tab speaks: `[1]` (`remoteEnvelopes`). The CLI picks the highest one both speak.                                                                                                                                                           |
+| `features`  | string[]                               | yes      | See below.                                                                                                                                                                                                                                                           |
+| `minCli`    | string                                 | no       | The oldest CLI version the tab supports, from the shell. Below it the CLI prints how to update and exits 2.                                                                                                                                                          |
+| `revision`  | string                                 | yes      | Not empty. Changes whenever the commands or the sensitive names change.                                                                                                                                                                                              |
+| `sensitive` | string[]                               | yes      | The names and aliases of sensitive commands: their lines never leave the CLI.                                                                                                                                                                                        |
+| `commands`  | `{ name, aliases, danger, effect? }[]` | yes      | The commands a CLI may send: not `hidden`, not `irreversible`, with `input` and `danger`, not sensitive. `danger` is `read` or `change`; unknown: `change`. A `change` command carries `effect`: `screen` or `server`; unknown: `server`. A `read` command has none. |
+
+`effect` is what a change touches. `screen` changes only what the user sees (a filter, a column, a view) and never opens an approval card. `server` changes data on the server and opens one when the binding's approval level is `ask-server`, the default; at `never-ask`, which the user picks in the tab when binding, it runs with no card. A command that does not declare `effect` is `server`.
 
 The fields are written in that order, so the head is in the first part. A list that does not fit in 3 parts is an error of `attachRemote`.
 
@@ -180,8 +185,15 @@ The fields are written in that order, so the head is in the first part. A list t
 | `help-v2`         | `help-request` and `help-result`.                                                                 |
 | `error-class`     | Every error carries `class`.                                                                      |
 | `capabilities-v2` | The capabilities above, published in parts.                                                       |
+| `effect`          | Each `change` command of the capabilities carries its `effect`.                                   |
+| `dry-run`         | A change runs without its confirm field; `--dry-run` asks for its preview (see below).            |
+| `approval`        | `finished` carries `approval` for a change that ran.                                              |
 
 A tab that lacks one of the features a CLI needs makes that CLI exit 2 `unsupported-version`.
+
+## Dry run
+
+`--dry-run` is reserved in a request's arguments: the tab takes it out before it reads them, wherever it stands. On a `change` command with `confirm`, the command runs as its preview (the confirm field `false`) and `finished` carries `preview: true`; without `--dry-run` it runs with the confirm field `true`, so a confirm field the CLI sends (`--yes`) changes nothing. On a `change` command without `confirm` it is `invalid-args` with `help`, because there is no preview to show. On a `read` command it is dropped. A preview never opens an approval card and carries no `approval`.
 
 ## Error classes
 
