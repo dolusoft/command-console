@@ -46,6 +46,12 @@ export interface CommandDefinition extends Omit<CommandSpec, 'summary'> {
    */
   summary?: string | (() => string)
   /**
+   * The command works on a view, so a CLI prints the view it ran in
+   * (`received.viewRelevant`, C-110). Overrides its namespace's `usesView`;
+   * changes nothing for the local terminal or an agent.
+   */
+  usesView?: boolean
+  /**
    * Runs the command. A promise makes the run asynchronous; the console
    * stays locked until it settles or the run is cancelled.
    */
@@ -158,6 +164,11 @@ export interface NamespaceDefinition {
    * summary is (C-90).
    */
   summary?: string | (() => string)
+  /**
+   * The namespace's commands work on a view (`received.viewRelevant`,
+   * C-110); a command's own `usesView` overrides it.
+   */
+  usesView?: boolean
 }
 
 /** A namespace as `getNamespaces()` gives it: its summary read now. */

@@ -734,8 +734,10 @@ where those are tested.
 ### C-110 Received fields
 
 `received` tells the CLI `change`: the request runs the path that changes data, after `normalize` and the schema (not
-a `read` command, not a preview, C-95); and `viewRelevant`: the command runs in a view, the request's or the
-`activeView()` on accept (the view `finished` names), so the CLI prints the view. The binding's `status` is called
+a `read` command, not a preview, C-95); and `viewRelevant`: the request carries a `view`, or the command's
+`usesView` is `true` (else, when the command does not set it, its namespace's `usesView`), so the CLI prints the
+view. An `activeView()` alone does not make it `true`; `finished.view` still names the view the command ran in.
+`usesView` changes nothing for the local terminal or an agent. The binding's `status` is called
 as `status({ command })` with the command's canonical name; `hidden` and `dataAgeMs` come from it as they are (an age
 that is not a finite number at or above 0 is `null`).
 

@@ -289,7 +289,9 @@ console.detachRemote()
   points, another version, too large) ends at once with `finished` (`invalid-args`, `unsupported-version` or
   `too-large`) when its id and origin can be read; otherwise it is ignored.
 - **Replies.** `received` (`hidden`, the data age `status({ command })` gives for that command, `change` when the
-  request runs the path that changes data, `viewRelevant` when it runs in a view), `awaiting-approval` for a change,
+  request runs the path that changes data, `viewRelevant` when the request names a view or the command declares
+  `usesView: true`, or, when the command does not set it, its namespace in `namespaces` does; the active view alone
+  does not count, and `usesView` changes nothing for the terminal or an agent), `awaiting-approval` for a change,
   then `chunk` (at most three) and `finished` with the outcome and its `class`. The CLI gets what an agent gets
   (summary, data, code, message); the terminal's blocks stay in the browser.
 - **Suggestions.** `finished` may carry argv for the CLI to print, never to run: `suggest` (the nearest name of an
@@ -304,6 +306,14 @@ console.detachRemote()
   the first second and runs the plan's input once; `reject(id)`, the timer, `suspendRemote()`, `detachRemote()` and a
   cancel drop it.
 - **Cancel.** A `cancel` from the CLI answers `cancelled-before-start` or `cancel-requested` and interrupts the run.
+- **Help.** A `help-request` (`gecko help …`) is answered by the console with one `help-result`, also while a
+  command runs, with no `received` and no approval; the shell needs no help code of its own. The tab reads its argv:
+  a command name or alias gives that command, a namespace gives its page, nothing gives the list, `--cursor` and
+  `--limit` page. The content is the agent's `help` over the commands the CLI may run. `want: 'json'` gets that
+  result; `want: 'text'` gets English lines wrapped to the CLI's `width` (80 by default), no colour and no CLI name,
+  at most 12 KB (a page that does not fit lists fewer commands and gives `next`). An unknown name is
+  `unknown-command` with the nearest name in `suggest`; a sensitive name gets nothing more. An unreadable
+  `help-request` whose id and origin can be read ends with a `help-result` error.
 
 ## Requests and agent tools
 

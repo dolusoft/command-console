@@ -505,6 +505,7 @@ export interface ReceivedReply {
 
 // @public
 export function refusedCliRequest(raw: unknown): {
+    kind: 'cli-request' | 'help-request';
     id: string;
     grantId: string;
     bindingId: string;

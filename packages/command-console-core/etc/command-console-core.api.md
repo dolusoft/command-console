@@ -75,6 +75,7 @@ export interface CommandDefinition extends Omit<CommandSpec, 'summary'> {
     plan?(input: Record<string, JsonValue>, signal: AbortSignal): ApprovalDetails | Promise<ApprovalDetails>;
     run(request: CommandRequest, run: RunContext): CommandReturn | Promise<CommandReturn>;
     summary?: string | (() => string);
+    usesView?: boolean;
 }
 
 // @public
@@ -305,6 +306,7 @@ export interface KeyInput {
 export interface NamespaceDefinition {
     name: string;
     summary?: string | (() => string);
+    usesView?: boolean;
 }
 
 // @public

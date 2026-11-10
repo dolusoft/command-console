@@ -1514,8 +1514,14 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     dataAgeMs:
       typeof age === 'number' && Number.isFinite(age) && age >= 0 ? age : null,
     change: remote.change,
-    // The CLI prints the view the command runs in, when it runs in one.
-    viewRelevant: shown !== undefined
+    // The CLI prints the view when the request names one or the command (or
+    // its namespace) declares `usesView`; an active view alone does not.
+    viewRelevant:
+      request.view !== undefined ||
+      (command.usesView ??
+        options.namespaces?.find(
+          namespace => namespace.name === command.name.split('.', 1)[0]
+        )?.usesView) === true
   })
   const inputId = addEntry(console, {
     kind: 'input',
