@@ -2,6 +2,17 @@
 
 The release notes of a version are on its GitHub Release. This file names what a consumer must change.
 
+## 1.6.1
+
+Two fixes of the remote entry.
+
+- **Fixed: the preview decision reads the normalized input** (C-95). A command whose `normalize` sets its `confirm`
+  field is the change for the CLI (an approval plan) and for the agent (`not-allowed` with its line), no longer a
+  preview that runs at once. `normalize` is called once per request. Nothing for a consumer to change.
+- **Fixed: a CLI request the tab cannot read gets an answer** (C-98). When its id and origin can be read it ends with
+  `finished` (`invalid-args`, `unsupported-version` or `too-large`) instead of silence. **New in the protocol:**
+  `refusedCliRequest(raw)` (C-96).
+
 ## 1.6.0
 
 The remote entry of a desktop CLI (ADR 0014).

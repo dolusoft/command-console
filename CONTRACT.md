@@ -1664,7 +1664,8 @@ A command's `confirm` is `{ field }` naming a boolean property of its `input`, o
 else throws at creation and on `setOptions`, as does a `plan` that is not a function. `getCommands()` copies it into
 the spec. For an agent's `request()` (C-82) and a CLI request (C-98), a call whose field is not `true` is the
 command's preview and runs as `read`; one whose field is `true` is the change: `not-allowed` with its line for the
-agent (C-93), an approval plan for the CLI (C-99). The agent's `help` of such a command gives `confirm` (the field name), and the `help` and `run` descriptions and the skill say that it runs first as a preview, without its field. Options the schema refuses are `invalid-args` for a command with
+agent (C-93), an approval plan for the CLI (C-99). The decision reads the input after `normalize` and the schema,
+normalized once: the same input the plan and the run get; an input that cannot be normalized fails as C-77 says. The agent's `help` of such a command gives `confirm` (the field name), and the `help` and `run` descriptions and the skill say that it runs first as a preview, without its field. Options the schema refuses are `invalid-args` for a command with
 `confirm`. A line the user types is not changed by it.
 
 #### C-96 Remote envelopes
@@ -1673,7 +1674,9 @@ agent (C-93), an approval plan for the CLI (C-99). The agent's `help` of such a 
 optional `view`) or `cancel` (`id`), each with the hub's stamp: `origin` `{ kind: 'cli', grantId, bindingId }`,
 `stampedAt` and `expiresAt` finite numbers at or above 0, `expiresAt` after `stampedAt`. It returns a new message
 with only the known fields and never changes `raw`; another `v` is `unsupported-version`, a JSON over
-`envelopeMaxBytes` is `too-large`, anything else `invalid`, and a `null` `view` is no view. `chunkData(id, text)` cuts
+`envelopeMaxBytes` is `too-large`, anything else `invalid`, and a `null` `view` is no view. `refusedCliRequest(raw)`
+gives `{ id, grantId, bindingId }` of a plain object with `kind: 'cli-request'`, a non-empty `id` and an `origin` with
+non-empty `grantId` and `bindingId`, else `undefined`. `chunkData(id, text)` cuts
 a JSON text into at most `remoteChunksMax` (3) chunk replies, each within `envelopeMaxBytes` with its UTF-8 `bytes`,
 cut between code points, or returns `undefined`; `joinChunks(finished, chunks)` gives the text back only when every
 part from 0 to `chunks - 1` is there once, of that request, and the byte counts hold. `isCliReply` checks a reply's
@@ -1692,7 +1695,10 @@ does `dispose()`. A `send` that throws or rejects goes to `onError` and changes 
 
 #### C-98 Remote accept
 
-A `cli-request` of the bound CLI is its own action. An id seen before is ignored. By the `now` option, one stamped
+A `cli-request` of the bound CLI is its own action. An id seen before is ignored. One that `parseCliMessage` refuses
+but whose `id` and `origin` ids can be read (C-96, the binding's) sends only `finished`, once per id: `unsupported-version`,
+`too-large`, or `invalid-args` for any other reason, with a short `message` and nothing of the request; a refused
+message of another `kind`, or without a readable `id`, is ignored. By the `now` option, one stamped
 more than 30 s ahead is `clock-skew` and one after its `expiresAt` is `expired`, each with a `message`; while a run
 exists it is `busy` (no queue). Then, as for an agent (C-82, C-89, C-93): an unparsable or empty line is
 `invalid-args`, an unknown or `hidden` command `unknown-command`; a sensitive command, a line `isSensitive` marks,

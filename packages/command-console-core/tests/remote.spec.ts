@@ -239,6 +239,103 @@ describe('C-95 Confirm field', () => {
     ).toMatchObject({ status: 'error', code: 'invalid-args' })
   })
 
+  it('a CLI request that normalize confirms is a change: approval, no preview, nothing runs before it', async () => {
+    const normalize = vi.fn((input: Record<string, unknown>) => ({
+      ...input,
+      yes: true
+    }))
+    const s = stop(undefined, { normalize: normalize })
+    const t = setup({ commands: [s.definition] })
+    t.attach()
+    const id = t.request('tasks.stop --id 8812')
+    await flush()
+    expect(normalize).toHaveBeenCalledTimes(1)
+    expect(s.run).not.toHaveBeenCalled()
+    expect(t.of('awaiting-approval', id)).toHaveLength(1)
+    expect(t.console.getState().remote?.approval?.input).toEqual({
+      id: 8812,
+      yes: true
+    })
+    expect(t.console.reject(id)).toBe(true)
+    expect(s.run).not.toHaveBeenCalled()
+    expect(t.finished(id).outcome).toMatchObject({ code: 'not-allowed' })
+    expect(t.finished(id).preview).toBeUndefined()
+    const approved = t.request('tasks.stop --id 8813')
+    await flush()
+    t.clock.now += 1000
+    expect(t.console.approve(approved)).toBe(true)
+    expect(s.run).toHaveBeenCalledTimes(1)
+    expect(t.finished(approved).preview).toBeUndefined()
+  })
+
+  it('a CLI request that normalize turns into a preview runs as the preview', () => {
+    const s = stop(undefined, {
+      normalize: input => ({ ...input, yes: false })
+    })
+    const t = setup({ commands: [s.definition] })
+    t.attach()
+    const id = t.request('tasks.stop --id 8812 --yes')
+    expect(t.of('awaiting-approval')).toEqual([])
+    expect(t.finished(id)).toMatchObject({
+      outcome: { status: 'ok', summary: 'would stop 1' },
+      preview: true
+    })
+  })
+
+  it('a normalize that throws ends a CLI request with finished, not silence', () => {
+    const s = stop(undefined, {
+      normalize: () => {
+        throw new Error('bad')
+      }
+    })
+    const t = setup({ commands: [s.definition] })
+    t.attach()
+    const id = t.request('tasks.stop --id 8812')
+    expect(s.run).not.toHaveBeenCalled()
+    expect(t.finished(id).outcome.status).toBe('error')
+  })
+
+  it("the agent's request treats an input that normalize confirms as the change", async () => {
+    const normalize = vi.fn((input: Record<string, unknown>) => ({
+      ...input,
+      yes: true
+    }))
+    const s = stop(undefined, { normalize: normalize })
+    const console = createConsole({ commands: [s.definition] })
+    const runTool = agentTools(console, { context: () => ({}) }).find(
+      tool => tool.name === 'run'
+    )!
+    expect(
+      await runTool.execute({ line: 'tasks.stop --id 8812' })
+    ).toMatchObject({ status: 'error', code: 'not-allowed' })
+    expect(
+      await console.request({
+        command: 'tasks.stop',
+        args: { id: 8812 },
+        actor: 'external-agent'
+      })
+    ).toMatchObject({ status: 'error', code: 'not-allowed' })
+    expect(s.run).not.toHaveBeenCalled()
+    expect(console.getState().entries).toEqual([])
+  })
+
+  it("the agent's request runs the preview when normalize clears the field, normalizing once", async () => {
+    const normalize = vi.fn((input: Record<string, unknown>) => ({
+      ...input,
+      yes: false
+    }))
+    const s = stop(undefined, { normalize: normalize })
+    const console = createConsole({ commands: [s.definition] })
+    expect(
+      await console.request({
+        line: 'tasks.stop --id 8812 --yes',
+        actor: 'external-agent'
+      })
+    ).toEqual({ status: 'ok', summary: 'would stop 1' })
+    expect(normalize).toHaveBeenCalledTimes(1)
+    expect(s.run.mock.calls[0][0].input).toEqual({ id: 8812, yes: false })
+  })
+
   it('a change command without confirm stays not-allowed for the agent', async () => {
     const console = createConsole({
       commands: [
@@ -405,6 +502,86 @@ describe('C-97 Attach remote', () => {
 })
 
 describe('C-98 Remote accept', () => {
+  describe('a cli-request parseCliMessage refuses', () => {
+    const base = (extra: Record<string, unknown> = {}) => ({
+      v: 1,
+      kind: 'cli-request',
+      id: 'bad',
+      line: 'search --ip 1',
+      origin: { kind: 'cli', grantId: 'g1', bindingId: 'b1' },
+      stampedAt: 1_000_000,
+      expiresAt: 1_030_000,
+      ...extra
+    })
+    const refused = (raw: unknown) => {
+      const run = vi.fn()
+      const t = setup({ commands: [search(run)] })
+      t.attach()
+      t.deliver(raw)
+      expect(run).not.toHaveBeenCalled()
+      expect(t.of('received')).toEqual([])
+      expect(t.console.getState().entries).toEqual([])
+      return t
+    }
+
+    it('ends with finished invalid-args for a line over 4000 code points, carrying nothing of it', () => {
+      const t = refused(base({ line: `search --ip ${'x'.repeat(4000)}` }))
+      const end = t.finished('bad')
+      expect(end).toEqual({
+        v: 1,
+        kind: 'finished',
+        id: 'bad',
+        outcome: {
+          status: 'error',
+          code: 'invalid-args',
+          message: expect.any(String) as unknown
+        },
+        chunks: 0,
+        bytes: 0
+      })
+      expect(JSON.stringify(end)).not.toMatch(/xxxx|search/)
+    })
+
+    it('ends with unsupported-version for v 2 and too-large past envelopeMaxBytes', () => {
+      expect(refused(base({ v: 2 })).finished('bad').outcome).toMatchObject({
+        code: 'unsupported-version'
+      })
+      expect(
+        refused(base({ pad: 'x'.repeat(70_000) })).finished('bad').outcome
+      ).toMatchObject({ code: 'too-large' })
+    })
+
+    it('ends with invalid-args without a line', () => {
+      expect(
+        refused(base({ line: undefined })).finished('bad').outcome
+      ).toMatchObject({ code: 'invalid-args' })
+    })
+
+    it('stays silent without a readable id, from another binding, or for another kind', () => {
+      for (const raw of [
+        base({ id: '' }),
+        base({ id: 7 }),
+        base({ origin: { kind: 'cli', grantId: 'g1', bindingId: 'other' } }),
+        base({ origin: { kind: 'cli', grantId: 'g2', bindingId: 'b1' } }),
+        base({ kind: 'help-request', line: undefined }),
+        base({ kind: 'cancel', expiresAt: 0 })
+      ]) {
+        expect(refused(raw).of('finished')).toEqual([])
+      }
+    })
+
+    it('answers the same refused request once, and not after detach', () => {
+      const t = refused(base({ line: undefined }))
+      t.deliver(base({ line: undefined }))
+      t.deliver(base({ line: 'search --ip 1' }))
+      expect(t.of('finished', 'bad')).toHaveLength(1)
+      t.console.detachRemote()
+      const before = t.replies.length
+      t.deliver(base({ id: 'late', line: undefined }))
+      expect(t.replies).toHaveLength(before)
+    })
+  })
+
   it('runs a read line as cli: received, an input entry with actor cli, finished', () => {
     const t = setup({ commands: [search()] })
     t.attach()

@@ -6,6 +6,7 @@ import {
   isCliReply,
   joinChunks,
   parseCliMessage,
+  refusedCliRequest,
   remoteBytes,
   remoteChunksMax,
   remoteLineMax,
@@ -82,6 +83,25 @@ describe('C-96 Remote envelopes', () => {
     ]
     for (const raw of invalid) {
       expect(parseCliMessage(raw)).toEqual({ ok: false, code: 'invalid' })
+    }
+  })
+
+  it('refusedCliRequest reads only the id and origin ids of a refused cli-request', () => {
+    expect(refusedCliRequest(request({ v: 2, line: 5 }))).toEqual({
+      id: 'r1',
+      grantId: 'g1',
+      bindingId: 'b1'
+    })
+    for (const raw of [
+      null,
+      request({ kind: 'cancel' }),
+      request({ kind: 'help-request' }),
+      request({ id: '' }),
+      request({ id: 1 }),
+      request({ origin: null }),
+      request({ origin: { kind: 'cli', grantId: 'g1', bindingId: '' } })
+    ]) {
+      expect(refusedCliRequest(raw)).toBeUndefined()
     }
   })
 

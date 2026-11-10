@@ -448,6 +448,13 @@ export interface ReceivedReply {
 }
 
 // @public
+export function refusedCliRequest(raw: unknown): {
+    id: string;
+    grantId: string;
+    bindingId: string;
+} | undefined;
+
+// @public
 export function remoteBytes(value: CliMessage | CliReply): number;
 
 // @public

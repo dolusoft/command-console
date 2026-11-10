@@ -72,6 +72,7 @@ export {
   isCliReply,
   joinChunks,
   parseCliMessage,
+  refusedCliRequest,
   remoteBytes,
   remoteChunksMax,
   remoteLineMax,
