@@ -2,6 +2,13 @@
 
 The release notes of a version are on its GitHub Release. This file names what a consumer must change.
 
+## 1.8.2
+
+- **New fixtures: an approval card that expires** (C-99, C-118). `fixtures/remote/sequence/approval.json` adds
+  `change-server-card-expired` (the card's time runs out) and `change-server-card-approved-late` (the user approves
+  after it): both end `not-allowed`, class `denied`, with `suggest` and no `approval`; the CLI exits 3. A `tab` may
+  set `expire: true`. No behavior changes. Nothing for a consumer to change.
+
 ## 1.8.1
 
 - **Fixed: the level choice of the "Connect CLI" row starts at `ask-server` each time the row shows again**

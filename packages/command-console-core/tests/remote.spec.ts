@@ -2195,6 +2195,7 @@ describe('C-118 Approval field', () => {
         }
         summary: string
         approve?: boolean
+        expire?: boolean
       }
       request: Record<string, unknown>
       replies: CliReply[]
@@ -2236,7 +2237,14 @@ describe('C-118 Approval field', () => {
         t.clock.now = item.request.stampedAt as number
         t.attach()
         t.deliver(item.request)
-        if (approve !== undefined) {
+        if (item.tab.expire) {
+          t.clock.now += 120_001
+          if (approve === undefined) {
+            t.tick()
+          } else {
+            expect(t.console.approve(item.request.id as string)).toBe(false)
+          }
+        } else if (approve !== undefined) {
           t.clock.now += 1000
           const id = item.request.id as string
           expect(approve ? t.console.approve(id) : t.console.reject(id)).toBe(
