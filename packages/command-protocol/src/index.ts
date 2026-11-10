@@ -26,8 +26,8 @@ export type {
   Danger
 } from './command'
 export type { ContextFrame } from './context'
-export type { CommandOutcome, ErrorCode } from './outcome'
-export { dataMaxBytes } from './outcome'
+export type { CommandOutcome, ErrorClass, ErrorCode } from './outcome'
+export { dataMaxBytes, errorClassOf } from './outcome'
 
 export type {
   ArrayInputSchema,
@@ -53,7 +53,7 @@ export { envelopeBytes, envelopeMaxBytes, parseEnvelope } from './envelope'
 export type {
   AwaitingApprovalReply,
   CancelReply,
-  CapabilitiesReply,
+  CapabilitiesPayload,
   ChunkReply,
   CliCancel,
   CliMessage,
@@ -61,6 +61,8 @@ export type {
   CliReply,
   CliRequest,
   FinishedReply,
+  HelpRequest,
+  HelpResultReply,
   ReceivedReply,
   RemoteCommandSpec,
   RemoteOrigin,
@@ -68,13 +70,18 @@ export type {
   RemoteStamp
 } from './remote'
 export {
+  capabilitiesParts,
   chunkData,
   isCliReply,
   joinChunks,
   parseCliMessage,
+  readCapabilitiesParts,
   refusedCliRequest,
+  remoteArgvMaxItems,
   remoteBytes,
   remoteChunksMax,
+  remoteEnvelopes,
+  remoteFeatures,
   remoteLineMax,
   remoteVersion
 } from './remote'

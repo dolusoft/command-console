@@ -177,27 +177,37 @@ left out. `envelopeBytes(envelope)` is the UTF-8 length of its JSON, for a sende
 
 ## Remote envelopes
 
-A desktop CLI sends a `cli-request` (or a `cancel`) through the hub to the one tab it is bound to (ADR 0014); the hub
-writes the stamp:
+A desktop CLI sends a `cli-request`, a `help-request` or a `cancel` through the hub to the one tab it is bound to
+(ADR 0014); the hub writes the stamp. A `cli-request` carries the command as `argv` (as the shell split it) or as one
+`line`, never both:
 
 ```json
 {
   "v": 1,
   "kind": "cli-request",
   "id": "r-1",
-  "line": "tasks.stop --id 8812 --yes",
+  "argv": ["tasks.stop", "--id", "8812", "--yes"],
   "origin": { "kind": "cli", "grantId": "g-1", "bindingId": "b-1" },
   "stampedAt": 1793957400000,
   "expiresAt": 1793957430000
 }
 ```
 
-`parseCliMessage(raw)` checks it as `parseEnvelope` checks an envelope; for a `cli-request` it refuses,
-`refusedCliRequest(raw)` reads only the `id` and the `origin` ids, so the tab can answer it. The tab answers with `capabilities`,
-`received`, `awaiting-approval`, `chunk`, `finished`, `cancelled-before-start` and `cancel-requested` (`CliReply`,
-`isCliReply`). A result's `data` travels as its JSON text in at most `remoteChunksMax` (3) chunks of at most
+`parseCliMessage(raw)` checks it as `parseEnvelope` checks an envelope (an `argv` of at most `remoteArgvMaxItems`
+items and `remoteLineMax` code points); for a `cli-request` it refuses, `refusedCliRequest(raw)` reads only the `id`
+and the `origin` ids, so the tab can answer it. The tab answers with `received`, `awaiting-approval`, `chunk`,
+`finished`, `help-result`, `cancelled-before-start` and `cancel-requested` (`CliReply`, `isCliReply`). Every error
+carries its `class` (`errorClassOf(code)`), which the CLI turns into its exit code; `suggest` and `next` are argv the
+CLI prints, never runs. A result's `data` travels as its JSON text in at most `remoteChunksMax` (3) chunks of at most
 `envelopeMaxBytes` each: `chunkData(id, text)` cuts it, `joinChunks(finished, chunks)` joins it or gives `undefined`
 when a part is missing. `CommandSpec.confirm` names the boolean field that turns a preview into the change.
+
+What the tab runs for the CLI is not an envelope: `capabilitiesParts(payload)` cuts the JSON of a
+`CapabilitiesPayload` (`envelopes`, `features`, `minCli`, `revision`, `sensitive`, `commands`) into one to three
+parts of at most 16 KB for the hub, and `readCapabilitiesParts(parts)` reads them back. `remoteFeatures` and
+`remoteEnvelopes` are what this version speaks. The normative field tables are in
+[`docs/remote-contract.md`](https://github.com/dolusoft/command-console/blob/main/docs/remote-contract.md);
+`fixtures/remote/` in the repository holds their examples.
 
 ## License
 
