@@ -849,7 +849,8 @@ answer of its `tab`, and gives its `replies`.
 
 With the `attachable` prop and while `state.remote` is `null`, `div.cc-attach` shows the level choice
 (`fieldset.cc-attach-levels` named by `labels.remote.levelLegend`, with the radio buttons `ask-server`, chosen at
-first, and `never-ask`, whose label holds `labels.remote.neverAskWarning`) and `button.cc-attach-start`
+first and each time the row shows again (a binding ends, `attachable` is set again), and `never-ask`, whose label
+holds `labels.remote.neverAskWarning`) and `button.cc-attach-start`
 (`labels.remote.attach`), which emits `attach-remote` with the chosen level. With the `attachCode` prop
 (`{ code, expiresAt }`) it also shows `div.cc-attach-code`, a `role="group"` named by `labels.remote.attachCode`:
 `labels.remote.attachLine(code)` in `code.cc-attach-line`; `button.cc-attach-copy`, which writes the line to the

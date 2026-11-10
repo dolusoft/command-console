@@ -228,6 +228,16 @@ const promptView: FunctionalComponent = () => renderPrompt(prompt.value, slots)
 // to the console (P15).
 const attachGroup = useId()
 const attachLevel = ref<RemoteLevel>('ask-server')
+// Each time the row shows again (a binding ended, `attachable` came back) the
+// choice starts at `ask-server`: `never-ask` never carries over unseen.
+watch(
+  () => Boolean(props.attachable) && !state.value.remote,
+  shown => {
+    if (shown) {
+      attachLevel.value = 'ask-server'
+    }
+  }
+)
 const copied = ref(false)
 const clock = ref(Date.now())
 let ticking: ReturnType<typeof setInterval> | undefined

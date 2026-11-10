@@ -301,6 +301,35 @@ describe('C-119 CLI row (Vue)', () => {
     ).toBe(true)
   })
 
+  it('chooses ask-server again each time the row shows again', async () => {
+    const t = bound()
+    const view = mountConsole({
+      props: { console: t.console, commands: undefined, attachable: true }
+    })
+    const radios = () => [
+      ...view.root.querySelectorAll<HTMLInputElement>('.cc-attach-radio')
+    ]
+    const chooseNeverAsk = async () => {
+      radios()[1].click()
+      await nextTick()
+      expect(radios().map(radio => radio.checked)).toEqual([false, true])
+    }
+    await chooseNeverAsk()
+    t.console.attachRemote({ ...t.binding, level: 'never-ask' })
+    await nextTick()
+    expect(view.root.querySelector('.cc-attach')).toBeNull()
+    t.console.detachRemote()
+    await nextTick()
+    expect(radios().map(radio => radio.checked)).toEqual([true, false])
+
+    await chooseNeverAsk()
+    await view.wrapper.setProps({ attachable: false })
+    await view.wrapper.setProps({ attachable: true })
+    expect(radios().map(radio => radio.checked)).toEqual([true, false])
+    view.root.querySelector<HTMLButtonElement>('.cc-attach-start')!.click()
+    expect(view.emitted('attach-remote')).toEqual([['ask-server']])
+  })
+
   it('shows the line with the warning and counts its time down', async () => {
     vi.useFakeTimers({ now })
     const view = mountConsole({
