@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -232,6 +236,25 @@ describe('C-113 Remote help', () => {
       '  tasks.stop · change',
       '      Stops a task.'
     ])
+  })
+
+  it('gives the help-result-command-text fixture as it is', () => {
+    const fixtures = JSON.parse(
+      readFileSync(
+        join(
+          dirname(fileURLToPath(import.meta.url)),
+          '../../../fixtures/remote/valid/replies.json'
+        ),
+        'utf8'
+      )
+    ) as { name: string; envelope: unknown }[]
+    const fixture = fixtures.find(
+      item => item.name === 'help-result-command-text'
+    )!
+    const t = setup({ commands: commands() })
+    expect(t.help(['tasks.stop'], 'text', { id: 'h2' })).toEqual(
+      fixture.envelope
+    )
   })
 
   it('drops control characters of a summary', () => {
