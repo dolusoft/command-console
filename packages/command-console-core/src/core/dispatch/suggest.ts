@@ -29,7 +29,7 @@ export const splitName = (line: string): { name: string; rest: string } => {
 }
 
 /** `text` with the ASCII capitals lowered, nothing else. */
-export const foldAscii = (text: string): string =>
+const foldAscii = (text: string): string =>
   text.replace(/[A-Z]/g, letter => letter.toLowerCase())
 
 /**
@@ -55,7 +55,7 @@ export const findByName = (
 }
 
 /** Damerau-Levenshtein distance (optimal string alignment), by code point. */
-export const distance = (a: string, b: string): number => {
+const distance = (a: string, b: string): number => {
   const s = Array.from(a)
   const t = Array.from(b)
   const d: number[][] = []
