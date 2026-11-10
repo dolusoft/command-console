@@ -2,6 +2,15 @@
 
 The release notes of a version are on its GitHub Release. This file names what a consumer must change.
 
+## 1.7.1
+
+- **Changed: an `unknown-command` message of the remote entry names no near command** (C-111). It is
+  `unknown command: <name>`; the nearest name is in `suggest` only, so the CLI prints it once. Nothing for a
+  consumer to change.
+- **Changed: a change the user rejected in the browser is not suggested again** (C-111). Its `finished` carries no
+  `suggest`; an approval that expired or was dropped, and a `beforeRun` refusal, still suggest the canonical argv.
+  Nothing for a consumer to change.
+
 ## 1.7.0
 
 The CLI isolation (ADR 0015, ADR 0016): the tab reads the CLI's argv and writes what the CLI prints (suggestions,

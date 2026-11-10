@@ -108,14 +108,11 @@ export const nearNames = (
 
 /**
  * The `unknown-command` message (C-111): the name only when it is written
- * plain (free text is never echoed, P16), then the near names.
+ * plain (free text is never echoed, P16). The near name travels in
+ * `suggest` alone, so the CLI prints it once.
  */
-export const unknownCommandMessage = (name: string, near: string[]): string => {
-  const head = isCommandName(name)
-    ? `unknown command: ${name}`
-    : 'unknown command'
-  return near.length > 0 ? `${head}; did you mean: ${near.join(', ')}` : head
-}
+export const unknownCommandMessage = (name: string): string =>
+  isCommandName(name) ? `unknown command: ${name}` : 'unknown command'
 
 /**
  * `nav.find data view` → `['nav.find', '--text', 'data view']` (C-111): when

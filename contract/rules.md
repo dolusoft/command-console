@@ -746,15 +746,16 @@ that is not a finite number at or above 0 is `null`).
 A `finished` reply carries `suggest`, `next` and `help` as argv without the CLI's name, and never `outcome.line`.
 `formatCommandArgv(name, value, schema)` is the canonical argv: the items `formatCommandLine` quotes, so
 `tokenize(formatCommandLine(...))` gives it back. A preview that ends `ok` suggests the argv of its normalized input
-with the confirm field `true`. `unknown-command` has the message `unknown command: <name>; did you mean: a, b, c` (or
-`unknown command: <name>` without a near name) and suggests `[a]`, never its arguments: the near names are at most
+with the confirm field `true`. `unknown-command` has the message `unknown command: <name>`, with no near name in it,
+and suggests `[a]`, the nearest name, never its arguments: the near names are at most
 three commands within Damerau-Levenshtein distance 2 of the name (optimal string alignment, by code point, the ASCII
 case ignored), an alias counting for its command, nearest first and a tie by name; only commands the CLI may run
 (C-97) are candidates. The name is echoed only when it has the form of C-112. An `invalid-args` of the options
 names the command in `help`; when no argument starts with `-`, there is at least one and the command's only
 required field is a string, it suggests `[name, '--field', arguments joined by one space]`. The `invalid-args` end
-of a run also names the command in `help`. A `not-allowed` end of an accepted request (an approval rejected,
-expired or dropped, `beforeRun`) suggests the canonical argv of its normalized input. An `ok` end whose `data` is a
+of a run also names the command in `help`. A `not-allowed` end of an accepted request (an approval expired or
+dropped, `beforeRun`) suggests the canonical argv of its normalized input; an approval the user rejected suggests
+nothing. An `ok` end whose `data` is a
 plain object with a non-empty string `nextCursor`, of a command whose schema has a `cursor` field, has `next`: the
 argv of the normalized input with `cursor` set to it. An argv the schema refuses is left out, and so are `suggest`
 and `next` when `finished` would not fit in `envelopeMaxBytes`. A sensitive request's reply (C-98) has none of

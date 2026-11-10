@@ -280,7 +280,7 @@ describe('C-113 Remote help', () => {
       status: 'error',
       code: 'unknown-command',
       class: 'usage',
-      message: 'unknown command: nav.fnd; did you mean: nav.find',
+      message: 'unknown command: nav.fnd',
       suggest: ['nav.find']
     })
     expect(t.help(['zzz'])).toMatchObject({
