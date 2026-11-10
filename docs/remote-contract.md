@@ -176,7 +176,7 @@ The CLI turns an error into its exit code by `class`, never by `code`. 0 comes o
 | `unknown`   | 5         | `unknown-outcome`                                                                              |
 | `cancelled` | 1         | `cancelled` (cancelled in the browser; 130 is only for Ctrl+C in the CLI)                      |
 
-The CLI's own observation wins: `not-run` counts only for a refusal before `received`; after a `received` with `change: true` a `not-run` is 5, and a missing or contradictory end of a request that changes data (by `received.change` or by its `danger`) is 5. `fixtures/remote/error-class.json` lists the same table.
+The CLI's own observation wins: `not-run` counts only for a refusal before `received`; after a `received` with `change: true` a `not-run` is 5, and a missing or contradictory end of a request that changes data (by `received.change` or by its `danger`) is 5. After `received`, the tab's `change` flag decides between exit 4 and 5; the command's `danger` is used only when no `received` arrived. `fixtures/remote/error-class.json` lists the same table.
 
 ## Command name
 

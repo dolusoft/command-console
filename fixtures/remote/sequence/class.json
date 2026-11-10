@@ -31,7 +31,7 @@
         "id": "r1",
         "outcome": {
           "status": "error",
-          "code": "failed",
+          "code": "busy",
           "class": "throttled"
         },
         "chunks": 0,
@@ -42,7 +42,7 @@
       "exitCode": 1,
       "json": {
         "status": "error",
-        "code": "failed",
+        "code": "busy",
         "complete": true
       }
     }
@@ -79,7 +79,7 @@
         "id": "r1",
         "outcome": {
           "status": "error",
-          "code": "failed"
+          "code": "busy"
         },
         "chunks": 0,
         "bytes": 0
@@ -89,7 +89,7 @@
       "exitCode": 1,
       "json": {
         "status": "error",
-        "code": "failed",
+        "code": "busy",
         "complete": true
       }
     }

@@ -50,7 +50,7 @@
       "exitCode": 130,
       "json": {
         "status": "cancelled",
-        "complete": true
+        "complete": false
       }
     }
   },
