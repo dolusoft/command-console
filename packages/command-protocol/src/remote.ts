@@ -386,18 +386,28 @@ export function parseCliMessage(raw: unknown): CliMessageResult {
 }
 
 /**
- * The `id` and the `origin` ids of a `cli-request` that `parseCliMessage`
- * refused, when they can be read: a plain object with that `kind`, a
- * non-empty string `id`, and an `origin` with non-empty string `grantId` and
- * `bindingId`. Anything else gives `undefined`. Nothing else of `raw` is read.
+ * The `kind`, the `id` and the `origin` ids of a `cli-request` or a
+ * `help-request` that `parseCliMessage` refused, when they can be read: a
+ * plain object with one of those kinds, a non-empty string `id`, and an
+ * `origin` with non-empty string `grantId` and `bindingId`. Anything else
+ * (a `cancel`, an unknown `kind`) gives `undefined`. Nothing else of `raw` is
+ * read.
  */
-export function refusedCliRequest(
-  raw: unknown
-): { id: string; grantId: string; bindingId: string } | undefined {
-  if (!isPlainObject(raw) || raw.kind !== 'cli-request') {
+export function refusedCliRequest(raw: unknown):
+  | {
+      kind: 'cli-request' | 'help-request'
+      id: string
+      grantId: string
+      bindingId: string
+    }
+  | undefined {
+  if (
+    !isPlainObject(raw) ||
+    (raw.kind !== 'cli-request' && raw.kind !== 'help-request')
+  ) {
     return undefined
   }
-  const { id, origin } = raw
+  const { kind, id, origin } = raw
   if (
     !isName(id) ||
     !isPlainObject(origin) ||
@@ -406,7 +416,7 @@ export function refusedCliRequest(
   ) {
     return undefined
   }
-  return { id, grantId: origin.grantId, bindingId: origin.bindingId }
+  return { kind, id, grantId: origin.grantId, bindingId: origin.bindingId }
 }
 
 /**
