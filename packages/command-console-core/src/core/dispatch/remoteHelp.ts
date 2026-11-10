@@ -203,7 +203,7 @@ export const helpReply = (
       return helpError(
         id,
         'unknown-command',
-        unknownCommandMessage(target, near),
+        unknownCommandMessage(target),
         near.length > 0 ? { suggest: [near[0]] } : {}
       )
     }

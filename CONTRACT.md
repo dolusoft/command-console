@@ -1852,8 +1852,8 @@ that is not a finite number at or above 0 is `null`).
 A `finished` reply carries `suggest`, `next` and `help` as argv without the CLI's name, and never `outcome.line`.
 `formatCommandArgv(name, value, schema)` is the canonical argv: the items `formatCommandLine` quotes, so
 `tokenize(formatCommandLine(...))` gives it back. A preview that ends `ok` suggests the argv of its normalized input
-with the confirm field `true`. `unknown-command` has the message `unknown command: <name>; did you mean: a, b, c` (or
-`unknown command: <name>` without a near name) and suggests `[a]`, never its arguments: the near names are at most
+with the confirm field `true`. `unknown-command` has the message `unknown command: <name>`, with no near name in it,
+and suggests `[a]`, the nearest name, never its arguments: the near names are at most
 three commands within Damerau-Levenshtein distance 2 of the name (optimal string alignment, by code point, the ASCII
 case ignored), an alias counting for its command, nearest first and a tie by name; only commands the CLI may run
 (C-97) are candidates. The name is echoed only when it has the form of C-112. An `invalid-args` of the options

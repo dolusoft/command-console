@@ -1432,9 +1432,10 @@ describe('C-111 Remote suggestions', () => {
       status: 'error',
       code: 'unknown-command',
       class: 'usage',
-      // Three of four near names, nearest first, a tie by name.
-      message: 'unknown command: serch; did you mean: search, serc, sertch'
+      // The near name is in `suggest` only, never in the message.
+      message: 'unknown command: serch'
     })
+    // The nearest of four near names; a tie goes by name.
     expect(end.suggest).toEqual(['search'])
     expect(JSON.stringify(end)).not.toContain('secret-value')
     expect(end.help).toBeUndefined()

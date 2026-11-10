@@ -1445,7 +1445,7 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     const near = nearNames(commands.filter(openToCli), name)
     refuse(
       'unknown-command',
-      unknownCommandMessage(name, near),
+      unknownCommandMessage(name),
       near.length > 0 ? { suggest: [near[0]] } : {}
     )
     return
