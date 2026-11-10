@@ -192,7 +192,8 @@ writes the stamp:
 }
 ```
 
-`parseCliMessage(raw)` checks it as `parseEnvelope` checks an envelope. The tab answers with `capabilities`,
+`parseCliMessage(raw)` checks it as `parseEnvelope` checks an envelope; for a `cli-request` it refuses,
+`refusedCliRequest(raw)` reads only the `id` and the `origin` ids, so the tab can answer it. The tab answers with `capabilities`,
 `received`, `awaiting-approval`, `chunk`, `finished`, `cancelled-before-start` and `cancel-requested` (`CliReply`,
 `isCliReply`). A result's `data` travels as its JSON text in at most `remoteChunksMax` (3) chunks of at most
 `envelopeMaxBytes` each: `chunkData(id, text)` cuts it, `joinChunks(finished, chunks)` joins it or gives `undefined`

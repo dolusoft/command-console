@@ -251,6 +251,30 @@ export function parseCliMessage(raw: unknown): CliMessageResult {
 }
 
 /**
+ * The `id` and the `origin` ids of a `cli-request` that `parseCliMessage`
+ * refused, when they can be read: a plain object with that `kind`, a
+ * non-empty string `id`, and an `origin` with non-empty string `grantId` and
+ * `bindingId`. Anything else gives `undefined`. Nothing else of `raw` is read.
+ */
+export function refusedCliRequest(
+  raw: unknown
+): { id: string; grantId: string; bindingId: string } | undefined {
+  if (!isPlainObject(raw) || raw.kind !== 'cli-request') {
+    return undefined
+  }
+  const { id, origin } = raw
+  if (
+    !isName(id) ||
+    !isPlainObject(origin) ||
+    !isName(origin.grantId) ||
+    !isName(origin.bindingId)
+  ) {
+    return undefined
+  }
+  return { id, grantId: origin.grantId, bindingId: origin.bindingId }
+}
+
+/**
  * The JSON text of `data` cut into at most `remoteChunksMax` chunk replies of
  * request `id`, each within `envelopeMaxBytes`, cut between code points;
  * `undefined` when it does not fit. An empty text gives no chunk.

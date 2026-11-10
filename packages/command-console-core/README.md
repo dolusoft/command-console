@@ -269,12 +269,15 @@ console.detachRemote()
 - **Accept.** A request runs once (an id seen before is ignored), not after its `expiresAt` (`expired`) nor when
   stamped more than 30 s ahead of `now` (`clock-skew`). There is no queue: while a run exists it is `busy`. The line
   takes the agent's path with `actor: 'cli'`: a sensitive command or line, an `irreversible` one and one without
-  `input` or `danger` are refused, and the history shows the canonical line marked CLI.
+  `input` or `danger` are refused, and the history shows the canonical line marked CLI. A request the tab cannot read
+  (a line over 4000 code points, another version, too large) ends at once with `finished` (`invalid-args`,
+  `unsupported-version` or `too-large`) when its id and origin can be read; otherwise it is ignored.
 - **Replies.** `received` (hidden, data age), `awaiting-approval` for a change, then `chunk` (at most three) and
   `finished` with the outcome. The CLI gets what an agent gets (summary, data, code, message); the terminal's blocks
   stay in the browser.
 - **Preview and change.** A `change` command declares `confirm: { field: 'yes' }`. Without `--yes` the call is its
-  preview and runs as `read`, for the CLI and for the agent's `run` alike; with it, it is the change.
+  preview and runs as `read`, for the CLI and for the agent's `run` alike; with it, it is the change. The field is
+  read after `normalize`: a `normalize` that sets it makes the call the change.
 - **Approval.** A change from the CLI waits in `phase: 'approving'`. The command's optional `plan(input, signal)`
   gives `targets` and a `preview`; `state.remote.approval` holds the plan for two minutes. `approve(id)` is refused in
   the first second and runs the plan's input once; `reject(id)`, the timer, `suspendRemote()`, `detachRemote()` and a

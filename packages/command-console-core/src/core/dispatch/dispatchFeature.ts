@@ -10,6 +10,7 @@ import {
   type CommandResponse,
   type ContextFrame,
   type Envelope,
+  type EnvelopeErrorCode,
   type ErrorCode,
   type JsonValue,
   type MessageBlock,
@@ -22,6 +23,7 @@ import {
   parseCliMessage,
   parseEnvelope,
   parseOptions,
+  refusedCliRequest,
   tokenize,
   validateInput
 } from '@dolusoft/command-protocol'
@@ -106,7 +108,15 @@ interface Plan {
   /** The view the line targets; called when the run starts. */
   view: () => string | undefined
   actor: Actor
+  /**
+   * The input already normalized and checked, when a decision needed it
+   * before the run (C-95); `prepare` then does not normalize again.
+   */
+  mapped?: Mapped
 }
+
+/** The input after `normalize` and the schema, or why it has none. */
+type Mapped = { ok: true; value: Input } | { ok: false; error: unknown }
 
 interface Run {
   readonly id: string
@@ -739,12 +749,9 @@ const prepare = (run: Run, plan: Plan) => {
   const { command } = run
   const schema = command.input!
   const view = plan.view()
-  const mapped = command.normalize ? command.normalize(plan.value) : plan.value
-  const checked = validateInput(schema, mapped)
+  const checked = plan.mapped ?? mapInput(command, plan.value)
   if (!checked.ok) {
-    throw new TypeError(
-      `command ${command.name}: normalize returned an input the schema refuses.`
-    )
+    throw checked.error
   }
   const line = formatCommandLine(command.name, checked.value, schema)
   const tokens = tokenize(line).tokens
@@ -758,6 +765,27 @@ const prepare = (run: Run, plan: Plan) => {
   // An empty or `null` view is no view.
   if (typeof view === 'string' && view !== '') {
     run.request.view = view
+  }
+}
+
+/**
+ * Normalizes and checks the validated input of a command with `input` once
+ * (C-77); a throw or a value the schema refuses is kept as the error.
+ */
+const mapInput = (command: CommandDefinition, value: Input): Mapped => {
+  try {
+    const mapped = command.normalize ? command.normalize(value) : value
+    const checked = validateInput(command.input!, mapped)
+    return checked.ok
+      ? { ok: true, value: checked.value }
+      : {
+          ok: false,
+          error: new TypeError(
+            `command ${command.name}: normalize returned an input the schema refuses.`
+          )
+        }
+  } catch (error) {
+    return { ok: false, error }
   }
 }
 
@@ -1054,7 +1082,12 @@ const requestLine = (
         )
       : refuse('invalid-args', errors)
   }
-  change = command.danger === 'change' && !isPreview(command, read.value)
+  // The decision reads the input the command would run with (C-95); one
+  // that cannot be normalized fails on start, as C-77 says.
+  const mapped = mapInput(command, read.value)
+  change =
+    command.danger === 'change' &&
+    !isPreview(command, mapped.ok ? mapped.value : read.value)
   const line = formatCommandLine(command.name, read.value, schema)
   const sensitive = lookup.isSensitive(line)
   if (change) {
@@ -1091,7 +1124,7 @@ const requestLine = (
       { name: command.name, command: command.name, args: [], rest: '', line },
       inputId,
       false,
-      { value: read.value, view, actor: input.actor },
+      { value: read.value, view, actor: input.actor, mapped },
       resolve
     )
   })
@@ -1105,14 +1138,19 @@ const isPreview = (command: CommandDefinition, value: Input): boolean =>
 
 /**
  * A message the gate delivered with a CLI `kind` (C-98): read with
- * `parseCliMessage`; one it refuses, one without a live binding, and one
- * whose `origin` is not the binding's is ignored.
+ * `parseCliMessage`; one without a live binding and one whose `origin` is not
+ * the binding's is ignored. A refused `cli-request` whose id and origin can
+ * be read ends once with `finished`; any other refused message is ignored.
  */
 const receiveRemote = (console: object, raw: unknown) => {
   const parsed = parseCliMessage(raw)
   const state = stateOf(console)
   const holder = state.remote
-  if (!parsed.ok || !holder?.alive || isDisposed(console)) {
+  if (!holder?.alive || isDisposed(console)) {
+    return
+  }
+  if (!parsed.ok) {
+    refuseUnread(console, holder, raw, parsed.code)
     return
   }
   const { message: received } = parsed
@@ -1131,6 +1169,61 @@ const receiveRemote = (console: object, raw: unknown) => {
       cancelRemote(console, received.id)
     } else {
       acceptRemote(console, holder, received)
+    }
+  })
+}
+
+/**
+ * A `cli-request` of the bound CLI that `parseCliMessage` refused (C-98):
+ * when its id can be read and was not seen, it ends with `finished` and the
+ * reason's code, and nothing of the request goes back (P16).
+ */
+const refuseUnread = (
+  console: object,
+  holder: Holder,
+  raw: unknown,
+  reason: EnvelopeErrorCode
+) => {
+  const read = refusedCliRequest(raw)
+  const { binding } = holder
+  if (
+    !read ||
+    read.bindingId !== binding.bindingId ||
+    read.grantId !== binding.grantId
+  ) {
+    return
+  }
+  liveRecord(console).store.action(() => {
+    const state = stateOf(console)
+    const { id } = read
+    if (!holder.alive || state.seen.has(id) || state.closed.has(id)) {
+      return
+    }
+    rememberClosed(state.seen, id)
+    if (reason === 'unsupported-version') {
+      refuseRemote(
+        console,
+        holder,
+        id,
+        'unsupported-version',
+        'The request has a version this tab does not read.'
+      )
+    } else if (reason === 'too-large') {
+      refuseRemote(
+        console,
+        holder,
+        id,
+        'too-large',
+        'The request is too large.'
+      )
+    } else {
+      refuseRemote(
+        console,
+        holder,
+        id,
+        'invalid-args',
+        'The request is not a valid CLI request.'
+      )
     }
   })
 }
@@ -1244,7 +1337,10 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     )
     return
   }
-  const preview = isPreview(command, read.value)
+  // The decision reads the input the command would run with (C-95); one
+  // that cannot be normalized fails on start, as C-77 says.
+  const mapped = mapInput(command, read.value)
+  const preview = isPreview(command, mapped.ok ? mapped.value : read.value)
   const remote: RemoteRun = {
     requestId: id,
     holder,
@@ -1290,7 +1386,7 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     { name: command.name, command: command.name, args: [], rest: '', line },
     inputId,
     false,
-    { value: read.value, view: () => shown, actor: 'cli' },
+    { value: read.value, view: () => shown, actor: 'cli', mapped },
     outcome =>
       reply(
         console,
