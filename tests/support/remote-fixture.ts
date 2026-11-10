@@ -49,7 +49,8 @@ export const boundConsole = () => {
     bindingId: 'b1',
     grantId: 'g1',
     approvedAt: Date.UTC(2026, 10, 7, 9, 0),
-    send: () => undefined
+    send: () => undefined,
+    publishCapabilities: () => undefined
   })
   /** Opens the approval window of `tasks.stop --id 8812 --yes`. */
   const askApproval = () => {

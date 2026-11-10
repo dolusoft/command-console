@@ -19,11 +19,12 @@ import {
   type CliRequest,
   envelopeBytes,
   envelopeMaxBytes,
-  errorClassOf,
+  formatCommandArgv,
   formatCommandLine,
   parseCliMessage,
   parseEnvelope,
   parseOptions,
+  quoteArgument,
   refusedCliRequest,
   tokenize,
   validateInput
@@ -62,7 +63,9 @@ import {
   capabilitiesOf,
   checkBinding,
   finishedReplies,
-  stampRefusal
+  openToCli,
+  stampRefusal,
+  type Hints
 } from './remote'
 import {
   isLineSensitive,
@@ -70,6 +73,14 @@ import {
   sensitiveFrom,
   sensitiveNames
 } from './sensitivity'
+import {
+  findByName,
+  isCommandName,
+  nearNames,
+  positionalFix,
+  splitName,
+  unknownCommandMessage
+} from './suggest'
 import {
   applyEffect,
   assignMethods,
@@ -1235,24 +1246,72 @@ const refuseRemote = (
   holder: Holder,
   id: string,
   code: ErrorCode,
-  text?: string
+  text?: string,
+  hints: Hints = {}
 ) => {
-  reply(console, holder, {
-    v: 1,
-    kind: 'finished',
-    id,
-    outcome:
-      text === undefined
-        ? { status: 'error', code, class: errorClassOf(code) }
-        : {
-            status: 'error',
-            code,
-            class: errorClassOf(code),
-            message: cutMessage(text)
-          },
-    chunks: 0,
-    bytes: 0
-  })
+  reply(
+    console,
+    holder,
+    ...finishedReplies(
+      id,
+      failure(code, text === undefined ? undefined : cutMessage(text)),
+      undefined,
+      holder.binding,
+      false,
+      hints
+    )
+  )
+}
+
+/**
+ * What the end of an accepted CLI request suggests (C-111), from the
+ * normalized `input`: a preview's argv with its confirm field `true`, the
+ * next page's argv with `cursor` set to the data's `nextCursor`, the
+ * canonical argv of a `not-allowed`, the command's name for its help on an
+ * `invalid-args`. An argv the schema refuses is left out.
+ */
+const hintsOf = (
+  command: CommandDefinition,
+  outcome: CommandOutcome,
+  input: Input | undefined,
+  preview: boolean
+): Hints => {
+  const schema = command.input!
+  const argvOf = (value: Input): string[] | undefined => {
+    try {
+      return formatCommandArgv(command.name, value, schema)
+    } catch {
+      return undefined
+    }
+  }
+  const hints: Hints = {}
+  if (outcome.status === 'error') {
+    if (outcome.code === 'invalid-args') {
+      hints.help = command.name
+    } else if (outcome.code === 'not-allowed' && input) {
+      hints.suggest = argvOf(input)
+    }
+    return hints
+  }
+  if (!input) {
+    return hints
+  }
+  if (preview && command.confirm) {
+    hints.suggest = argvOf({ ...input, [command.confirm.field]: true })
+  }
+  const { data } = outcome
+  const cursor =
+    typeof data === 'object' && data !== null && !Array.isArray(data)
+      ? data.nextCursor
+      : undefined
+  if (
+    typeof cursor === 'string' &&
+    cursor !== '' &&
+    Object.hasOwn(schema.properties ?? {}, 'cursor')
+  ) {
+    hints.next = argvOf({ ...input, cursor })
+  }
+  return hints
 }
 
 /**
@@ -1269,8 +1328,8 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
   }
   rememberClosed(state.seen, id)
   const { store, options } = liveRecord(console)
-  const refuse = (code: ErrorCode, text?: string) =>
-    refuseRemote(console, holder, id, code, text)
+  const refuse = (code: ErrorCode, text?: string, hints?: Hints) =>
+    refuseRemote(console, holder, id, code, text, hints)
   const stamp = stampRefusal(request, options.now!())
   if (stamp) {
     refuse(stamp.code, stamp.message)
@@ -1283,70 +1342,91 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     )
     return
   }
-  // C-106: the `argv` path comes with the core's 1.7.0 work; until then it
-  // is refused, nothing of it read.
-  if (request.line === undefined) {
-    refuse('invalid-args', 'argv requests are not supported by this tab yet')
-    return
-  }
   const lookup = lookupOf(console)
-  const text = request.line.trim()
-  const parsed = tokenize(text)
-  if (!parsed.ok) {
-    refuse('invalid-args', 'unterminated quote')
-    return
+  // A sensitive command or line never runs from the CLI and its refusal
+  // says nothing: no message, no hint (P16, C-111). The argv is checked as
+  // the user typed it, joined, and later as its canonical line (C-98).
+  const sensitiveRefusal = () => refuse('not-allowed')
+  // The name is the first item or the line's first word, raw (C-112).
+  let typed: string
+  let name: string
+  let args: string[]
+  if (request.argv !== undefined) {
+    typed = request.argv.map(quoteArgument).join(' ')
+    name = request.argv[0]
+    args = request.argv.slice(1)
+    if (lookup.isSensitive(typed)) {
+      sensitiveRefusal()
+      return
+    }
+  } else {
+    typed = request.line.trim()
+    if (lookup.isSensitive(typed)) {
+      sensitiveRefusal()
+      return
+    }
+    const split = splitName(typed)
+    const parsed = tokenize(split.rest)
+    if (!parsed.ok) {
+      refuse('invalid-args', 'unterminated quote')
+      return
+    }
+    if (split.name === '') {
+      refuse('invalid-args', 'empty line')
+      return
+    }
+    name = split.name
+    args = parsed.tokens.map(token => token.value)
   }
-  if (parsed.tokens.length === 0) {
-    refuse('invalid-args', 'empty line')
-    return
-  }
-  const command = lookup.find(parsed.tokens[0].value)
-  if (!command || command.hidden === true) {
-    refuse('unknown-command')
-    return
-  }
-  const { name } = command
-  // A sensitive command or line never runs from the CLI and says nothing
-  // back of its line (P16).
-  if (
-    (command.sensitive !== undefined && command.sensitive !== false) ||
-    lookup.isSensitive(text)
-  ) {
+  if (!isCommandName(name)) {
     refuse(
-      'not-allowed',
-      'The line is sensitive; it never runs from the CLI. Type it in the browser.'
+      'invalid-args',
+      'The command name is written plain: a letter, then letters, digits, ".", "_" or "-", without quotes.'
+    )
+    return
+  }
+  const { commands } = options
+  const command = findByName(commands, name)
+  if (command?.sensitive !== undefined && command.sensitive !== false) {
+    sensitiveRefusal()
+    return
+  }
+  if (!command || command.hidden === true) {
+    const near = nearNames(commands.filter(openToCli), name)
+    refuse(
+      'unknown-command',
+      unknownCommandMessage(name, near),
+      near.length > 0 ? { suggest: [near[0]] } : {}
     )
     return
   }
   if (command.danger === 'irreversible') {
     refuse(
       'not-allowed',
-      `${name} cannot be undone, so it never runs from the console.`
+      `${command.name} cannot be undone, so it never runs from the console.`
     )
     return
   }
   if (!describedCommand(command)) {
     refuse(
       'not-allowed',
-      `${name} is not open to the CLI; only the user can run it in the browser.`
+      `${command.name} is not open to the CLI; only the user can run it in the browser.`
     )
     return
   }
   const schema = command.input!
-  const read = parseOptions(
-    parsed.tokens.slice(1).map(token => token.value),
-    schema
-  )
+  const read = parseOptions(args, schema)
   if (!read.ok) {
-    refuse('invalid-args', describeInputErrors(schema, read.errors))
+    const fix = positionalFix(command.name, args, schema)
+    refuse('invalid-args', describeInputErrors(schema, read.errors), {
+      help: command.name,
+      ...(fix !== undefined && { suggest: fix })
+    })
     return
   }
   const line = formatCommandLine(command.name, read.value, schema)
   if (lookup.isSensitive(line)) {
-    refuse(
-      'not-allowed',
-      'The line is sensitive; it never runs from the CLI. Type it in the browser.'
-    )
+    sensitiveRefusal()
     return
   }
   // The decision reads the input the command would run with (C-95); one
@@ -1361,9 +1441,17 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     started: false,
     approval: null
   }
+  // The view is fixed on accept: the request's, else the active one.
+  let view: string | undefined
+  try {
+    view = request.view ?? options.activeView?.()
+  } catch (error) {
+    reportCallbackError(console, error)
+  }
+  const shown = typeof view === 'string' && view !== '' ? view : undefined
   let status: { hidden: boolean; dataAgeMs?: number | null } | undefined
   try {
-    status = holder.binding.status?.()
+    status = holder.binding.status?.({ command: command.name })
   } catch (error) {
     reportCallbackError(console, error)
   }
@@ -1376,7 +1464,8 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     dataAgeMs:
       typeof age === 'number' && Number.isFinite(age) && age >= 0 ? age : null,
     change: remote.change,
-    viewRelevant: request.view !== undefined
+    // The CLI prints the view the command runs in, when it runs in one.
+    viewRelevant: shown !== undefined
   })
   const inputId = addEntry(console, {
     kind: 'input',
@@ -1386,14 +1475,6 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     status: 'submitted',
     actor: 'cli'
   })
-  // The view is fixed on accept: the request's, else the active one.
-  let view: string | undefined
-  try {
-    view = request.view ?? options.activeView?.()
-  } catch (error) {
-    reportCallbackError(console, error)
-  }
-  const shown = typeof view === 'string' && view !== '' ? view : undefined
   void start(
     console,
     command,
@@ -1405,7 +1486,19 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
       reply(
         console,
         holder,
-        ...finishedReplies(id, outcome, shown, holder.binding, remote.preview)
+        ...finishedReplies(
+          id,
+          outcome,
+          shown,
+          holder.binding,
+          remote.preview,
+          hintsOf(
+            command,
+            outcome,
+            mapped.ok ? mapped.value : undefined,
+            remote.preview
+          )
+        )
       ),
     remote
   )
@@ -1461,6 +1554,8 @@ const attach = (console: object, given: RemoteBinding) => {
   if (!gate || typeof now !== 'function') {
     throw new TypeError('attachRemote needs the gate and now options.')
   }
+  // A list that does not fit throws before anything changes (C-97).
+  const capabilities = capabilitiesOf(record.options.commands, binding.minCli)
   const state = stateOf(console)
   // Subscribed now, not on the first envelope (C-78, C-97): a bound tab
   // that never sent anything still hears its CLI.
@@ -1476,12 +1571,43 @@ const attach = (console: object, given: RemoteBinding) => {
       approvedAt: binding.approvedAt,
       approval: null
     }))
-    reply(
-      console,
-      holder,
-      capabilitiesOf(binding.bindingId, record.options.commands)
-    )
+    publish(console, holder, capabilities)
   })
+}
+
+/**
+ * Hands the capabilities to the binding after the open action's commit;
+ * nothing once the binding ended. A throw or rejection goes to `onError`.
+ */
+const publish = (
+  console: object,
+  holder: Holder,
+  payload: { revision: string; parts: string[] }
+) => {
+  const record = recordOf(console)
+  if (!record || !holder.alive) {
+    return
+  }
+  const deliver = () => {
+    if (!holder.alive) {
+      return
+    }
+    try {
+      Promise.resolve(
+        holder.binding.publishCapabilities({
+          revision: payload.revision,
+          parts: [...payload.parts]
+        })
+      ).then(undefined, error => reportCallbackError(console, error))
+    } catch (error) {
+      reportCallbackError(console, error)
+    }
+  }
+  if (record.store.inAction()) {
+    record.store.afterCommit(deliver)
+  } else {
+    deliver()
+  }
 }
 
 /** `approve()` (C-99): the plan runs once, after its first second. */
@@ -1674,19 +1800,24 @@ export const dispatchFeature: ConsoleFeature = {
         run.controller.abort()
       }
     })
-    // C-97: new commands, new capabilities for the bound CLI.
+    // C-97: new commands, new capabilities for the bound CLI; a list that
+    // no longer fits goes to `onError` and the hub keeps the last one.
     onOptionsChange(console, () => {
       const holder = stateOf(console).remote
-      if (holder?.alive) {
-        reply(
-          console,
-          holder,
-          capabilitiesOf(
-            holder.binding.bindingId,
-            liveRecord(console).options.commands
-          )
-        )
+      if (!holder?.alive) {
+        return
       }
+      let capabilities: { revision: string; parts: string[] }
+      try {
+        capabilities = capabilitiesOf(
+          liveRecord(console).options.commands,
+          holder.binding.minCli
+        )
+      } catch (error) {
+        reportCallbackError(console, error)
+        return
+      }
+      publish(console, holder, capabilities)
     })
     onReset(console, () => {
       const run = stateOf(console).run

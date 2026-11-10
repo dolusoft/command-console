@@ -149,6 +149,8 @@ name, is `additional`; a name without its value, or a second value of a field th
 `formatCommandLine(command, value, schema)` writes the canonical line: the fields of the validated value in the order
 of `properties`, every token through `quoteArgument`, `true` as the bare `--name` and `false` as `--name false`. Its
 tokens after the name read back with `parseOptions` to the same value. A value the schema rejects throws.
+`formatCommandArgv(command, value, schema)` gives the same tokens unquoted, as an array (`['search', '--ip',
+'10.0.0.5', '--limit', '100']`); `tokenize(formatCommandLine(...))` gives them back.
 
 ## Envelope
 

@@ -983,10 +983,27 @@ export interface RemoteBinding {
   /** Sends a reply to the bound CLI (the hub's `SendToCli`). */
   send(reply: CliReply): void | Promise<void>
   /**
-   * Whether the page is hidden now and how old the data is, for `received`.
+   * Hands the list of what the CLI may run to the hub (its
+   * `PublishCapabilities`), which replaces the list it keeps, whole: on attach
+   * and whenever `commands` change (C-97). `parts` is the JSON of a
+   * `CapabilitiesPayload` cut into one to three strings; the shell passes
+   * them on as they are.
+   */
+  publishCapabilities(payload: {
+    revision: string
+    parts: string[]
+  }): void | Promise<void>
+  /** The oldest CLI version the tab supports, published as is. */
+  minCli?: string
+  /**
+   * Whether the page is hidden now and how old the data `request.command`
+   * reads is, for `received`; an age only for a command whose data has one.
    * Default `{ hidden: false, dataAgeMs: null }`.
    */
-  status?(): { hidden: boolean; dataAgeMs?: number | null }
+  status?(request: { command: string }): {
+    hidden: boolean
+    dataAgeMs?: number | null
+  }
   /** The title of a view instance, for `finished`. */
   viewTitle?(view: string): string | undefined
 }
@@ -1689,13 +1706,19 @@ not a reply (C-108).
 #### C-97 Attach remote
 
 `attachRemote(binding)` needs the `gate` and `now` options and a binding with a non-empty `bindingId` and `grantId`,
-a finite `approvedAt` and a `send` function; otherwise it throws a `TypeError`. It subscribes to the gate at once,
-puts `{ bindingId, approvedAt, approval: null }` in `state.remote`, replaces a binding already attached, and sends the
-`capabilities` reply: the commands that are neither `hidden` nor `irreversible` and have `input` and `danger` without
-`sensitive` (name, aliases, danger, confirm field), and the names and aliases of every sensitive command. A message
-whose `origin` is not the binding's is ignored. A `setOptions` that changes `commands` sends the `capabilities` again while a binding is attached; one that keeps them sends nothing. `detachRemote()` drops a waiting approval (C-99), sets
-`state.remote` to `null` and sends nothing more through the binding, not even the end of a command still running; so
-does `dispose()`. A `send` that throws or rejects goes to `onError` and changes nothing else.
+a finite `approvedAt`, a `send` and a `publishCapabilities` function, and a `minCli` that is a non-empty string when
+given; otherwise it throws a `TypeError`. It subscribes to the gate at once, puts `{ bindingId, approvedAt, approval:
+null }` in `state.remote`, replaces a binding already attached, and calls `publishCapabilities({ revision, parts })`
+(no reply goes through `send`): `parts` is `capabilitiesParts` (C-108) of the commands that are neither `hidden` nor
+`irreversible` and have `input` and `danger` without `sensitive` (name, aliases, danger), the names and aliases of
+every sensitive command, `remoteEnvelopes`, `remoteFeatures` and the binding's `minCli`; `revision` is 8 hex digits
+made from the commands and the sensitive names only, the same for the same list, with no clock and no randomness. A
+list that does not fit in three parts makes `attachRemote` throw that `RangeError` before anything changes. A message
+whose `origin` is not the binding's is ignored. A `setOptions` that changes `commands` publishes the list again while
+a binding is attached; one that keeps them publishes nothing, and a list that no longer fits goes to `onError`
+and is not published. `detachRemote()` drops a waiting approval (C-99), sets `state.remote` to `null` and sends
+nothing more through the binding, not even the end of a command still running; so does `dispose()`. A `send` or a
+`publishCapabilities` that throws or rejects goes to `onError` and changes nothing else.
 
 #### C-98 Remote accept
 
@@ -1704,12 +1727,14 @@ but whose `id` and `origin` ids can be read (C-96, the binding's) sends only `fi
 `too-large`, or `invalid-args` for any other reason, with a short `message` and nothing of the request; a refused
 message of another `kind`, or without a readable `id`, is ignored. By the `now` option, one stamped
 more than 30 s ahead is `clock-skew` and one after its `expiresAt` is `expired`, each with a `message`; while a run
-exists it is `busy` (no queue). Then, as for an agent (C-82, C-89, C-93): an unparsable or empty line is
-`invalid-args`, an unknown or `hidden` command `unknown-command`; a sensitive command, a line `isSensitive` marks,
-typed or canonical, an `irreversible` command and one without `input` or `danger` are `not-allowed`, and the
-`message` repeats no part of a sensitive line; options the schema refuses are `invalid-args` with a `message`. Until
-the `argv` path (C-106) runs, a request with `argv` is `invalid-args` after the stamp and `busy` checks. Each
-of these sends only `finished`, and adds no entry. Otherwise the tab sends `received` (`hidden` and `dataAgeMs` from
+exists it is `busy` (no queue). An `argv` request (C-106) is never made a line: its first item is the name and the
+rest are the option tokens as they are; a `line` gives its name and its tokens as C-112 says. Then, as for an agent
+(C-82, C-89, C-93): a line typed as is (or an `argv` joined through `quoteArgument`) that `isSensitive` marks, a
+sensitive command and a canonical line `isSensitive` marks are `not-allowed` without a `message` (C-111); an
+unparsable or empty line or a name C-112 refuses is `invalid-args`, an unknown or `hidden` command
+`unknown-command`; an `irreversible` command and one without `input` or `danger` are `not-allowed`; options the
+schema refuses are `invalid-args` with a `message`. Each of these sends only `finished`, and adds no entry.
+Otherwise the tab sends `received` (`hidden` and `dataAgeMs` from
 the binding's `status`, else `false` and `null`; `change` and `viewRelevant` as C-110 says), appends an input entry with the canonical line and
 `actor: 'cli'`, and starts the run without an envelope: `beforeRun`, then a `read` command or a preview (C-95) runs,
 and a change waits for approval (C-99). The view is the request's, else `activeView()` on accept.
@@ -1808,16 +1833,39 @@ where those are tested.
 #### C-110 Received fields
 
 `received` tells the CLI `change`: the request runs the path that changes data, after `normalize` and the schema (not
-a `read` command, not a preview, C-95); and `viewRelevant`: the request names a view or its command runs in one, so
-the CLI prints the view. `dataAgeMs` comes from the binding's `status`, asked with the request's command.
+a `read` command, not a preview, C-95); and `viewRelevant`: the command runs in a view, the request's or the
+`activeView()` on accept (the view `finished` names), so the CLI prints the view. The binding's `status` is called
+as `status({ command })` with the command's canonical name; `hidden` and `dataAgeMs` come from it as they are (an age
+that is not a finite number at or above 0 is `null`).
 
 #### C-111 Remote suggestions
 
-A `finished` reply carries `suggest`, `next` and `help` as argv without the CLI's name: a preview's `suggest` is its
-canonical argv with the confirm field `true`; `unknown-command` suggests only the nearest name, never its arguments;
-an `invalid-args` with one positional fix suggests `[name, '--field', value]`; `not-allowed` suggests the canonical
-argv. `next` is the canonical argv with `cursor` set to the data's `nextCursor`. `help` names the command of an
-`invalid-args`. A sensitive line's reply has none of them, nor a `message`.
+A `finished` reply carries `suggest`, `next` and `help` as argv without the CLI's name, and never `outcome.line`.
+`formatCommandArgv(name, value, schema)` is the canonical argv: the items `formatCommandLine` quotes, so
+`tokenize(formatCommandLine(...))` gives it back. A preview that ends `ok` suggests the argv of its normalized input
+with the confirm field `true`. `unknown-command` has the message `unknown command: <name>; did you mean: a, b, c` (or
+`unknown command: <name>` without a near name) and suggests `[a]`, never its arguments: the near names are at most
+three commands within Damerau-Levenshtein distance 2 of the name (optimal string alignment, by code point, the ASCII
+case ignored), an alias counting for its command, nearest first and a tie by name; only commands the CLI may run
+(C-97) are candidates. The name is echoed only when it has the form of C-112. An `invalid-args` of the options
+names the command in `help`; when no argument starts with `-`, there is at least one and the command's only
+required field is a string, it suggests `[name, '--field', arguments joined by one space]`. The `invalid-args` end
+of a run also names the command in `help`. A `not-allowed` end of an accepted request (an approval rejected,
+expired or dropped, `beforeRun`) suggests the canonical argv of its normalized input. An `ok` end whose `data` is a
+plain object with a non-empty string `nextCursor`, of a command whose schema has a `cursor` field, has `next`: the
+argv of the normalized input with `cursor` set to it. An argv the schema refuses is left out, and so are `suggest`
+and `next` when `finished` would not fit in `envelopeMaxBytes`. A sensitive request's reply (C-98) has none of
+them, nor a `message`.
+
+#### C-112 Remote command name
+
+The command of a CLI request is its first part, found by exact match of its name or an alias, the ASCII case
+ignored (an exact match first); one request runs one command. A `line` is trimmed and its name ends at the first
+ECMAScript `WhiteSpace` or `LineTerminator` (U+FEFF in, U+0085 out), raw: quotes and backslashes are part of it;
+the rest is tokenized (ADR 0007). The name, and so `argv[0]`, must match `^[A-Za-z][A-Za-z0-9._-]*$`; otherwise
+the request is `invalid-args` and the name is not echoed. Every row of `fixtures/remote/command-name.json` runs
+through `attachRemote` and finds the `tab` name or is refused with its code; a `sensitive` row is refused as
+sensitive. The local terminal and `request()` keep their exact, case-sensitive lookup.
 
 ## DOM contract
 

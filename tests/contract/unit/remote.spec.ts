@@ -63,7 +63,8 @@ const bound = () => {
     approvedAt: Date.UTC(2026, 10, 7, 9, 0),
     send: reply => {
       replies.push(reply)
-    }
+    },
+    publishCapabilities: () => undefined
   }
   const request = (id: string, line: string) => {
     for (const listener of [...listeners]) {

@@ -257,24 +257,45 @@ interface RemoteBinding {
   grantId: string
   approvedAt: number
   send(reply: CliReply): void | Promise<void>
-  status?(): { hidden: boolean; dataAgeMs?: number | null }
+  // The hub's PublishCapabilities: replaces the list it keeps, whole.
+  publishCapabilities(payload: {
+    revision: string
+    parts: string[]
+  }): void | Promise<void>
+  minCli?: string
+  status?(request: { command: string }): {
+    hidden: boolean
+    dataAgeMs?: number | null
+  }
   viewTitle?(view: string): string | undefined
 }
 
 const console = createConsole({ commands, gate, now: () => Date.now() })
-console.attachRemote(binding) // subscribes now, sends the capabilities
+console.attachRemote(binding) // subscribes now, publishes the capabilities
 console.detachRemote()
 ```
 
+- **Capabilities.** On attach, and whenever `setOptions` changes `commands`, the console calls
+  `publishCapabilities({ revision, parts })`: the JSON of what the CLI may run (`name`, `aliases`, `danger`), the
+  sensitive names, the features and the binding's `minCli`, cut into one to three parts of at most 16 KB. The shell
+  hands the parts to the hub as they are. `revision` changes only when the list does. A list that does not fit makes
+  `attachRemote` throw a `RangeError`.
 - **Accept.** A request runs once (an id seen before is ignored), not after its `expiresAt` (`expired`) nor when
-  stamped more than 30 s ahead of `now` (`clock-skew`). There is no queue: while a run exists it is `busy`. The line
-  takes the agent's path with `actor: 'cli'`: a sensitive command or line, an `irreversible` one and one without
-  `input` or `danger` are refused, and the history shows the canonical line marked CLI. A request the tab cannot read
-  (a line over 4000 code points, another version, too large) ends at once with `finished` (`invalid-args`,
-  `unsupported-version` or `too-large`) when its id and origin can be read; otherwise it is ignored.
-- **Replies.** `received` (hidden, data age), `awaiting-approval` for a change, then `chunk` (at most three) and
-  `finished` with the outcome. The CLI gets what an agent gets (summary, data, code, message); the terminal's blocks
-  stay in the browser.
+  stamped more than 30 s ahead of `now` (`clock-skew`). There is no queue: while a run exists it is `busy`. It comes
+  as `argv` (never turned into a line) or as a `line`; its first part is the command, found by name or alias with the
+  ASCII case ignored, and must be written plain (`^[A-Za-z][A-Za-z0-9._-]*$`). Then it takes the agent's path with
+  `actor: 'cli'`: a sensitive command or line, an `irreversible` one and one without `input` or `danger` are
+  refused, and the history shows the canonical line marked CLI. A request the tab cannot read (a line over 4000 code
+  points, another version, too large) ends at once with `finished` (`invalid-args`, `unsupported-version` or
+  `too-large`) when its id and origin can be read; otherwise it is ignored.
+- **Replies.** `received` (`hidden`, the data age `status({ command })` gives for that command, `change` when the
+  request runs the path that changes data, `viewRelevant` when it runs in a view), `awaiting-approval` for a change,
+  then `chunk` (at most three) and `finished` with the outcome and its `class`. The CLI gets what an agent gets
+  (summary, data, code, message); the terminal's blocks stay in the browser.
+- **Suggestions.** `finished` may carry argv for the CLI to print, never to run: `suggest` (the nearest name of an
+  unknown command, the `--field` form of bare words, a preview with its confirm field set, the canonical argv of a
+  refused change), `next` (the next page when the data has a `nextCursor` and the command a `cursor` field) and `help`
+  (the command of an `invalid-args`). A sensitive request's refusal carries none of them and no message.
 - **Preview and change.** A `change` command declares `confirm: { field: 'yes' }`. Without `--yes` the call is its
   preview and runs as `read`, for the CLI and for the agent's `run` alike; with it, it is the change. The field is
   read after `normalize`: a `normalize` that sets it makes the call the change.

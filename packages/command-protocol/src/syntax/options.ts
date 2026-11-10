@@ -122,18 +122,19 @@ function written(value: JsonValue): string {
 }
 
 /**
- * The canonical line of a command call: the command name, then each field
- * of the validated value (defaults filled) in the order of the schema's
- * `properties`, every token through `quoteArgument`. `true` is the bare
- * `--name`, `false` is `--name false`, an array repeats its name per item.
- * `parseOptions` reads its tokens after the first back to the validated
- * value. Throws a `TypeError` when `validateInput` rejects `value`.
+ * The canonical argv of a command call (C-111): the command name, then each
+ * field of the validated value (defaults filled) in the order of the
+ * schema's `properties`. `true` is the bare `--name`, `false` is
+ * `--name false`, an array repeats its name per item. `parseOptions` reads
+ * its items after the first back to the validated value, and
+ * `formatCommandLine` is these items through `quoteArgument`. Throws a
+ * `TypeError` when `validateInput` rejects `value`.
  */
-export function formatCommandLine(
+export function formatCommandArgv(
   command: string,
   value: Record<string, JsonValue>,
   schema: InputSchema
-): string {
+): string[] {
   const checked = validateInput(schema, value)
   if (!checked.ok) {
     throw new TypeError(
@@ -143,23 +144,36 @@ export function formatCommandLine(
     )
   }
   const properties = schema.properties ?? {}
-  const parts = [quoteArgument(command)]
+  const argv = [command]
   for (const name of Object.keys(properties)) {
     if (!Object.hasOwn(checked.value, name)) {
       continue
     }
     const node = properties[name]
     const field = checked.value[name]
-    const option = quoteArgument(`--${name}`)
+    const option = `--${name}`
     if (node.type === 'boolean') {
-      parts.push(field === true ? option : `${option} false`)
+      argv.push(...(field === true ? [option] : [option, 'false']))
     } else if (node.type === 'array') {
       for (const item of field as JsonValue[]) {
-        parts.push(option, quoteArgument(written(item)))
+        argv.push(option, written(item))
       }
     } else {
-      parts.push(option, quoteArgument(written(field)))
+      argv.push(option, written(field))
     }
   }
-  return parts.join(' ')
+  return argv
+}
+
+/**
+ * The canonical line of a command call: `formatCommandArgv`, every token
+ * through `quoteArgument`, joined by one space. `tokenize` gives the argv
+ * back. Throws a `TypeError` when `validateInput` rejects `value`.
+ */
+export function formatCommandLine(
+  command: string,
+  value: Record<string, JsonValue>,
+  schema: InputSchema
+): string {
+  return formatCommandArgv(command, value, schema).map(quoteArgument).join(' ')
 }

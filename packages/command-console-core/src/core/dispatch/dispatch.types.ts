@@ -99,10 +99,27 @@ export interface RemoteBinding {
   /** Sends a reply to the bound CLI (the hub's `SendToCli`). */
   send(reply: CliReply): void | Promise<void>
   /**
-   * Whether the page is hidden now and how old the data is, for `received`.
+   * Hands the list of what the CLI may run to the hub (its
+   * `PublishCapabilities`), which replaces the list it keeps, whole: on attach
+   * and whenever `commands` change (C-97). `parts` is the JSON of a
+   * `CapabilitiesPayload` cut into one to three strings; the shell passes
+   * them on as they are.
+   */
+  publishCapabilities(payload: {
+    revision: string
+    parts: string[]
+  }): void | Promise<void>
+  /** The oldest CLI version the tab supports, published as is. */
+  minCli?: string
+  /**
+   * Whether the page is hidden now and how old the data `request.command`
+   * reads is, for `received`; an age only for a command whose data has one.
    * Default `{ hidden: false, dataAgeMs: null }`.
    */
-  status?(): { hidden: boolean; dataAgeMs?: number | null }
+  status?(request: { command: string }): {
+    hidden: boolean
+    dataAgeMs?: number | null
+  }
   /** The title of a view instance, for `finished`. */
   viewTitle?(view: string): string | undefined
 }
