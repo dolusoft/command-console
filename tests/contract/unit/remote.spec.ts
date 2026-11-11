@@ -261,8 +261,8 @@ describe('C-119 CLI row (Vue)', () => {
     expect(
       radios.map(radio => [radio.type, radio.value, radio.checked])
     ).toEqual([
-      ['radio', 'ask-server', true],
-      ['radio', 'never-ask', false]
+      ['radio', 'ask-server', false],
+      ['radio', 'never-ask', true]
     ])
     expect(radios[0].name).not.toBe('')
     expect(radios[0].name).toBe(radios[1].name)
@@ -286,22 +286,22 @@ describe('C-119 CLI row (Vue)', () => {
       'Connect CLI'
     )
     start()
-    const never =
-      view.root.querySelectorAll<HTMLInputElement>('.cc-attach-radio')[1]
-    never.click()
+    const ask =
+      view.root.querySelectorAll<HTMLInputElement>('.cc-attach-radio')[0]
+    ask.click()
     await nextTick()
     start()
     expect(view.emitted('attach-remote')).toEqual([
-      ['ask-server'],
-      ['never-ask']
+      ['never-ask'],
+      ['ask-server']
     ])
     expect(
-      view.root.querySelectorAll<HTMLInputElement>('.cc-attach-radio')[1]
+      view.root.querySelectorAll<HTMLInputElement>('.cc-attach-radio')[0]
         .checked
     ).toBe(true)
   })
 
-  it('chooses ask-server again each time the row shows again', async () => {
+  it('chooses never-ask again each time the row shows again', async () => {
     const t = bound()
     const view = mountConsole({
       props: { console: t.console, commands: undefined, attachable: true }
@@ -309,25 +309,25 @@ describe('C-119 CLI row (Vue)', () => {
     const radios = () => [
       ...view.root.querySelectorAll<HTMLInputElement>('.cc-attach-radio')
     ]
-    const chooseNeverAsk = async () => {
-      radios()[1].click()
+    const chooseAskServer = async () => {
+      radios()[0].click()
       await nextTick()
-      expect(radios().map(radio => radio.checked)).toEqual([false, true])
+      expect(radios().map(radio => radio.checked)).toEqual([true, false])
     }
-    await chooseNeverAsk()
-    t.console.attachRemote({ ...t.binding, level: 'never-ask' })
+    await chooseAskServer()
+    t.console.attachRemote({ ...t.binding, level: 'ask-server' })
     await nextTick()
     expect(view.root.querySelector('.cc-attach')).toBeNull()
     t.console.detachRemote()
     await nextTick()
-    expect(radios().map(radio => radio.checked)).toEqual([true, false])
+    expect(radios().map(radio => radio.checked)).toEqual([false, true])
 
-    await chooseNeverAsk()
+    await chooseAskServer()
     await view.wrapper.setProps({ attachable: false })
     await view.wrapper.setProps({ attachable: true })
-    expect(radios().map(radio => radio.checked)).toEqual([true, false])
+    expect(radios().map(radio => radio.checked)).toEqual([false, true])
     view.root.querySelector<HTMLButtonElement>('.cc-attach-start')!.click()
-    expect(view.emitted('attach-remote')).toEqual([['ask-server']])
+    expect(view.emitted('attach-remote')).toEqual([['never-ask']])
   })
 
   it('shows the line with the warning and counts its time down', async () => {
