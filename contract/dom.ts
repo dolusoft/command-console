@@ -147,7 +147,7 @@ export const domClasses: ClassEntry[] = [
     name: 'cc-attach-radio',
     on: '.cc-attach-level > input',
     description:
-      'The radio button of a level; `ask-server` is chosen at first and each time the row shows again (C-119).'
+      'The radio button of a level; `never-ask` is chosen at first and each time the row shows again (C-119).'
   },
   {
     name: 'cc-attach-hint',

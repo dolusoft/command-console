@@ -2,6 +2,14 @@
 
 The release notes of a version are on its GitHub Release. This file names what a consumer must change.
 
+## 1.9.0
+
+- **Changed: the level choice of the "Connect CLI" row starts at `never-ask`** (C-119), at first and each time the
+  row shows again. A binding the user starts without touching the choice runs every change from the CLI with no
+  card. `ask-server` stays a choice, `never-ask` keeps its warning, and a binding without a `level` is still
+  `ask-server` (C-116). A consumer that wants its users to confirm server changes by default tells them to pick
+  `ask-server`; nothing in code to change.
+
 ## 1.8.2
 
 - **New fixtures: an approval card that expires** (C-99, C-118). `fixtures/remote/sequence/approval.json` adds

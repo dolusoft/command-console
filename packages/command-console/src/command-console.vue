@@ -227,14 +227,15 @@ const promptView: FunctionalComponent = () => renderPrompt(prompt.value, slots)
 // was copied and the clock that counts the line down belong to the DOM, not
 // to the console (P15).
 const attachGroup = useId()
-const attachLevel = ref<RemoteLevel>('ask-server')
+const attachLevel = ref<RemoteLevel>('never-ask')
 // Each time the row shows again (a binding ended, `attachable` came back) the
-// choice starts at `ask-server`: `never-ask` never carries over unseen.
+// choice starts at `never-ask`: an `ask-server` picked for one binding does not
+// carry over to the next.
 watch(
   () => Boolean(props.attachable) && !state.value.remote,
   shown => {
     if (shown) {
-      attachLevel.value = 'ask-server'
+      attachLevel.value = 'never-ask'
     }
   }
 )

@@ -309,7 +309,7 @@ describe('C-51 focus', () => {
 })
 
 describe('C-119 CLI row', () => {
-  test('C-119 never-ask picked for one binding is not chosen when the row shows again', async () => {
+  test('C-119 ask-server picked for one binding is not chosen when the row shows again', async () => {
     const remote = boundConsole()
     remote.console.detachRemote()
     const view = mountConsole({
@@ -320,17 +320,17 @@ describe('C-119 CLI row', () => {
       [...view.root.querySelectorAll<HTMLInputElement>('.cc-attach-radio')].map(
         radio => radio.checked
       )
-    expect(checked()).toEqual([true, false])
-    await userEvent.click(view.root.querySelectorAll('.cc-attach-level')[1])
     expect(checked()).toEqual([false, true])
+    await userEvent.click(view.root.querySelectorAll('.cc-attach-level')[0])
+    expect(checked()).toEqual([true, false])
     await userEvent.click(view.root.querySelector('.cc-attach-start')!)
-    expect(view.emitted('attach-remote')).toEqual([['never-ask']])
+    expect(view.emitted('attach-remote')).toEqual([['ask-server']])
 
     remote.console.attachRemote({
       bindingId: 'b2',
       grantId: 'g1',
       approvedAt: Date.UTC(2026, 10, 7, 9, 0),
-      level: 'never-ask',
+      level: 'ask-server',
       send: () => undefined,
       publishCapabilities: () => undefined
     })
@@ -340,11 +340,11 @@ describe('C-119 CLI row', () => {
     expect(view.emitted('detach-remote')).toHaveLength(1)
     remote.console.detachRemote()
     await settle()
-    expect(checked()).toEqual([true, false])
+    expect(checked()).toEqual([false, true])
     await userEvent.click(view.root.querySelector('.cc-attach-start')!)
     expect(view.emitted('attach-remote')).toEqual([
-      ['never-ask'],
-      ['ask-server']
+      ['ask-server'],
+      ['never-ask']
     ])
   })
 })
