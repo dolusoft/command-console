@@ -123,8 +123,11 @@ export const consoleFeature: ConsoleFeature = {
           if (!sameFeatures(previous.features, given.features)) {
             throw new Error('setOptions cannot change the feature set.')
           }
-          if (given.gate !== previous.gate) {
-            throw new Error('setOptions cannot change the gate.')
+          if (
+            given.gate !== previous.gate ||
+            given.cliGate !== previous.cliGate
+          ) {
+            throw new Error('setOptions cannot change a gate.')
           }
           validateCommands(given.commands)
           validateNamespaces(given.namespaces)

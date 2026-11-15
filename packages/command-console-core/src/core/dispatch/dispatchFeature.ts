@@ -188,8 +188,8 @@ interface RemoteRun {
   /** True once the command's `run` was called. */
   started: boolean
   approval: ApprovalPlan | null
-  /** The user rejected the change: its end suggests nothing (C-111). */
-  rejected: boolean
+  /** False after a user rejection or a command/plan error (C-111). */
+  retryable: boolean
 }
 
 interface DispatchState {
@@ -197,6 +197,8 @@ interface DispatchState {
   lookup: { commands: CommandDefinition[]; value: CommandLookup } | null
   /** The gate's unsubscribe, once the console listens (C-78). */
   unsubscribe: (() => void) | null
+  /** The explicit CLI gate's subscription, separate from local echoes. */
+  unsubscribeCli?: () => void
   /** The newest closed envelope ids, oldest first (C-81). */
   closed: Set<string>
   /** The bound CLI (C-97). */
@@ -261,6 +263,17 @@ const failure = (code: ErrorCode, text?: string): CommandOutcome =>
 
 // --- The end of a run ---------------------------------------------------------
 
+/** Cancels an echo or approval timer once; callback errors cannot stop cleanup. */
+const cancelTimer = (console: object, run: Run) => {
+  const timer = run.cancelTimer
+  run.cancelTimer = null
+  try {
+    timer?.()
+  } catch (error) {
+    reportCallbackError(console, error)
+  }
+}
+
 /**
  * Clears `running` when it still names `run`, cancels the echo timer,
  * records the envelope id as closed and resolves the run's promises.
@@ -278,15 +291,7 @@ const cleanup = (console: object, run: Run) => {
   if (run.envelope) {
     rememberClosed(state.closed, run.envelope.id)
   }
-  const cancelTimer = run.cancelTimer
-  run.cancelTimer = null
-  if (cancelTimer) {
-    try {
-      cancelTimer()
-    } catch (error) {
-      reportCallbackError(console, error)
-    }
-  }
+  cancelTimer(console, run)
   const record = recordOf(console)
   record?.store.update('running', running =>
     running?.runId === run.id ? null : running
@@ -311,31 +316,35 @@ const cleanup = (console: object, run: Run) => {
  * order; nothing once the binding ended. A `send` that throws or rejects is
  * reported to `onError` and changes nothing else.
  */
-const reply = (console: object, holder: Holder, ...replies: CliReply[]) => {
+const deliverToBinding = <T>(
+  console: object,
+  holder: Holder,
+  items: T[],
+  transmit: (item: T) => void | Promise<void>
+) => {
   const record = recordOf(console)
-  if (!record || !holder.alive) {
+  if (!record) {
     return
   }
-  const deliver = () => {
-    for (const item of replies) {
+  // Every caller is inside the receive, run or options action.
+  record.store.afterCommit(() => {
+    for (const item of items) {
       if (!holder.alive) {
         return
       }
       try {
-        Promise.resolve(holder.binding.send(item)).then(undefined, error =>
+        Promise.resolve(transmit(item)).then(undefined, error =>
           reportCallbackError(console, error)
         )
       } catch (error) {
         reportCallbackError(console, error)
       }
     }
-  }
-  if (record.store.inAction()) {
-    record.store.afterCommit(deliver)
-  } else {
-    deliver()
-  }
+  })
 }
+
+const reply = (console: object, holder: Holder, ...replies: CliReply[]) =>
+  deliverToBinding(console, holder, replies, item => holder.binding.send(item))
 
 /** Effects in order, then the output (README: Running a line, B-29). */
 const apply = (
@@ -404,6 +413,9 @@ const fail = (
 ) => {
   run.current = false
   run.outcome = outcome
+  if (run.remote) {
+    run.remote.retryable = false
+  }
   try {
     const { store, options } = liveRecord(console)
     store.afterCommit(() =>
@@ -565,7 +577,9 @@ const receive = (console: object, raw: unknown) => {
     typeof raw === 'object' &&
     (kind === 'cli-request' || kind === 'cancel' || kind === 'help-request')
   ) {
-    receiveRemote(console, raw)
+    if (record.options.cliGate === undefined) {
+      receiveRemote(console, raw)
+    }
     return
   }
   const parsed = parseEnvelope(raw)
@@ -734,18 +748,20 @@ const askApproval = (console: object, run: Run, remote: RemoteRun) => {
           return
         }
         try {
-          run.cancelTimer = options.gate!.schedule(approvalMs, () =>
-            settle(console, run, () => {
-              if (remote.approval) {
-                close(
-                  console,
-                  run,
-                  'not-allowed',
-                  undefined,
-                  'The approval expired; nothing changed.'
-                )
-              }
-            })
+          run.cancelTimer = (options.cliGate ?? options.gate)!.schedule(
+            approvalMs,
+            () =>
+              settle(console, run, () => {
+                if (remote.approval) {
+                  close(
+                    console,
+                    run,
+                    'not-allowed',
+                    undefined,
+                    'The approval expired; nothing changed.'
+                  )
+                }
+              })
           )
         } catch {
           settle(console, run, () => {
@@ -1200,7 +1216,13 @@ const receiveRemote = (console: object, raw: unknown) => {
     }
     if (received.kind === 'cancel') {
       cancelRemote(console, received.id)
-    } else if (received.kind === 'cli-request') {
+      return
+    }
+    if (state.seen.has(received.id) || state.closed.has(received.id)) {
+      return
+    }
+    rememberClosed(state.seen, received.id)
+    if (received.kind === 'cli-request') {
       acceptRemote(console, holder, received)
     } else {
       answerHelp(console, holder, received)
@@ -1235,46 +1257,20 @@ const refuseUnread = (
       return
     }
     rememberClosed(state.seen, id)
+    const code =
+      reason === 'unsupported-version' || reason === 'too-large'
+        ? reason
+        : 'invalid-args'
+    const text =
+      reason === 'unsupported-version'
+        ? 'The request has a version this tab does not read.'
+        : reason === 'too-large'
+          ? 'The request is too large.'
+          : `The request is not a valid ${read.kind === 'help-request' ? 'help' : 'CLI'} request.`
     if (read.kind === 'help-request') {
-      reply(
-        console,
-        holder,
-        helpError(
-          id,
-          reason === 'unsupported-version' || reason === 'too-large'
-            ? reason
-            : 'invalid-args',
-          reason === 'unsupported-version'
-            ? 'The request has a version this tab does not read.'
-            : reason === 'too-large'
-              ? 'The request is too large.'
-              : 'The request is not a valid help request.'
-        )
-      )
-    } else if (reason === 'unsupported-version') {
-      refuseRemote(
-        console,
-        holder,
-        id,
-        'unsupported-version',
-        'The request has a version this tab does not read.'
-      )
-    } else if (reason === 'too-large') {
-      refuseRemote(
-        console,
-        holder,
-        id,
-        'too-large',
-        'The request is too large.'
-      )
+      reply(console, holder, helpError(id, code, text))
     } else {
-      refuseRemote(
-        console,
-        holder,
-        id,
-        'invalid-args',
-        'The request is not a valid CLI request.'
-      )
+      refuseRemote(console, holder, id, code, text)
     }
   })
 }
@@ -1285,12 +1281,7 @@ const refuseUnread = (
  * no approval and no `received`.
  */
 const answerHelp = (console: object, holder: Holder, request: HelpRequest) => {
-  const state = stateOf(console)
   const { id } = request
-  if (state.seen.has(id) || state.closed.has(id)) {
-    return
-  }
-  rememberClosed(state.seen, id)
   const { options } = liveRecord(console)
   const stamp = stampRefusal(request, options.now!())
   let answer: HelpResultReply
@@ -1333,7 +1324,7 @@ const refuseRemote = (
 /**
  * What the end of an accepted CLI request suggests (C-111), from the
  * normalized `input`: the next page's argv with `cursor` set to the data's
- * `nextCursor`, the canonical argv of a `not-allowed` the user did not reject
+ * `nextCursor`, the canonical argv of a retryable `not-allowed`
  * (without the confirm field, which the remote entry sets itself, C-117), the
  * command's name for its help on an `invalid-args`. A preview suggests
  * nothing. An argv the schema refuses is left out.
@@ -1394,12 +1385,7 @@ const dryRunFlag = '--dry-run'
  * the binding's level (C-116).
  */
 const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
-  const state = stateOf(console)
   const { id } = request
-  if (state.seen.has(id) || state.closed.has(id)) {
-    return
-  }
-  rememberClosed(state.seen, id)
   const { store, options } = liveRecord(console)
   const refuse = (code: ErrorCode, text?: string, hints?: Hints) =>
     refuseRemote(console, holder, id, code, text, hints)
@@ -1536,7 +1522,7 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     preview: command.confirm !== undefined && preview,
     started: false,
     approval: null,
-    rejected: false
+    retryable: true
   }
   // The view is fixed on accept: the request's, else the active one.
   let view: string | undefined
@@ -1598,8 +1584,8 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
           hintsOf(
             command,
             outcome,
-            // A change the user rejected is not offered again.
-            mapped.ok && !remote.rejected ? mapped.value : undefined
+            // A user rejection or command-owned denial is not offered again.
+            mapped.ok && remote.retryable ? mapped.value : undefined
           ),
           // C-118: only a change whose command was called says how.
           remote.change && remote.started
@@ -1654,27 +1640,52 @@ const detach = (console: object) => {
   holder.alive = false
   state.remote = null
   liveRecord(console).store.update('remote', () => null)
+  unsubscribeCli(console)
+}
+
+/** Releases the opt-in receive path; late callbacks cannot reach a binding. */
+const unsubscribeCli = (console: object) => {
+  const state = stateOf(console)
+  const unsubscribe = state.unsubscribeCli
+  state.unsubscribeCli = undefined
+  try {
+    unsubscribe?.()
+  } catch (error) {
+    // disposeShared already took the record and retains the error reporter.
+    if (isDisposed(console)) {
+      throw error
+    }
+    reportCallbackError(console, error)
+  }
 }
 
 const attach = (console: object, given: RemoteBinding) => {
   const binding = checkBinding(given)
   const record = liveRecord(console)
-  const { gate, now } = record.options
+  const { cliGate, now } = record.options
+  const gate = cliGate ?? record.options.gate
   if (!gate || typeof now !== 'function') {
-    throw new TypeError('attachRemote needs the gate and now options.')
+    throw new TypeError('attachRemote needs a gate and now.')
   }
   // A list that does not fit throws before anything changes (C-97).
   const capabilities = capabilitiesOf(record.options.commands, binding.minCli)
   const state = stateOf(console)
   // Subscribed now, not on the first envelope (C-78, C-97): a bound tab
   // that never sent anything still hears its CLI.
-  if (state.unsubscribe === null) {
+  if (cliGate === undefined && state.unsubscribe === null) {
+    // The legacy gate keeps its shared echo/CLI subscription (C-78).
     state.unsubscribe = gate.subscribe(raw => receive(console, raw))
   }
+  const holder: Holder = { binding, alive: true, level: levelOf(binding) }
+  const stopCli = cliGate?.subscribe(raw => {
+    if (state.unsubscribeCli && state.remote === holder) {
+      receiveRemote(console, raw)
+    }
+  })
   record.store.action(() => {
     detach(console)
-    const holder: Holder = { binding, alive: true, level: levelOf(binding) }
     state.remote = holder
+    state.unsubscribeCli = stopCli
     record.store.update('remote', () => ({
       bindingId: binding.bindingId,
       approvedAt: binding.approvedAt,
@@ -1709,32 +1720,13 @@ const publish = (
   console: object,
   holder: Holder,
   payload: { revision: string; parts: string[] }
-) => {
-  const record = recordOf(console)
-  if (!record || !holder.alive) {
-    return
-  }
-  const deliver = () => {
-    if (!holder.alive) {
-      return
-    }
-    try {
-      Promise.resolve(
-        holder.binding.publishCapabilities({
-          revision: payload.revision,
-          parts: [...payload.parts]
-        })
-      ).then(undefined, error => reportCallbackError(console, error))
-    } catch (error) {
-      reportCallbackError(console, error)
-    }
-  }
-  if (record.store.inAction()) {
-    record.store.afterCommit(deliver)
-  } else {
-    deliver()
-  }
-}
+) =>
+  deliverToBinding(console, holder, [payload], item =>
+    holder.binding.publishCapabilities({
+      revision: item.revision,
+      parts: [...item.parts]
+    })
+  )
 
 /** `approve()` (C-99): the plan runs once, after its first second. */
 const approve = (console: object, requestId: string): boolean => {
@@ -1762,13 +1754,7 @@ const approve = (console: object, requestId: string): boolean => {
     'remote',
     state => state && { ...state, approval: null }
   )
-  const cancelTimer = run.cancelTimer
-  run.cancelTimer = null
-  try {
-    cancelTimer?.()
-  } catch (error) {
-    reportCallbackError(console, error)
-  }
+  cancelTimer(console, run)
   go(console, run)
   return true
 }
@@ -1779,7 +1765,7 @@ const reject = (console: object, requestId: string): boolean => {
   if (!run?.current || run.remote?.approval?.requestId !== requestId) {
     return false
   }
-  run.remote.rejected = true
+  run.remote.retryable = false
   close(
     console,
     run,
@@ -1886,12 +1872,12 @@ export const dispatchFeature: ConsoleFeature = {
           inAction(() => setLevel(console, level))
         },
         suspendRemote() {
-          inAction(() =>
+          inAction(() => {
             dropApproval(
               console,
               'The tab lost its connection; the approval was dropped and nothing changed.'
             )
-          )
+          })
         },
         approve: (requestId: string) =>
           inAction(() => approve(console, requestId)),
@@ -1973,7 +1959,11 @@ export const dispatchFeature: ConsoleFeature = {
       if (run) {
         stop(console, run, true, 'cancelled')
       }
-      unsubscribe?.()
+      try {
+        unsubscribeCli(console)
+      } finally {
+        unsubscribe?.()
+      }
     })
   }
 }

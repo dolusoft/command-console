@@ -956,6 +956,12 @@ export interface ConsoleOptions<
    * runs them from their echo (ADR 0012); fixed for the life of the console.
    */
   gate?: ConsoleGate
+  /**
+   * Receives CLI messages and schedules their approval windows (C-120).
+   * Does not relay local commands; defaults to `gate` when omitted.
+   * Fixed for the life of the console.
+   */
+  cliGate?: Pick<ConsoleGate, 'subscribe' | 'schedule'>
   /** The view instance a typed line targets, read when the line ends. */
   activeView?: () => string | undefined
   /** How long an envelope waits for its echo, in ms; default 5000. */
@@ -1701,7 +1707,7 @@ with `user` has neither. A partial `labels.actors` keeps the other defaults.
 A command's `run` that throws or rejects a `CommandError` (an `Error` whose `name` is `CommandError`, so one from
 another copy of the core counts) ends the run as failed like any error (C-18): `onError` gets
 the error and the entry is `formatError`'s response or `command-failed`. Its outcome (C-82) is
-`{ status: 'error', code }` with the error's `code` when that is `target-not-found`, `invalid-args` or `failed`, and
+`{ status: 'error', code }` with the error's `code` when that is `target-not-found`, `invalid-args`, `not-allowed` or `failed`, and
 `failed` for any other code, a code the core owns (`busy`, `timeout`, `id-conflict`, …) included. Any other error, and
 a `CommandError` thrown by `beforeRun`, `normalize` or `createEnvelopeId`, gives `failed`. The outcome carries
 the `CommandError`'s message only as C-89 says.
@@ -1806,9 +1812,9 @@ not a reply (C-108).
 
 #### C-97 Attach remote
 
-`attachRemote(binding)` needs the `gate` and `now` options and a binding with a non-empty `bindingId` and `grantId`,
+`attachRemote(binding)` needs `cliGate` (else `gate`, C-120) and `now` options and a binding with a non-empty `bindingId` and `grantId`,
 a finite `approvedAt`, a `send` and a `publishCapabilities` function, a `minCli` that is a non-empty string when
-given and a `level` of C-116 when given; otherwise it throws a `TypeError`. It subscribes to the gate at once, puts
+given and a `level` of C-116 when given; otherwise it throws a `TypeError`. It subscribes to that gate at once, puts
 `{ bindingId, approvedAt, level, approval: null }` in `state.remote`, replaces a binding already attached, and calls
 `publishCapabilities({ revision, parts })` (no reply goes through `send`): `parts` is `capabilitiesParts` (C-108) of
 the commands that are neither `hidden` nor `irreversible` and have `input` and `danger` without `sensitive` (name,
@@ -1850,11 +1856,13 @@ nothing runs. Its error is classed as one `run` threw: a `CommandError` gives it
 any other error `failed` without a message. Then `state.remote.approval` holds the plan (the request id, the command, the canonical line, the
 normalized input, the `targets` strings, the `preview` string, the view, `openedAt` by `now`, `acceptsAt` one second
 later and `expiresAt` two minutes later), the CLI gets `awaiting-approval` with `expiresAt`, and a timer of two
-minutes is set through `gate.schedule`. `approve(id)` returns `false` and does nothing for another id or before
+minutes is set through `(cliGate ?? gate).schedule` (C-120). `approve(id)` returns `false` and does nothing for another id or before
 `acceptsAt`; after `expiresAt` it ends the request. Otherwise it clears the plan, cancels its timer and calls the
 command's `run` once with the plan's input; the line is not read again. `reject(id)`, the timer, `suspendRemote()`,
 `detachRemote()`, `cancel()`, Ctrl+C and a CLI `cancel` drop the plan: the request ends `not-allowed` (with a
 `message` that says why) or `cancelled`, and nothing runs. A schedule that throws ends it `connection-lost`.
+`suspendRemote()` keeps the binding and its CLI subscription: when the connection returns with the same
+`bindingId`, requests are received without calling `attachRemote` again (C-120).
 
 #### C-100 Remote result
 
@@ -1959,7 +1967,8 @@ names the command in `help`; when no argument starts with `-`, there is at least
 required field is a string, it suggests `[name, '--field', arguments joined by one space]`. The `invalid-args` end
 of a run also names the command in `help`. A `not-allowed` end of an accepted request (an approval expired or
 dropped, `beforeRun`) suggests the canonical argv of its normalized input without the confirm field; an approval the
-user rejected suggests nothing. An `ok` end whose `data` is a
+user rejected, or a permission denial thrown or rejected by the command's `run` or `plan`, suggests nothing.
+An `ok` end whose `data` is a
 plain object with a non-empty string `nextCursor`, of a command whose schema has a `cursor` field, has `next`: the
 argv of the normalized input with `cursor` set to it. An argv the schema refuses is left out, and so are `suggest`
 and `next` when `finished` would not fit in `envelopeMaxBytes`. A sensitive request's reply (C-98) has none of
@@ -2062,6 +2071,23 @@ clipboard and then shows `labels.remote.copied`, or selects the line when the cl
 a new `attachCode` resets the copy button. While `state.remote` is set the row is `div.cc-remote` (C-102), whose
 `span.cc-remote-level` shows `labels.remote.levelAskServer` or `levelNeverAsk`. A click on one of its controls or
 labels does not move the focus to the input (C-51). The texts come from `labels` only (C-47).
+
+#### C-120 Separate CLI gate
+
+`cliGate?: Pick<ConsoleGate, 'subscribe' | 'schedule'>` optionally receives CLI messages and schedules remote
+approval windows without enabling local envelope dispatch. It is fixed for the console's life: changing, adding or
+removing it in `setOptions` throws. `attachRemote` needs `now` and `cliGate`, falling back to `gate` only when
+`cliGate` is omitted. With only `cliGate`, local terminal and agent commands run locally as without `gate`;
+with both, local envelopes, echoes and echo timers use `gate`, CLI input and approval timers use `cliGate`.
+CLI input from `gate` and echoes from `cliGate` are ignored when the explicit option is set, even if both options
+refer to the same object. The explicit receive subscription starts on attach, is replaced with a binding,
+and ends on detach and dispose. `suspendRemote` drops a waiting approval but keeps the binding and subscription;
+reconnecting with the same `bindingId` needs no reattachment. Late callbacks from an ended subscription are ignored,
+also after reattaching the same binding. Detaching a running remote command sends no later result through
+its old binding (C-97). A subscribe that throws leaves the previous binding intact. An explicit CLI unsubscribe
+that throws is reported to `onError(error, null)` without interrupting detach, replacement or disposal; the old
+callback is invalidated and a replacement subscription remains owned by the new binding. Without `cliGate`, the shared
+`gate` subscription and the 1.9.0 local relay and remote behavior stay unchanged (C-78, C-97).
 
 ## DOM contract
 

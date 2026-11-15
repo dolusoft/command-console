@@ -73,6 +73,7 @@ no optional method, in its type and at run time. The feature set is fixed for th
 | `recallLimit`                                          | recall: the most lines kept; default 100 (`Infinity` keeps all, a fraction is rounded down)                |
 | `shouldRecord(line)`                                   | recall: whether a submitted line is recorded; default every line                                           |
 | `gate`                                                 | sends described commands as envelopes and runs them from their echo (below); fixed for the console's life  |
+| `cliGate`                                              | receives CLI messages and schedules approval windows; defaults to `gate`; fixed for the console's life |
 | `activeView()`                                         | the view a typed line (or a `{ line }` request) targets, read when the line ends                           |
 | `echoTimeoutMs`                                        | how long an envelope waits for its echo, a finite number above 0 (else a `TypeError`); default 5000        |
 | `createEnvelopeId()`                                   | makes envelope ids; default `crypto.randomUUID()`, else a v4 UUID from `crypto.getRandomValues` (below)    |
@@ -249,7 +250,32 @@ and none of these throws on creation.
 ## The remote entry
 
 A desktop CLI reaches one tab through the hub (ADR 0014). The hub stamps each message of the CLI (`origin`,
-`stampedAt`, `expiresAt`) and delivers it through the same gate; the tab answers through the binding:
+`stampedAt`, `expiresAt`) and delivers it through `cliGate`, or through `gate` when `cliGate` is omitted;
+the tab answers through the binding. The receive-only option is
+`cliGate?: Pick<ConsoleGate, 'subscribe' | 'schedule'>` (C-120): it needs neither `tab` nor `send`.
+With `cliGate` alone local terminal and agent commands stay local. With both options, only `gate` relays local
+commands; CLI messages on it are ignored, and echoes on `cliGate` are ignored. Approval timers use `cliGate.schedule`.
+Both options are fixed for the console's life. `now` is required for either remote path.
+
+An explicit `cliGate` subscribes on attach and unsubscribes on detach and dispose. Replacing a binding
+replaces that subscription; a callback from the old subscription is ignored. `suspendRemote()` drops a waiting
+approval but keeps the binding and subscription, as in the 1.9.0 `gate` path. After a connection returns with the
+same `bindingId`, reception continues without calling `attachRemote` again. An unsubscribe that throws is
+reported to `onError(error, null)` without interrupting cleanup or leaving a new subscription unowned.
+An omitted `cliGate` keeps the shared `gate` subscription and its lifecycle of 1.9.0.
+
+For example, to receive CLI commands without relaying local ones:
+
+```ts
+const console = createConsole({
+  commands,
+  cliGate: { subscribe: listener => transport.subscribe(listener), schedule },
+  now: () => Date.now()
+})
+console.attachRemote(binding)
+```
+
+The binding is:
 
 ```ts
 interface RemoteBinding {
@@ -393,7 +419,7 @@ const show: CommandDefinition = {
 ```
 
 The run fails as with any error (`onError` gets it, the entry is `formatError`'s or `command-failed`), and the
-outcome is `{ status: 'error', code, message }`: the message reaches the caller, not the entries. A command may give `target-not-found`, `invalid-args` or `failed`; any other
+outcome is `{ status: 'error', code, message }`: the message reaches the caller, not the entries. A command may give `target-not-found`, `invalid-args`, `not-allowed` or `failed`; any other
 code (`busy`, `timeout`, `id-conflict`, … belong to the core) gives `failed`, and so does a `CommandError` thrown by
 `beforeRun`, `normalize` or `createEnvelopeId`.
 

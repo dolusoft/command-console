@@ -2,6 +2,9 @@
 
 Status: Accepted (2026-11-04)
 
+Extended by [ADR 0017](0017-separate-cli-gate.md): optional separate CLI reception and `not-allowed` as a
+command-owned outcome code. The original decisions and addenda below describe their earlier scope.
+
 ## Context
 
 The terminal of `dolusoft/frontendx` becomes the entry of an AI panel: the user, the application's own assistant and
