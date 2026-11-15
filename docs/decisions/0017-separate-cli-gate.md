@@ -19,14 +19,17 @@ supports, instead of having its `CommandError` reduced to `failed`.
   envelopes or a tab id. `now` remains the consumer's clock. No runtime dependency or transport is added.
 - Only `gate` enables local relay dispatch. An explicit `cliGate` receives CLI messages and owns approval
   timers; it never processes local echoes. CLI messages delivered on `gate` are ignored with the explicit option.
-- The explicit subscription lasts from attach to detach, suspend or dispose. Replacing a binding replaces its
-  subscription. A late callback cannot reach the old binding or one attached later; reconnecting calls
-  `attachRemote` again. The relay subscription remains available for local echoes.
+- The explicit subscription lasts from attach to detach or dispose. Replacing a binding replaces its
+  subscription. `suspendRemote` drops a waiting approval and keeps the binding and subscription; reconnecting
+  with the same `bindingId` needs no reattachment, as with `gate`. A late callback from an ended subscription
+  cannot reach the old binding or one attached later. Unsubscribe errors are reported to `onError` without
+  interrupting cleanup or binding replacement. The relay subscription remains available for local echoes.
 - Without `cliGate`, keep the 1.9.0 shared gate behavior, including its subscription lifecycle. Both transport
   options remain fixed for the console's life. This opt-in addition is the next minor, 1.10.0 (ADR 0009).
 - Extend the command-owned codes of C-86 with `not-allowed`: permission can change between the initial check
   and a command's actual work. The same code and bounded message reach `request`, WebMCP and remote results;
-  `plan` errors follow `run` errors as C-99 already requires. Other hooks still fail as before.
+  `plan` errors follow `run` errors as C-99 already requires. A command-owned permission denial suggests no retry;
+  an expired or dropped approval keeps its suggestion (C-111). Other hooks still fail as before.
 
 ## Consequences
 

@@ -1861,6 +1861,8 @@ minutes is set through `(cliGate ?? gate).schedule` (C-120). `approve(id)` retur
 command's `run` once with the plan's input; the line is not read again. `reject(id)`, the timer, `suspendRemote()`,
 `detachRemote()`, `cancel()`, Ctrl+C and a CLI `cancel` drop the plan: the request ends `not-allowed` (with a
 `message` that says why) or `cancelled`, and nothing runs. A schedule that throws ends it `connection-lost`.
+`suspendRemote()` keeps the binding and its CLI subscription: when the connection returns with the same
+`bindingId`, requests are received without calling `attachRemote` again (C-120).
 
 #### C-100 Remote result
 
@@ -1965,7 +1967,8 @@ names the command in `help`; when no argument starts with `-`, there is at least
 required field is a string, it suggests `[name, '--field', arguments joined by one space]`. The `invalid-args` end
 of a run also names the command in `help`. A `not-allowed` end of an accepted request (an approval expired or
 dropped, `beforeRun`) suggests the canonical argv of its normalized input without the confirm field; an approval the
-user rejected suggests nothing. An `ok` end whose `data` is a
+user rejected, or a permission denial thrown or rejected by the command's `run` or `plan`, suggests nothing.
+An `ok` end whose `data` is a
 plain object with a non-empty string `nextCursor`, of a command whose schema has a `cursor` field, has `next`: the
 argv of the normalized input with `cursor` set to it. An argv the schema refuses is left out, and so are `suggest`
 and `next` when `finished` would not fit in `envelopeMaxBytes`. A sensitive request's reply (C-98) has none of
@@ -2078,9 +2081,12 @@ removing it in `setOptions` throws. `attachRemote` needs `now` and `cliGate`, fa
 with both, local envelopes, echoes and echo timers use `gate`, CLI input and approval timers use `cliGate`.
 CLI input from `gate` and echoes from `cliGate` are ignored when the explicit option is set, even if both options
 refer to the same object. The explicit receive subscription starts on attach, is replaced with a binding,
-and ends on detach, suspend and dispose. Its late callbacks are ignored, also after reattaching the same binding;
-reattach after reconnecting to resume receiving. Detaching a running remote command sends no later result through
-its old binding (C-97). A subscribe that throws leaves the previous binding intact. Without `cliGate`, the shared
+and ends on detach and dispose. `suspendRemote` drops a waiting approval but keeps the binding and subscription;
+reconnecting with the same `bindingId` needs no reattachment. Late callbacks from an ended subscription are ignored,
+also after reattaching the same binding. Detaching a running remote command sends no later result through
+its old binding (C-97). A subscribe that throws leaves the previous binding intact. An explicit CLI unsubscribe
+that throws is reported to `onError(error, null)` without interrupting detach, replacement or disposal; the old
+callback is invalidated and a replacement subscription remains owned by the new binding. Without `cliGate`, the shared
 `gate` subscription and the 1.9.0 local relay and remote behavior stay unchanged (C-78, C-97).
 
 ## DOM contract

@@ -188,8 +188,8 @@ interface RemoteRun {
   /** True once the command's `run` was called. */
   started: boolean
   approval: ApprovalPlan | null
-  /** The user rejected the change: its end suggests nothing (C-111). */
-  rejected: boolean
+  /** False after a user rejection or a command/plan error (C-111). */
+  retryable: boolean
 }
 
 interface DispatchState {
@@ -413,6 +413,9 @@ const fail = (
 ) => {
   run.current = false
   run.outcome = outcome
+  if (run.remote) {
+    run.remote.retryable = false
+  }
   try {
     const { store, options } = liveRecord(console)
     store.afterCommit(() =>
@@ -1321,7 +1324,7 @@ const refuseRemote = (
 /**
  * What the end of an accepted CLI request suggests (C-111), from the
  * normalized `input`: the next page's argv with `cursor` set to the data's
- * `nextCursor`, the canonical argv of a `not-allowed` the user did not reject
+ * `nextCursor`, the canonical argv of a retryable `not-allowed`
  * (without the confirm field, which the remote entry sets itself, C-117), the
  * command's name for its help on an `invalid-args`. A preview suggests
  * nothing. An argv the schema refuses is left out.
@@ -1519,7 +1522,7 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
     preview: command.confirm !== undefined && preview,
     started: false,
     approval: null,
-    rejected: false
+    retryable: true
   }
   // The view is fixed on accept: the request's, else the active one.
   let view: string | undefined
@@ -1581,8 +1584,8 @@ const acceptRemote = (console: object, holder: Holder, request: CliRequest) => {
           hintsOf(
             command,
             outcome,
-            // A change the user rejected is not offered again.
-            mapped.ok && !remote.rejected ? mapped.value : undefined
+            // A user rejection or command-owned denial is not offered again.
+            mapped.ok && remote.retryable ? mapped.value : undefined
           ),
           // C-118: only a change whose command was called says how.
           remote.change && remote.started
@@ -1645,7 +1648,15 @@ const unsubscribeCli = (console: object) => {
   const state = stateOf(console)
   const unsubscribe = state.unsubscribeCli
   state.unsubscribeCli = undefined
-  unsubscribe?.()
+  try {
+    unsubscribe?.()
+  } catch (error) {
+    // disposeShared already took the record and retains the error reporter.
+    if (isDisposed(console)) {
+      throw error
+    }
+    reportCallbackError(console, error)
+  }
 }
 
 const attach = (console: object, given: RemoteBinding) => {
@@ -1754,7 +1765,7 @@ const reject = (console: object, requestId: string): boolean => {
   if (!run?.current || run.remote?.approval?.requestId !== requestId) {
     return false
   }
-  run.remote.rejected = true
+  run.remote.retryable = false
   close(
     console,
     run,
@@ -1866,7 +1877,6 @@ export const dispatchFeature: ConsoleFeature = {
               console,
               'The tab lost its connection; the approval was dropped and nothing changed.'
             )
-            unsubscribeCli(console)
           })
         },
         approve: (requestId: string) =>

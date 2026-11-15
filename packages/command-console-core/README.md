@@ -257,10 +257,12 @@ With `cliGate` alone local terminal and agent commands stay local. With both opt
 commands; CLI messages on it are ignored, and echoes on `cliGate` are ignored. Approval timers use `cliGate.schedule`.
 Both options are fixed for the console's life. `now` is required for either remote path.
 
-An explicit `cliGate` subscribes on attach and unsubscribes on detach, suspend and dispose. Replacing a binding
-replaces that subscription; a callback from the old subscription is ignored. After a connection returns,
-call `attachRemote(binding)` again to resume receiving. An omitted `cliGate` keeps the shared `gate` subscription
-and its lifecycle of 1.9.0. No consumer change is required for that path.
+An explicit `cliGate` subscribes on attach and unsubscribes on detach and dispose. Replacing a binding
+replaces that subscription; a callback from the old subscription is ignored. `suspendRemote()` drops a waiting
+approval but keeps the binding and subscription, as in the 1.9.0 `gate` path. After a connection returns with the
+same `bindingId`, reception continues without calling `attachRemote` again. An unsubscribe that throws is
+reported to `onError(error, null)` without interrupting cleanup or leaving a new subscription unowned.
+An omitted `cliGate` keeps the shared `gate` subscription and its lifecycle of 1.9.0.
 
 For example, to receive CLI commands without relaying local ones:
 

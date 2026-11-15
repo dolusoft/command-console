@@ -343,7 +343,8 @@ export interface CoreConsoleAPI<
   setRemoteLevel(level: RemoteLevel): void
   /**
    * The bound tab lost its connection (C-99): a waiting approval is dropped,
-   * the binding stays.
+   * the binding and CLI subscription stay. Reconnecting with the same
+   * bindingId needs no reattachment (C-120).
    */
   suspendRemote(): void
   /**

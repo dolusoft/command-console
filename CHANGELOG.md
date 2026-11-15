@@ -7,12 +7,15 @@ The release notes of a version are on its GitHub Release. This file names what a
 - **New: a receive-only `ConsoleOptions.cliGate`** (C-120), typed as
   `Pick<ConsoleGate, 'subscribe' | 'schedule'>`. Pass it without `gate` to attach a CLI while local terminal and
   agent commands run locally. When both are set, `gate` handles only local envelopes and echoes; `cliGate` handles
-  CLI input and approval timers. Its subscription ends on detach, suspend and dispose; call `attachRemote` after
-  reconnecting. The option is fixed for the console's life. Without it, the 1.9.0 `gate` behavior stays unchanged.
+  CLI input and approval timers. Its subscription ends on detach and dispose, or is replaced with a binding.
+  `suspendRemote` drops a waiting approval and keeps listening; reconnecting with the same `bindingId` needs no
+  reattachment. Unsubscribe errors reach `onError` without interrupting cleanup or binding replacement.
+  The option is fixed for the console's life. Without it, the 1.9.0 `gate` behavior stays unchanged.
 - **New: commands may throw `new CommandError('not-allowed', message)`** (C-86) when permission is denied inside
   `run` or a remote approval `plan`. The code and the bounded message reach `request`, WebMCP and the CLI
   (`class: 'denied'`) instead of being reported as `failed`. The usual error entry and `onError` remain unchanged;
-  errors from `beforeRun`, `normalize` and `createEnvelopeId` still resolve `failed`.
+  errors from `beforeRun`, `normalize` and `createEnvelopeId` still resolve `failed`. A command's own permission
+  denial carries no retry suggestion to the CLI; an expired or dropped approval keeps its suggestion (C-111).
 
 ## 1.9.0
 

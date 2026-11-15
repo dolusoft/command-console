@@ -204,13 +204,14 @@ describe('C-120 Separate CLI gate', () => {
       code: 'not-allowed',
       class: 'denied'
     })
+    expect(t.finished()[0]?.suggest).toEqual(['change'])
     expect(t.console.getState().running).toBeNull()
     expect(t.console.getState().remote?.approval).toBeNull()
     expect(run).not.toHaveBeenCalled()
     t.console.dispose()
   })
 
-  it.each(['detach', 'suspend', 'dispose'] as const)(
+  it.each(['detach', 'dispose'] as const)(
     'cleans the receive subscription and pending approval on %s, ignoring late callbacks',
     action => {
       const run = vi.fn<CommandDefinition['run']>(() => undefined)
@@ -220,8 +221,6 @@ describe('C-120 Separate CLI gate', () => {
       const late = t.incoming.callbacks[0]
       if (action === 'detach') {
         t.console.detachRemote()
-      } else if (action === 'suspend') {
-        t.console.suspendRemote()
       } else {
         t.console.dispose()
       }
@@ -240,6 +239,90 @@ describe('C-120 Separate CLI gate', () => {
         expect(run).toHaveBeenCalledTimes(1)
       }
       t.console.dispose()
+    }
+  )
+
+  it.each(['cliGate', 'gate'] as const)(
+    'C-99 keeps %s listening after suspend and reconnect with the same binding',
+    path => {
+      const incoming = transport()
+      const run = vi.fn<CommandDefinition['run']>(() => ({ summary: 'read' }))
+      const t = setup({
+        commands: [change(run), read(run)],
+        cliGate: path === 'cliGate' ? incoming.gate : undefined,
+        gate: path === 'gate' ? incoming.gate : undefined
+      })
+      t.attach()
+      incoming.deliver(message('change'))
+      t.console.suspendRemote()
+      expect(t.console.getState().remote).toEqual({
+        bindingId: t.binding.bindingId,
+        approvedAt: 0,
+        level: 'ask-server',
+        approval: null
+      })
+      expect(t.console.getState().running).toBeNull()
+      expect(t.finished()[0]?.suggest).toEqual(['change'])
+      expect(incoming.timers[0].cancel).toHaveBeenCalledTimes(1)
+      expect(incoming.listeners.size).toBe(1)
+      expect(run).not.toHaveBeenCalled()
+      const count = t.replies.length
+      incoming.timers[0].fire()
+      expect(t.replies).toHaveLength(count)
+      // The shell's adopt() keeps the attachment for the same bindingId.
+      incoming.deliver(message('read', 'after-reconnect'))
+      expect(t.replies.slice(count)).toMatchObject([
+        { kind: 'received', id: 'after-reconnect' },
+        { kind: 'finished', id: 'after-reconnect', outcome: { status: 'ok' } }
+      ])
+      expect(run).toHaveBeenCalledTimes(1)
+      expect(incoming.gate.subscribe).toHaveBeenCalledTimes(1)
+      t.console.dispose()
+      expect(incoming.listeners.size).toBe(0)
+    }
+  )
+
+  it.each(['detach', 'replace'] as const)(
+    'reports unsubscribe errors on %s and retains only the current listener',
+    action => {
+      const incoming = transport()
+      const error = new Error('unsubscribe failed')
+      incoming.gate.subscribe.mockImplementation(listener => {
+        incoming.listeners.add(listener)
+        incoming.callbacks.push(listener)
+        return vi.fn(() => {
+          incoming.listeners.delete(listener)
+          throw error
+        })
+      })
+      const onError = vi.fn()
+      const run = vi.fn<CommandDefinition['run']>(() => ({ summary: 'read' }))
+      const t = setup({
+        cliGate: incoming.gate,
+        commands: [read(run)],
+        onError
+      })
+      t.attach()
+      for (let i = 0; i < 3; i++) {
+        const stale = incoming.callbacks[i]
+        if (action === 'detach') {
+          expect(() => t.console.detachRemote()).not.toThrow()
+          expect(incoming.listeners.size).toBe(0)
+          expect(t.console.getState().remote).toBeNull()
+        }
+        expect(() => t.attach()).not.toThrow()
+        expect(onError).toHaveBeenCalledTimes(i + 1)
+        expect(onError).toHaveBeenLastCalledWith(error, null)
+        expect(incoming.listeners.size).toBe(1)
+        stale(message('read', `stale-${i}`))
+        expect(run).toHaveBeenCalledTimes(i)
+        incoming.deliver(message('read', `fresh-${i}`))
+        expect(run).toHaveBeenCalledTimes(i + 1)
+        expect(t.finished()).toHaveLength(i + 1)
+      }
+      expect(() => t.console.dispose()).not.toThrow()
+      expect(incoming.listeners.size).toBe(0)
+      expect(onError).toHaveBeenCalledTimes(4)
     }
   )
 
@@ -338,7 +421,7 @@ describe('C-120 Separate CLI gate', () => {
   })
 })
 
-describe('C-86 Command permission errors', () => {
+describe('C-86 C-111 Command permission errors', () => {
   it.each(['throw', 'reject', 'other-copy'] as const)(
     'preserves not-allowed through request, WebMCP and CLI (%s)',
     async mode => {
@@ -380,6 +463,7 @@ describe('C-86 Command permission errors', () => {
       t.incoming.deliver(message())
       await flush()
       expect(t.finished()[0]?.outcome).toEqual({ ...expected, class: 'denied' })
+      expect(t.finished()[0]).not.toHaveProperty('suggest')
       expect(onError).toHaveBeenCalledTimes(3)
       expect(
         outputs(t.console.getState().entries).map(entry => entry.blocks)
@@ -392,25 +476,34 @@ describe('C-86 Command permission errors', () => {
     }
   )
 
-  it('preserves not-allowed from a remote approval plan', () => {
-    const t = setup({
-      commands: [
-        {
-          ...change(),
-          plan: () => {
-            throw new CommandError('not-allowed', 'Access revoked.')
+  it.each(['throw', 'reject'] as const)(
+    'preserves not-allowed from a remote approval plan (%s)',
+    async mode => {
+      const t = setup({
+        commands: [
+          {
+            ...change(),
+            plan: () => {
+              const error = new CommandError('not-allowed', 'Access revoked.')
+              if (mode === 'reject') {
+                return Promise.reject(error)
+              }
+              throw error
+            }
           }
-        }
-      ]
-    })
-    t.attach()
-    t.incoming.deliver(message('change'))
-    expect(t.finished()[0]?.outcome).toMatchObject({
-      code: 'not-allowed',
-      class: 'denied',
-      message: 'Access revoked.'
-    })
-    expect(t.incoming.timers).toEqual([])
-    t.console.dispose()
-  })
+        ]
+      })
+      t.attach()
+      t.incoming.deliver(message('change'))
+      await flush()
+      expect(t.finished()[0]?.outcome).toMatchObject({
+        code: 'not-allowed',
+        class: 'denied',
+        message: 'Access revoked.'
+      })
+      expect(t.finished()[0]).not.toHaveProperty('suggest')
+      expect(t.incoming.timers).toEqual([])
+      t.console.dispose()
+    }
+  )
 })
