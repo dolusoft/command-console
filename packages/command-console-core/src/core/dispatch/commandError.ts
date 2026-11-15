@@ -11,14 +11,8 @@ import { cutMessage } from './inputText'
  */
 export type CommandErrorCode = Extract<
   ErrorCode,
-  'target-not-found' | 'invalid-args' | 'failed'
+  'target-not-found' | 'invalid-args' | 'not-allowed' | 'failed'
 >
-
-const commandCodes: readonly unknown[] = [
-  'target-not-found',
-  'invalid-args',
-  'failed'
-] satisfies CommandErrorCode[]
 
 /**
  * Thrown (or rejected) by a command's `run` to end the run with `code`: the
@@ -41,36 +35,29 @@ export class CommandError extends Error {
 }
 
 /**
- * The outcome code of an error a command's `run` threw: a `CommandError`'s
- * code when a command may give it, else `failed` (C-86). The error is known
- * by its `name`, not by `instanceof`: a command built against a second copy
- * of the core throws a `CommandError` of another class.
- */
-const commandErrorCode = (error: unknown): CommandErrorCode => {
-  if (!(error instanceof Error) || error.name !== 'CommandError') {
-    return 'failed'
-  }
-  const { code } = error as Error & { code?: unknown }
-  return commandCodes.includes(code) ? (code as CommandErrorCode) : 'failed'
-}
-
-/**
  * The outcome of an error a command's `run` threw (C-86, C-89): its code, and
  * the message of a `CommandError` cut to `messageLimit` code points. Any
  * other error gives `failed` without a message, so nothing internal leaks; a
  * `CommandError` made without a message (its message is its code) gives none.
  */
 export const commandFailure = (error: unknown): CommandOutcome => {
-  const code = commandErrorCode(error)
   if (!(error instanceof Error) || error.name !== 'CommandError') {
-    return { status: 'error', code }
+    return { status: 'error', code: 'failed' }
   }
   const raw = (error as Error & { code?: unknown }).code
-  const message =
-    typeof error.message === 'string' && error.message !== raw
-      ? cutMessage(error.message)
-      : undefined
-  return message === undefined
-    ? { status: 'error', code }
-    : { status: 'error', code, message }
+  // Recognize a CommandError from another copy of the core by its name;
+  // its code still has to be one a command may give (C-86).
+  const code =
+    raw === 'target-not-found' ||
+    raw === 'invalid-args' ||
+    raw === 'not-allowed'
+      ? raw
+      : 'failed'
+  return {
+    status: 'error',
+    code,
+    ...(typeof error.message === 'string' && error.message !== raw
+      ? { message: cutMessage(error.message) }
+      : {})
+  }
 }

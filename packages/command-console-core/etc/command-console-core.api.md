@@ -85,7 +85,7 @@ export class CommandError extends Error {
 }
 
 // @public
-export type CommandErrorCode = Extract<ErrorCode, 'target-not-found' | 'invalid-args' | 'failed'>;
+export type CommandErrorCode = Extract<ErrorCode, 'target-not-found' | 'invalid-args' | 'not-allowed' | 'failed'>;
 
 // @public
 export interface CommandRequest {
@@ -170,6 +170,7 @@ export interface ConsoleGate {
 export interface ConsoleOptions<TFeatures extends Partial<OptionalFeatures> = {}> {
     activeView?: () => string | undefined;
     beforeRun?: (info: RunInfo, signal: AbortSignal) => BeforeRunResult | Promise<BeforeRunResult>;
+    cliGate?: Pick<ConsoleGate, 'subscribe' | 'schedule'>;
     // (undocumented)
     commands: CommandDefinition[];
     createEnvelopeId?: () => string;

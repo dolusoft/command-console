@@ -232,6 +232,12 @@ export interface ConsoleOptions<
    * runs them from their echo (ADR 0012); fixed for the life of the console.
    */
   gate?: ConsoleGate
+  /**
+   * Receives CLI messages and schedules their approval windows (C-120).
+   * Does not relay local commands; defaults to `gate` when omitted.
+   * Fixed for the life of the console.
+   */
+  cliGate?: Pick<ConsoleGate, 'subscribe' | 'schedule'>
   /** The view instance a typed line targets, read when the line ends. */
   activeView?: () => string | undefined
   /** How long an envelope waits for its echo, in ms; default 5000. */
