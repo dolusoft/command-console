@@ -39,7 +39,7 @@ describe('workspace root manifest', () => {
     expect(workspace.devEngines).toEqual({
       runtime: { name: 'node', version: '>=24', onFail: 'error' }
     })
-    expect(workspace.packageManager).toMatch(/^pnpm@\d+\.\d+\.\d+$/)
+    expect(workspace.packageManager).toMatch(/^pnpm@\d+\.\d+\.\d+(\+sha512\.[0-9a-f]+)?$/)
   })
 
   it('has a version of the release line', () => {
