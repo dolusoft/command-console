@@ -77,8 +77,16 @@ if (!['text', 'json'].includes(values.format)) {
 
 const ignoreSegments = new Set(config.ignoreSegments ?? [])
 const ignorePaths = (config.ignorePaths ?? []).map(path => resolve(root, path))
+// Segments are read below the repository root (or the working directory for
+// a file outside it), so a checkout under a folder named `temp` still works.
+const below = file => {
+  const inRoot = relative(root, file)
+  return inRoot.startsWith('..') ? relative(cwd, file) : inRoot
+}
 const ignored = file =>
-  file.split(sep).some(segment => ignoreSegments.has(segment)) ||
+  below(file)
+    .split(sep)
+    .some(segment => ignoreSegments.has(segment)) ||
   ignorePaths.some(path => file === path || file.startsWith(path + sep))
 
 const collect = (path, out) => {

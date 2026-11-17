@@ -6,7 +6,11 @@
 //   no-ref-as-condition    a ref used as a condition is always truthy
 //   no-mutating-props      props are read-only, nested values included
 //   valid-default-prop     an object or array default must be a factory,
-//                          and a literal default must match the prop type
+//                          and a default must match the prop type
+//
+// Every name is resolved through the scope manager, never matched by text: a
+// parameter or a nested binding that shadows a ref, a prop or a Vue function
+// is a different variable and is left alone.
 
 const REF_FACTORIES = new Set([
   'ref',
@@ -32,80 +36,103 @@ const MUTATING_METHODS = new Set([
   'clear'
 ])
 
-const calleeName = node =>
-  node?.type === 'CallExpression' && node.callee.type === 'Identifier'
-    ? node.callee.name
-    : null
+/**
+ * The scope resolver of one file. `binding(identifier)` is the identifier
+ * that declares the variable a name refers to (a declarator id, a parameter,
+ * an import's local name), or `null` for a name nothing declares (a global,
+ * an auto-import, a compiler macro such as `defineProps`).
+ */
+const resolver = context => {
+  const vueImports = new Map()
+  const binding = node => {
+    for (
+      let scope = context.sourceCode.getScope(node);
+      scope;
+      scope = scope.upper
+    ) {
+      const variable = scope.set.get(node.name)
+      if (variable) {
+        return variable.defs[0]?.name ?? variable.identifiers[0] ?? null
+      }
+    }
+    return null
+  }
+  /** The Vue export a name refers to: its import, or a free global name. */
+  const vueName = node => {
+    if (node?.type !== 'Identifier') {
+      return null
+    }
+    const declared = binding(node)
+    return declared ? (vueImports.get(declared) ?? null) : node.name
+  }
+  /** The Vue function a call calls: `ref()`, `makeRef()`, `Vue.ref()`. */
+  const vueCallee = call => {
+    if (call?.type !== 'CallExpression') {
+      return null
+    }
+    const callee = call.callee
+    if (callee.type === 'Identifier') {
+      return vueName(callee)
+    }
+    if (
+      callee.type === 'MemberExpression' &&
+      !callee.computed &&
+      callee.object.type === 'Identifier' &&
+      callee.property.type === 'Identifier'
+    ) {
+      const declared = binding(callee.object)
+      return declared && vueImports.get(declared) === '*'
+        ? callee.property.name
+        : null
+    }
+    return null
+  }
+  const ImportDeclaration = node => {
+    if (node.source.value !== 'vue') {
+      return
+    }
+    for (const specifier of node.specifiers) {
+      if (specifier.type === 'ImportNamespaceSpecifier') {
+        vueImports.set(specifier.local, '*')
+      } else if (specifier.type === 'ImportSpecifier') {
+        vueImports.set(
+          specifier.local,
+          specifier.imported.name ?? specifier.imported.value
+        )
+      }
+    }
+  }
+  return { binding, vueCallee, ImportDeclaration }
+}
 
 /** `defineProps(...)` or `withDefaults(defineProps(...), ...)`. */
-const isDefineProps = node =>
-  calleeName(node) === 'defineProps' ||
-  (calleeName(node) === 'withDefaults' &&
-    calleeName(node.arguments[0]) === 'defineProps')
+const isDefineProps = (node, vueCallee) =>
+  vueCallee(node) === 'defineProps' ||
+  (vueCallee(node) === 'withDefaults' &&
+    vueCallee(node.arguments[0]) === 'defineProps')
 
-/** The names a destructuring pattern binds: `{ a, b: c, d = 1, ...e }`. */
-const patternNames = (node, out = []) => {
+/** The identifiers a destructuring pattern binds: `{ a, b: c, d = 1, ...e }`. */
+const patternIdentifiers = (node, out = []) => {
   if (!node) {
     return out
   }
   if (node.type === 'Identifier') {
-    out.push(node.name)
+    out.push(node)
   } else if (node.type === 'ObjectPattern') {
     for (const property of node.properties) {
-      patternNames(
+      patternIdentifiers(
         property.type === 'RestElement' ? property.argument : property.value,
         out
       )
     }
   } else if (node.type === 'ArrayPattern') {
-    node.elements.forEach(element => patternNames(element, out))
+    node.elements.forEach(element => patternIdentifiers(element, out))
   } else if (node.type === 'AssignmentPattern') {
-    patternNames(node.left, out)
+    patternIdentifiers(node.left, out)
   } else if (node.type === 'RestElement') {
-    patternNames(node.argument, out)
+    patternIdentifiers(node.argument, out)
   }
   return out
-}
-
-/** The prop name a chain on `this` starts with: `items` for `this.items[0].a`. */
-const thisPropOf = node => {
-  let current = node
-  while (
-    current?.type === 'TSNonNullExpression' ||
-    current?.type === 'ChainExpression' ||
-    (current?.type === 'MemberExpression' &&
-      current.object.type !== 'ThisExpression')
-  ) {
-    current =
-      current.type === 'MemberExpression' ? current.object : current.expression
-  }
-  return current?.type === 'MemberExpression' &&
-    !current.computed &&
-    current.property.type === 'Identifier'
-    ? current.property.name
-    : null
-}
-
-/** An options object of `defineComponent({ ... })` or `export default { ... }`. */
-const isComponentOptions = node =>
-  node?.type === 'ObjectExpression' &&
-  ((node.parent?.type === 'CallExpression' &&
-    calleeName(node.parent) === 'defineComponent') ||
-    node.parent?.type === 'ExportDefaultDeclaration')
-
-/** The names of a `props` option: `{ items: Array }` or `['items']`. */
-const declaredPropNames = node => {
-  if (node?.type === 'ObjectExpression') {
-    return node.properties
-      .filter(item => item.type === 'Property')
-      .map(item => item.key.name ?? item.key.value)
-  }
-  if (node?.type === 'ArrayExpression') {
-    return node.elements
-      .filter(item => item?.type === 'Literal')
-      .map(item => item.value)
-  }
-  return []
 }
 
 /** The identifier a member chain starts from: `a` for `a.b[c].d`. */
@@ -122,6 +149,81 @@ const rootOf = node => {
   return current?.type === 'Identifier' ? current : null
 }
 
+/** The first member of a chain on `this`: `this.items` for `this.items[0].a`. */
+const thisMemberOf = node => {
+  let current = node
+  while (
+    current?.type === 'TSNonNullExpression' ||
+    current?.type === 'ChainExpression' ||
+    (current?.type === 'MemberExpression' &&
+      current.object.type !== 'ThisExpression')
+  ) {
+    current =
+      current.type === 'MemberExpression' ? current.object : current.expression
+  }
+  return current?.type === 'MemberExpression' &&
+    current.object.type === 'ThisExpression' &&
+    !current.computed &&
+    current.property.type === 'Identifier'
+    ? current
+    : null
+}
+
+const propertyName = property =>
+  property.key.type === 'Identifier' && !property.computed
+    ? property.key.name
+    : property.key.type === 'Literal'
+      ? String(property.key.value)
+      : null
+
+/** An options object of `defineComponent({ ... })` or `export default { ... }`. */
+const isComponentOptions = (node, vueCallee) =>
+  node?.type === 'ObjectExpression' &&
+  ((node.parent?.type === 'CallExpression' &&
+    node.parent.arguments[0] === node &&
+    vueCallee(node.parent) === 'defineComponent') ||
+    node.parent?.type === 'ExportDefaultDeclaration')
+
+/** The names of the `props` option of an options object. */
+const optionPropNames = options => {
+  const props = options.properties.find(
+    item => item.type === 'Property' && propertyName(item) === 'props'
+  )?.value
+  if (props?.type === 'ObjectExpression') {
+    return props.properties
+      .filter(item => item.type === 'Property')
+      .map(propertyName)
+  }
+  if (props?.type === 'ArrayExpression') {
+    return props.elements
+      .filter(item => item?.type === 'Literal')
+      .map(item => item.value)
+  }
+  return []
+}
+
+const FUNCTIONS = new Set(['FunctionExpression', 'FunctionDeclaration'])
+
+/**
+ * The component options object `this` belongs to: the nearest options
+ * object around it, unless a plain `function` in between rebinds `this`
+ * (a method of a nested option object, `methods: { add() {} }`, does not).
+ */
+const thisOwner = (node, vueCallee) => {
+  for (let current = node.parent; current; current = current.parent) {
+    if (isComponentOptions(current, vueCallee)) {
+      return current
+    }
+    if (
+      FUNCTIONS.has(current.type) &&
+      !(current.parent?.type === 'Property' && current.parent.value === current)
+    ) {
+      return null
+    }
+  }
+  return null
+}
+
 const noRefAsCondition = {
   meta: {
     type: 'problem',
@@ -136,45 +238,11 @@ const noRefAsCondition = {
     }
   },
   create(context) {
+    const scope = resolver(context)
+    // The declaring identifiers of the refs.
     const refs = new Set()
-    // Local names of the ref factories: bare (auto-imported or global), and
-    // every binding imported from 'vue', aliases (`ref as makeRef`) included.
-    const factories = new Set(REF_FACTORIES)
-    const namespaces = new Set()
-    const isFactory = call => {
-      if (call?.type !== 'CallExpression') {
-        return false
-      }
-      const callee = call.callee
-      if (callee.type === 'Identifier') {
-        return factories.has(callee.name)
-      }
-      return (
-        callee.type === 'MemberExpression' &&
-        !callee.computed &&
-        callee.object.type === 'Identifier' &&
-        namespaces.has(callee.object.name) &&
-        callee.property.type === 'Identifier' &&
-        REF_FACTORIES.has(callee.property.name)
-      )
-    }
-    // The declaration a name resolves to, through the scope chain: a
-    // parameter or a nested binding of the same name shadows the ref.
-    const declarationOf = node => {
-      for (
-        let scope = context.sourceCode.getScope(node);
-        scope;
-        scope = scope.upper
-      ) {
-        const variable = scope.set.get(node.name)
-        if (variable) {
-          return variable.defs[0]?.node ?? null
-        }
-      }
-      return null
-    }
     const check = node => {
-      if (node?.type === 'Identifier' && refs.has(declarationOf(node))) {
+      if (node?.type === 'Identifier' && refs.has(scope.binding(node))) {
         context.report({
           node,
           messageId: 'condition',
@@ -183,26 +251,13 @@ const noRefAsCondition = {
       }
     }
     return {
-      ImportDeclaration(node) {
-        if (node.source.value !== 'vue') {
-          return
-        }
-        for (const specifier of node.specifiers) {
-          if (specifier.type === 'ImportNamespaceSpecifier') {
-            namespaces.add(specifier.local.name)
-          } else if (
-            specifier.type === 'ImportSpecifier' &&
-            REF_FACTORIES.has(
-              specifier.imported.name ?? specifier.imported.value
-            )
-          ) {
-            factories.add(specifier.local.name)
-          }
-        }
-      },
+      ImportDeclaration: scope.ImportDeclaration,
       VariableDeclarator(node) {
-        if (node.id.type === 'Identifier' && isFactory(node.init)) {
-          refs.add(node)
+        if (
+          node.id.type === 'Identifier' &&
+          REF_FACTORIES.has(scope.vueCallee(node.init))
+        ) {
+          refs.add(node.id)
         }
       },
       'IfStatement:exit': node => check(node.test),
@@ -238,77 +293,68 @@ const noMutatingProps = {
     }
   },
   create(context) {
-    // `props` holds the props objects; `values` the props taken out of one by
-    // destructuring (`const { items } = defineProps(...)`), whose nested
-    // values belong to the parent all the same.
-    const props = new Set()
-    const values = new Set()
+    const scope = resolver(context)
     const source = context.sourceCode
+    // Declaring identifiers: `objects` of the props objects (`props` of
+    // `const props = defineProps()` or `setup(props)`), `values` of the props
+    // taken out by destructuring (`const { items } = defineProps()`).
+    const objects = new Set()
+    const values = new Set()
     const bind = pattern => {
       if (pattern?.type === 'Identifier') {
-        props.add(pattern.name)
+        objects.add(pattern)
       } else if (pattern?.type === 'ObjectPattern') {
-        for (const name of patternNames(pattern)) {
-          values.add(name)
-        }
+        patternIdentifiers(pattern).forEach(id => values.add(id))
       }
     }
-    // Options API: the props an options object declares, read as
-    // `this.items`. A `methods` block may come before `props`, so the
-    // `this.` candidates are judged at the end of the file.
-    const optionProps = new Set()
-    const thisCandidates = []
-    const report = (node, target) => {
+    const mutation = (node, target) =>
+      context.report({
+        node,
+        messageId: 'mutation',
+        data: { path: source.getText(target) }
+      })
+    /** Reports a change of `target`; `deep` when a method changes its value. */
+    const report = (node, target, deep = false) => {
       const root = rootOf(target)
-      if (
-        root &&
-        (props.has(root.name) || values.has(root.name)) &&
-        target !== root
-      ) {
-        context.report({
-          node,
-          messageId: 'mutation',
-          data: { path: source.getText(target) }
-        })
+      if (root) {
+        const declared = scope.binding(root)
+        if (
+          (objects.has(declared) && target !== root) ||
+          (values.has(declared) && (target !== root || deep))
+        ) {
+          mutation(node, target)
+        }
         return
       }
-      const name = thisPropOf(target)
-      if (name) {
-        thisCandidates.push({ node, target, name })
+      const member = thisMemberOf(target)
+      if (member) {
+        const owner = thisOwner(member, scope.vueCallee)
+        if (
+          owner &&
+          optionPropNames(owner).includes(member.property.name) &&
+          (target !== member.object || deep)
+        ) {
+          mutation(node, target)
+        }
       }
     }
     return {
-      'Program:exit'() {
-        for (const { node, target, name } of thisCandidates) {
-          if (optionProps.has(name)) {
-            context.report({
-              node,
-              messageId: 'mutation',
-              data: { path: source.getText(target) }
-            })
-          }
-        }
-      },
+      ImportDeclaration: scope.ImportDeclaration,
       VariableDeclarator(node) {
-        if (isDefineProps(node.init)) {
+        if (isDefineProps(node.init, scope.vueCallee)) {
           bind(node.id)
         }
       },
-      // `defineComponent({ setup(props) {} })` and `setup: (props) => {}`.
+      // `setup(props) {}` and `setup: (props) => {}` of a component.
       Property(node) {
-        const key = node.key.type === 'Identifier' ? node.key.name : null
         const fn = node.value
         if (
-          key === 'setup' &&
+          propertyName(node) === 'setup' &&
           (fn.type === 'FunctionExpression' ||
-            fn.type === 'ArrowFunctionExpression')
+            fn.type === 'ArrowFunctionExpression') &&
+          isComponentOptions(node.parent, scope.vueCallee)
         ) {
           bind(fn.params[0])
-        }
-        if (key === 'props' && isComponentOptions(node.parent)) {
-          for (const name of declaredPropNames(fn)) {
-            optionProps.add(name)
-          }
         }
       },
       'AssignmentExpression:exit': node => report(node, node.left),
@@ -326,34 +372,22 @@ const noMutatingProps = {
           callee.property.type === 'Identifier' &&
           MUTATING_METHODS.has(callee.property.name)
         ) {
-          if (callee.object.type === 'MemberExpression') {
-            // `props.items.push(x)` and `this.items.push(x)`.
-            if (callee.object.object.type === 'ThisExpression') {
-              const name = thisPropOf(callee.object)
-              if (name) {
-                thisCandidates.push({ node, target: callee.object, name })
-              }
-            } else {
-              report(node, callee.object)
-            }
-          } else if (
-            callee.object.type === 'Identifier' &&
-            values.has(callee.object.name)
-          ) {
-            // `items.push(x)` on a destructured prop changes the parent's array.
-            context.report({
-              node,
-              messageId: 'mutation',
-              data: { path: callee.object.name }
-            })
-          }
+          // `props.items.push(x)`, `items.push(x)`, `this.items.push(x)`.
+          report(node, callee.object, true)
         }
       }
     }
   }
 }
 
-const LITERAL_TYPES = { String: 'string', Number: 'number', Boolean: 'boolean' }
+/** What a constructor in a prop `type` accepts as a default value. */
+const KIND_OF_TYPE = {
+  String: 'string',
+  Number: 'number',
+  Boolean: 'boolean',
+  Object: 'object',
+  Array: 'array'
+}
 
 /** The constructor names of a prop `type`: `String`, `[String, Number]`. */
 const typeNames = node => {
@@ -369,8 +403,15 @@ const typeNames = node => {
 const isFactoryless = node =>
   node?.type === 'ObjectExpression' || node?.type === 'ArrayExpression'
 
-const literalKind = node => {
-  if (node?.type === 'Literal' && node.value !== null) {
+/** The kind of a value: a literal, an object or an array; `null` when unknown. */
+const valueKind = node => {
+  if (node?.type === 'ObjectExpression') {
+    return 'object'
+  }
+  if (node?.type === 'ArrayExpression') {
+    return 'array'
+  }
+  if (node?.type === 'Literal' && node.value !== null && !node.regex) {
     return typeof node.value
   }
   if (node?.type === 'TemplateLiteral') {
@@ -378,16 +419,6 @@ const literalKind = node => {
   }
   return null
 }
-
-const VALUE_TYPES = { ...LITERAL_TYPES, Object: 'object', Array: 'array' }
-
-/** The kind of a value a factory returns: a literal, an object or an array. */
-const valueKind = node =>
-  node?.type === 'ObjectExpression'
-    ? 'object'
-    : node?.type === 'ArrayExpression'
-      ? 'array'
-      : literalKind(node)
 
 /** What a default factory returns, when it is one plain expression. */
 const factoryResult = node => {
@@ -411,7 +442,7 @@ const validDefaultProp = {
     type: 'problem',
     docs: {
       description:
-        'An object or array prop default must be a factory function, and a literal default must match the prop type.'
+        'An object or array prop default must be a factory function, and a default must match the prop type.'
     },
     schema: [],
     messages: {
@@ -421,6 +452,7 @@ const validDefaultProp = {
     }
   },
   create(context) {
+    const scope = resolver(context)
     const checkRuntime = object => {
       for (const prop of object.properties) {
         if (
@@ -429,25 +461,24 @@ const validDefaultProp = {
         ) {
           continue
         }
-        const name = prop.key.name ?? prop.key.value
+        const name = propertyName(prop)
         const field = key =>
           prop.value.properties.find(
-            item => item.type === 'Property' && item.key.name === key
+            item => item.type === 'Property' && propertyName(item) === key
           )?.value
         const value = field('default')
         if (!value) {
           continue
         }
-        const types = typeNames(field('type'))
         if (isFactoryless(value)) {
           context.report({ node: value, messageId: 'factory', data: { name } })
           continue
         }
         // A literal default, or the value a factory returns (`() => ({})`).
-        const returned = factoryResult(value)
-        const kind = returned ? valueKind(returned) : literalKind(value)
-        const known = returned ? VALUE_TYPES : LITERAL_TYPES
-        const expected = types.map(type => known[type])
+        // A type outside the table (`Function`, a class) accepts anything.
+        const types = typeNames(field('type'))
+        const kind = valueKind(factoryResult(value) ?? value)
+        const expected = types.map(type => KIND_OF_TYPE[type])
         if (
           kind &&
           types.length > 0 &&
@@ -463,8 +494,9 @@ const validDefaultProp = {
       }
     }
     return {
+      ImportDeclaration: scope.ImportDeclaration,
       CallExpression(node) {
-        const name = calleeName(node)
+        const name = scope.vueCallee(node)
         if (
           name === 'defineProps' &&
           node.arguments[0]?.type === 'ObjectExpression'
@@ -479,25 +511,18 @@ const validDefaultProp = {
               context.report({
                 node: prop.value,
                 messageId: 'factory',
-                data: { name: prop.key.name ?? prop.key.value }
+                data: { name: propertyName(prop) }
               })
             }
           }
         }
       },
-      // `defineComponent({ props: { ... } })` and a component options object
-      // exported as is: `export default { props: { ... } }`.
+      // `defineComponent({ props: { ... } })` and `export default { props }`.
       Property(node) {
-        const options = node.parent
-        const owner = options?.parent
         if (
-          node.key.type === 'Identifier' &&
-          node.key.name === 'props' &&
+          propertyName(node) === 'props' &&
           node.value.type === 'ObjectExpression' &&
-          options?.type === 'ObjectExpression' &&
-          ((owner?.type === 'CallExpression' &&
-            calleeName(owner) === 'defineComponent') ||
-            owner?.type === 'ExportDefaultDeclaration')
+          isComponentOptions(node.parent, scope.vueCallee)
         ) {
           checkRuntime(node.value)
         }

@@ -66,7 +66,12 @@ describe('vue-script/no-ref-as-condition', () => {
         `import { makeRef } from './other'; const r = makeRef(false); if (r) {}`,
         // A parameter or a nested binding of the same name is not the ref.
         `const open = ref(false); function f(open: boolean) { if (open) {} }`,
-        `const open = ref(false); const g = () => { const open = true; return open ? 1 : 2 }`
+        `const open = ref(false); const g = () => { const open = true; return open ? 1 : 2 }`,
+        // A parameter that shadows the factory, its alias or the namespace.
+        `import { ref as makeRef } from 'vue'; function f(makeRef: () => boolean) { const r = makeRef(); if (r) {} }`,
+        `function f(ref: () => boolean) { const r = ref(); if (r) {} }`,
+        `import * as Vue from 'vue'; function f(Vue: { ref: () => boolean }) { const r = Vue.ref(); if (r) {} }`,
+        `import { ref } from './not-vue'; const r = ref(); if (r) {}`
       ],
       invalid: [
         `const open = ref(false); if (open) {}`,
@@ -94,7 +99,16 @@ describe('vue-script/no-mutating-props', () => {
         `const props = defineProps<{ items: string[] }>(); props.items.map(item => item)`,
         `const { items } = defineProps<{ items: string[] }>(); const copy = [...items]; copy.push('x')`,
         `const { items } = defineProps<{ items: string[] }>(); items.map(item => item)`,
-        `export default { props: { items: Array }, data: () => ({ local: [] }), methods: { add() { this.local.push(1); this.items.map(i => i) } } }`
+        `export default { props: { items: Array }, data: () => ({ local: [] }), methods: { add() { this.local.push(1); this.items.map(i => i) } } }`,
+        // A parameter or a nested binding that shadows a prop.
+        `const { items } = defineProps<{ items: string[] }>(); function f(items: string[]) { items.push('x') }`,
+        `const props = defineProps<{ a: { b: number } }>(); const g = (props: { a: { b: number } }) => { props.a.b = 1 }`,
+        `const { items } = defineProps<{ items: string[] }>(); { const items: string[] = []; items.push('x') }`,
+        `function setupLike(defineProps: () => { a: { b: number } }) { const props = defineProps(); props.a.b = 1 }`,
+        // \`this\` of another object, or of a plain function inside a method.
+        `export default { props: { items: Array } }; const store = { items: [], add() { this.items.push(1) } }`,
+        `export default { props: ['items'], methods: { add() { [1].forEach(function () { this.items.push(1) }) } } }`,
+        `const other = { props: { items: Array }, methods: { add() { this.items.push(1) } } }`
       ],
       invalid: [
         `const props = defineProps<{ items: string[] }>(); props.items.push('x')`,
@@ -114,7 +128,9 @@ describe('vue-script/no-mutating-props', () => {
         `export default { props: { items: Array }, methods: { add() { this.items.push(1) } } }`,
         `export default { methods: { add() { this.items.push(1) } }, props: ['items'] }`,
         `export default defineComponent({ props: { n: Number }, methods: { inc() { this.n++ } } })`,
-        `export default { props: { deep: Object }, methods: { set() { this.deep.a = 1 } } }`
+        `export default { props: { deep: Object }, methods: { set() { this.deep.a = 1 } } }`,
+        `export default { props: ['items'], methods: { add() { [1].forEach(() => this.items.push(1)) } } }`,
+        `const { items } = defineProps<{ items: string[] }>(); function f(other: string[]) { items.push('x') }`
       ].map(code => ({ code, errors: 1 }))
     })
   })
@@ -132,7 +148,10 @@ describe('vue-script/valid-default-prop', () => {
         `export default { props: { items: { type: Array, default: () => [] } } }`,
         `const other = { props: { items: { type: Array, default: [] } } }`,
         `defineProps({ o: { type: [Object, Array], default: () => [] } })`,
-        `defineProps({ fn: { type: Function, default: () => 1 } })`
+        `defineProps({ fn: { type: Function, default: () => 1 } })`,
+        // A shadowing local function is not the Vue macro or helper.
+        `function f(defineProps: (o: object) => void) { defineProps({ items: { type: Array, default: [] } }) }`,
+        `import { defineComponent } from './local'; defineComponent({ props: { o: { type: Object, default: {} } } })`
       ],
       invalid: [
         `defineProps({ items: { type: Array, default: [] } })`,
@@ -145,7 +164,11 @@ describe('vue-script/valid-default-prop', () => {
         // A factory must return the declared type.
         `defineProps({ items: { type: Array, default: () => ({}) } })`,
         `defineProps({ o: { type: Object, default: () => [] } })`,
-        `defineProps({ o: { type: Object, default() { return 'x' } } })`
+        `defineProps({ o: { type: Object, default() { return 'x' } } })`,
+        // A literal default that is not an object or an array.
+        `defineProps({ items: { type: Array, default: 1 } })`,
+        `defineProps({ o: { type: Object, default: 'x' } })`,
+        `import { defineComponent as dc } from 'vue'; dc({ props: { o: { type: Object, default: {} } } })`
       ].map(code => ({ code, errors: 1 }))
     })
   })

@@ -1,6 +1,13 @@
 {
-  "paths": ["packages", "contract", "tests", "fixtures"],
-  "ignoreSegments": ["node_modules", "dist", "coverage", "temp", ".vitest"],
+  "paths": ["."],
+  "ignoreSegments": [
+    ".git",
+    "node_modules",
+    "dist",
+    "coverage",
+    "temp",
+    ".vitest"
+  ],
   "ignorePaths": [],
   "gates": [
     "no-v-html",

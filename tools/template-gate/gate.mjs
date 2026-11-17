@@ -11,7 +11,8 @@
 //
 // A finding is silenced for one element by a comment right before it:
 //   <!-- template-gate-disable-next-line no-v-html: <reason> -->
-// The reason is required.
+// The reason is required. A directive with no reason, an unknown gate or
+// nothing to silence is reported as `disable-directive`.
 
 import { parseExpression, parse as parseScript } from '@babel/parser'
 import { ElementTypes, NodeTypes } from '@vue/compiler-dom'
@@ -28,6 +29,7 @@ export const GATES = [
 /** A file the gate cannot read: the CLI exits with 2. */
 export class GateError extends Error {}
 
+const DIRECTIVE = /^\s*template-gate-/
 const DISABLE = /^\s*template-gate-disable-next-line\s+([\w-]+)\s*:\s*\S/
 
 const FORM_ELEMENTS = new Set(['input', 'select', 'textarea'])
@@ -412,13 +414,49 @@ export const checkSfc = (file, source, gates = GATES) => {
   const templateReferenceSet = new Set()
   const template = descriptor.template?.ast
 
+  // A directive that silences nothing is a finding of its own, whatever
+  // gates are selected: a wrong gate name, a missing reason, or no finding
+  // of its gate on the next element (decision §4/9: unused directives are
+  // reported).
+  const directiveProblem = (comment, message) =>
+    findings.push({
+      file,
+      line: comment.loc.start.line,
+      column: comment.loc.start.column,
+      gate: 'disable-directive',
+      message
+    })
+
   const visitChildren = (children, aliases) => {
     let disabled = null
+    const settle = silenced => {
+      if (disabled && silenced === 0 && enabled.has(disabled.gate)) {
+        directiveProblem(
+          disabled.comment,
+          `The exemption for ${disabled.gate} silences nothing: remove it.`
+        )
+      }
+      disabled = null
+    }
     for (const child of children) {
       if (child.type === NodeTypes.COMMENT) {
+        if (!DIRECTIVE.test(child.content)) {
+          continue
+        }
+        settle(0)
         const match = DISABLE.exec(child.content)
-        if (match) {
-          disabled = match[1]
+        if (!match) {
+          directiveProblem(
+            child,
+            'An exemption reads "template-gate-disable-next-line <gate>: <reason>".'
+          )
+        } else if (!GATES.includes(match[1])) {
+          directiveProblem(
+            child,
+            `Unknown gate "${match[1]}" in an exemption; known: ${GATES.join(', ')}.`
+          )
+        } else {
+          disabled = { gate: match[1], comment: child }
         }
         continue
       }
@@ -427,17 +465,20 @@ export const checkSfc = (file, source, gates = GATES) => {
       }
       const before = findings.length
       const ownEnd = visit(child, aliases)
+      let silenced = 0
       if (disabled) {
         // Only the element's own findings, not those of its children.
         const own = findings
           .slice(before, ownEnd)
-          .filter(finding => finding.gate === disabled)
+          .filter(finding => finding.gate === disabled.gate)
         for (const finding of own) {
           findings.splice(findings.indexOf(finding), 1)
         }
+        silenced = own.length
       }
-      disabled = null
+      settle(silenced)
     }
+    settle(0)
   }
 
   const visit = (node, aliases) => {
@@ -458,6 +499,24 @@ export const checkSfc = (file, source, gates = GATES) => {
 
     const forDirective = directive(element, 'for')
     const slot = directive(element, 'slot')
+    // Binding patterns refer to names too: `v-slot="{ label = fallback }"`,
+    // `v-for="{ [key]: value } in list"`. Read as parameters of a function,
+    // the bound names stay local and the defaults and keys count.
+    const patterns = [
+      ...(forDirective?.forParseResult
+        ? [
+            forDirective.forParseResult.value,
+            forDirective.forParseResult.key,
+            forDirective.forParseResult.index
+          ]
+            .filter(Boolean)
+            .map(item => item.content)
+        : []),
+      ...(slot?.exp ? [slot.exp.content] : [])
+    ]
+    for (const pattern of patterns) {
+      templateReferences(`(${pattern}) => 0`, templateReferenceSet, aliases)
+    }
     const scoped = [
       ...(forDirective ? aliasesOf(forDirective) : []),
       ...(slot?.exp ? paramNames(slot.exp.content) : [])

@@ -47,12 +47,38 @@ describe('template gate', () => {
         `<!-- template-gate-disable-next-line no-v-html: trusted markup -->\n<div v-html="html"></div>`
       )
     ).toEqual([])
-    // Without a reason the comment silences nothing.
+    // Without a reason the comment silences nothing and is reported.
     expect(
       check(
         `<!-- template-gate-disable-next-line no-v-html -->\n<div v-html="html"></div>`
       )
-    ).toEqual(['no-v-html@3:6'])
+    ).toEqual(['disable-directive@2:1', 'no-v-html@3:6'])
+    // An unknown gate, or an exemption with nothing to silence, is reported.
+    expect(
+      check(
+        `<!-- template-gate-disable-next-line no-such-gate: reason -->\n<div></div>`
+      )
+    ).toEqual(['disable-directive@2:1'])
+    expect(
+      check(
+        `<!-- template-gate-disable-next-line no-v-html: stale -->\n<div v-text="a"></div>`
+      )
+    ).toEqual(['disable-directive@2:1'])
+    expect(
+      check(
+        `<div></div>\n<!-- template-gate-disable-next-line no-v-html: last -->`
+      )
+    ).toEqual(['disable-directive@3:1'])
+    // A gate that is not selected: its exemption is not judged.
+    expect(
+      checkSfc(
+        'x.vue',
+        `<template><!-- template-gate-disable-next-line no-v-html: x --><div></div></template>`,
+        ['require-v-for-key']
+      )
+    ).toEqual([])
+    // An ordinary comment is not a directive.
+    expect(check(`<!-- a note -->\n<div></div>`)).toEqual([])
     // The exemption covers the next element only, not a sibling on its line.
     expect(
       check(
@@ -174,6 +200,19 @@ import Child from './Child.vue'
       check(`<p v-for="c in Child.items" :key="c">{{ c }}</p>`, script)
     ).toEqual([])
     expect(check(`<component :is="Child" />`, script)).toEqual([])
+    // A default or a computed key inside a binding pattern refers too.
+    expect(
+      check(`<List v-slot="{ label = Child }">{{ label }}</List>`, script)
+    ).toEqual([])
+    expect(
+      check(`<List v-slot="{ [Child]: value }">{{ value }}</List>`, script)
+    ).toEqual([])
+    expect(
+      check(`<p v-for="{ a = Child } in list" :key="a">{{ a }}</p>`, script)
+    ).toEqual([])
+    expect(
+      check(`<List v-slot="{ label = other }">{{ label }}</List>`, script)
+    ).toEqual(unused)
 
     const scriptOnly = (body: string) =>
       check(
@@ -311,6 +350,40 @@ describe('template gate CLI', () => {
     })
     expect(result.stderr).toBe('')
     expect(result.status).toBe(0)
+  })
+
+  it('scans the whole repository by default, as ESLint did with **/*.vue, ignored folders aside', () => {
+    // A folder no list names (`examples/`) is checked; `node_modules`
+    // and `dist` stay ignored.
+    const probes = {
+      examples: join(root, 'examples-gate-probe'),
+      ignored: join(root, 'node_modules', '.gate-probe'),
+      built: join(root, 'packages', 'command-console', 'dist-probe', 'dist')
+    }
+    const html = `<template><p v-html="a"></p></template>\n`
+    try {
+      for (const folder of Object.values(probes)) {
+        mkdirSync(folder, { recursive: true })
+        writeFileSync(join(folder, 'Probe.vue'), html)
+      }
+      const result = spawnSync(
+        process.execPath,
+        [join(gateDir, 'cli.mjs'), '--format', 'json'],
+        { cwd: root, encoding: 'utf8' }
+      )
+      expect(result.status).toBe(1)
+      const files = (
+        JSON.parse(result.stdout) as { findings: Finding[] }
+      ).findings.map(finding => finding.file)
+      expect(files).toEqual(['examples-gate-probe/Probe.vue'])
+    } finally {
+      rmSync(probes.examples, { recursive: true, force: true })
+      rmSync(probes.ignored, { recursive: true, force: true })
+      rmSync(join(root, 'packages', 'command-console', 'dist-probe'), {
+        recursive: true,
+        force: true
+      })
+    }
   })
 
   it('declares every package it imports in the root package.json', () => {
