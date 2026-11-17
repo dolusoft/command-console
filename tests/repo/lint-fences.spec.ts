@@ -443,3 +443,16 @@ describe('D-33 console and debugger', () => {
     }
   })
 })
+
+// The Vue script rules on a real `.vue` file, Options API included.
+const optionsVueKey = sample(
+  `${vue}/x.vue`,
+  `<script lang="ts">\nexport default {\n  props: { items: { type: Array, default: [] } },\n  setup({ items }) {\n    items?.push(1)\n  }\n}\n</script>`
+)
+
+describe('Vue script rules in a .vue file', () => {
+  it('checks the runtime defaults and setup props of export default { ... }', () => {
+    expect(findingsOf(optionsVueKey, /valid-default-prop/)).toHaveLength(1)
+    expect(findingsOf(optionsVueKey, /no-mutating-props/)).toHaveLength(1)
+  })
+})

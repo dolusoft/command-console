@@ -136,6 +136,8 @@ describe('vue-script/no-mutating-props', () => {
         `const { o = {} } = defineProps<{ o?: Record<string, number> }>(); delete o.k`,
         `const { n, ...rest } = defineProps<{ n: number; m: { a: number } }>(); rest.m.a++`,
         `export default defineComponent({ setup({ list }) { list.reverse() } })`,
+        `export default { setup({ items }) { items?.push('x') } }`,
+        `export default { setup({ items }) { items!.push('x') } }`,
         // Options API: a prop read through `this`.
         `export default { props: { items: Array }, methods: { add() { this.items.push(1) } } }`,
         `export default { methods: { add() { this.items.push(1) } }, props: ['items'] }`,
