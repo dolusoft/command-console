@@ -93,7 +93,7 @@ jobs:
           persist-credentials: false
 
       # The pnpm version is the `packageManager` field of package.json.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v4
         with:
