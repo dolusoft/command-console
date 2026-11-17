@@ -71,10 +71,14 @@ describe('vue-script/no-ref-as-condition', () => {
         `import { ref as makeRef } from 'vue'; function f(makeRef: () => boolean) { const r = makeRef(); if (r) {} }`,
         `function f(ref: () => boolean) { const r = ref(); if (r) {} }`,
         `import * as Vue from 'vue'; function f(Vue: { ref: () => boolean }) { const r = Vue.ref(); if (r) {} }`,
-        `import { ref } from './not-vue'; const r = ref(); if (r) {}`
+        `import { ref } from './not-vue'; const r = ref(); if (r) {}`,
+        `const r = ref(); if (r) {}; import { ref } from './not-vue'`
       ],
       invalid: [
         `const open = ref(false); if (open) {}`,
+        // Imports are hoisted: one at the end of the file counts.
+        `const r = makeRef(false); if (r) {}; import { ref as makeRef } from 'vue'`,
+        `const r = Vue.ref(false); if (r) {}; import * as Vue from 'vue'`,
         `const n = computed(() => 1); const x = n ? 1 : 2`,
         `const s = shallowRef(null); const y = !s`,
         `const t = toRef(o, 'a'); const z = t && 1`,
@@ -108,7 +112,12 @@ describe('vue-script/no-mutating-props', () => {
         // \`this\` of another object, or of a plain function inside a method.
         `export default { props: { items: Array } }; const store = { items: [], add() { this.items.push(1) } }`,
         `export default { props: ['items'], methods: { add() { [1].forEach(function () { this.items.push(1) }) } } }`,
-        `const other = { props: { items: Array }, methods: { add() { this.items.push(1) } } }`
+        `const other = { props: { items: Array }, methods: { add() { this.items.push(1) } } }`,
+        // A method of a local object inside a component method has its own \`this\`.
+        `export default { props: ['items'], methods: { run() { const local = { items: [0], add() { this.items.push(1) } }; local.add() } } }`,
+        `export default { props: ['items'], mounted() { const local = { items: [0], add() { this.items.push(1) } } } }`,
+        // An option that is not a known function option does not bind \`this\`.
+        `export default { props: ['items'], custom: { add() { this.items.push(1) } } }`
       ],
       invalid: [
         `const props = defineProps<{ items: string[] }>(); props.items.push('x')`,
@@ -130,6 +139,14 @@ describe('vue-script/no-mutating-props', () => {
         `export default defineComponent({ props: { n: Number }, methods: { inc() { this.n++ } } })`,
         `export default { props: { deep: Object }, methods: { set() { this.deep.a = 1 } } }`,
         `export default { props: ['items'], methods: { add() { [1].forEach(() => this.items.push(1)) } } }`,
+        // Known options: a lifecycle hook, computed get/set, a watch handler.
+        `export default { props: ['items'], mounted() { this.items.push(1) } }`,
+        `export default { props: ['items'], computed: { all: { get() { return 1 }, set(v) { this.items.push(v) } } } }`,
+        `export default { props: ['items'], watch: { x: { handler() { this.items.pop() } } } }`,
+        `export default { props: ['items'], watch: { x() { this.items.pop() } } }`,
+        `export default { props: ['items'], methods: { run() { const local = { add: () => this.items.push(1) } } } }`,
+        // Imports are hoisted: \`defineComponent\` imported at the end.
+        `export default dc({ props: { n: Number }, methods: { inc() { this.n++ } } }); import { defineComponent as dc } from 'vue'`,
         `const { items } = defineProps<{ items: string[] }>(); function f(other: string[]) { items.push('x') }`
       ].map(code => ({ code, errors: 1 }))
     })

@@ -555,7 +555,9 @@
         "no-restricted-imports": "off",
         "no-restricted-globals": "off",
         "no-restricted-properties": "off",
-        "fences/no-global-listeners": "off"
+        "fences/no-global-listeners": "off",
+        "no-console": "off",
+        "no-debugger": "off"
       }
     }
   ]

@@ -417,3 +417,29 @@ describe('DOM, clock and listener fences', () => {
     expect(findingsOf(specLayerKey, /layers\(boundaries\)/)).toEqual([])
   })
 })
+
+// D-33 (ADR 0029): console and debugger only in the published source.
+const consoleCode = `export const f = () => {\n  console.log(1)\n  debugger\n}`
+const consoleKeys = {
+  source: [`${core}/x.ts`, `${vue}/x.ts`].map(path =>
+    sample(path, consoleCode)
+  ),
+  exempt: [
+    `${core}/x.spec.ts`,
+    `${vue}/x.spec.ts`,
+    'scripts/x.mjs',
+    'tools/x.mjs',
+    'tests/repo/x.ts'
+  ].map(path => sample(path, consoleCode))
+}
+
+describe('D-33 console and debugger', () => {
+  it('refuses console and debugger in the published source only', () => {
+    for (const key of consoleKeys.source) {
+      expect(findingsOf(key, /no-(console|debugger)/), key).toHaveLength(2)
+    }
+    for (const key of consoleKeys.exempt) {
+      expect(findingsOf(key, /no-(console|debugger)/), key).toEqual([])
+    }
+  })
+})

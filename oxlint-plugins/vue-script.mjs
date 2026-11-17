@@ -87,10 +87,16 @@ const resolver = context => {
     }
     return null
   }
-  const ImportDeclaration = node => {
-    if (node.source.value !== 'vue') {
-      return
+  // Imports are hoisted: the table is filled from the whole program on
+  // entry, so an import at the end of the file counts as well.
+  const Program = program => {
+    for (const node of program.body) {
+      if (node.type === 'ImportDeclaration' && node.source.value === 'vue') {
+        addVueImport(node)
+      }
     }
+  }
+  const addVueImport = node => {
     for (const specifier of node.specifiers) {
       if (specifier.type === 'ImportNamespaceSpecifier') {
         vueImports.set(specifier.local, '*')
@@ -102,7 +108,7 @@ const resolver = context => {
       }
     }
   }
-  return { binding, vueCallee, ImportDeclaration }
+  return { binding, vueCallee, Program }
 }
 
 /** `defineProps(...)` or `withDefaults(defineProps(...), ...)`. */
@@ -204,24 +210,75 @@ const optionPropNames = options => {
 
 const FUNCTIONS = new Set(['FunctionExpression', 'FunctionDeclaration'])
 
+/** Options whose function is called with the component as `this`. */
+const OWN_FUNCTIONS = new Set([
+  'data',
+  'setup',
+  'render',
+  'beforeCreate',
+  'created',
+  'beforeMount',
+  'mounted',
+  'beforeUpdate',
+  'updated',
+  'beforeUnmount',
+  'unmounted',
+  'activated',
+  'deactivated',
+  'errorCaptured',
+  'renderTracked',
+  'renderTriggered',
+  'serverPrefetch'
+])
+
+/** Options whose functions (or `{ get, set, handler }` objects) bind `this`. */
+const FUNCTION_GROUPS = new Set(['methods', 'computed', 'watch'])
+
+/** The property an object literal is the value of, if any. */
+const ownerProperty = object =>
+  object?.parent?.type === 'Property' && object.parent.value === object
+    ? object.parent
+    : null
+
+/** The options object a property of `group` sits in, if a component's. */
+const groupOwner = (object, vueCallee) => {
+  const group = ownerProperty(object)
+  return group &&
+    FUNCTION_GROUPS.has(propertyName(group)) &&
+    isComponentOptions(group.parent, vueCallee)
+    ? group.parent
+    : null
+}
+
 /**
- * The component options object `this` belongs to: the nearest options
- * object around it, unless a plain `function` in between rebinds `this`
- * (a method of a nested option object, `methods: { add() {} }`, does not).
+ * The component options object `this` belongs to. `this` is bound by the
+ * nearest plain function around it (arrow functions keep the outer one);
+ * that function counts only as a known option: `mounted() {}`, a method of
+ * `methods`, `computed` or `watch`, or `get`/`set`/`handler` of an entry
+ * there. A method of any other object (`const local = { add() {} }`) has
+ * its own `this`.
  */
 const thisOwner = (node, vueCallee) => {
-  for (let current = node.parent; current; current = current.parent) {
-    if (isComponentOptions(current, vueCallee)) {
-      return current
-    }
-    if (
-      FUNCTIONS.has(current.type) &&
-      !(current.parent?.type === 'Property' && current.parent.value === current)
-    ) {
-      return null
-    }
+  let fn = node.parent
+  while (fn && !FUNCTIONS.has(fn.type)) {
+    fn = fn.parent
   }
-  return null
+  const property = fn?.type === 'FunctionExpression' ? ownerProperty(fn) : null
+  if (!property) {
+    return null
+  }
+  const object = property.parent
+  if (
+    OWN_FUNCTIONS.has(propertyName(property)) &&
+    isComponentOptions(object, vueCallee)
+  ) {
+    return object
+  }
+  // `methods: { add() {} }`, or `computed: { x: { get() {} } }`.
+  return (
+    groupOwner(object, vueCallee) ??
+    groupOwner(ownerProperty(object)?.parent, vueCallee)
+  )
 }
 
 const noRefAsCondition = {
@@ -251,7 +308,7 @@ const noRefAsCondition = {
       }
     }
     return {
-      ImportDeclaration: scope.ImportDeclaration,
+      Program: scope.Program,
       VariableDeclarator(node) {
         if (
           node.id.type === 'Identifier' &&
@@ -339,7 +396,7 @@ const noMutatingProps = {
       }
     }
     return {
-      ImportDeclaration: scope.ImportDeclaration,
+      Program: scope.Program,
       VariableDeclarator(node) {
         if (isDefineProps(node.init, scope.vueCallee)) {
           bind(node.id)
@@ -494,7 +551,7 @@ const validDefaultProp = {
       }
     }
     return {
-      ImportDeclaration: scope.ImportDeclaration,
+      Program: scope.Program,
       CallExpression(node) {
         const name = scope.vueCallee(node)
         if (
