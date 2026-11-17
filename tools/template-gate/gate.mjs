@@ -496,10 +496,17 @@ export const checkSfc = (file, source, gates = GATES) => {
       templateReferenceSet.add(camel(element.tag))
       templateReferenceSet.add(pascal(element.tag))
       // `<Form.Input>` reads `Input` off the binding `Form` (a namespace
-      // import), unless a v-for alias or a slot prop of that name shadows it.
+      // import), unless a v-for alias or a slot prop of that name shadows
+      // it. The root resolves like a tag: `form-parts` as itself,
+      // `formParts` or `FormParts`.
       const dot = element.tag.indexOf('.')
-      if (dot > 0 && !aliases.has(element.tag.slice(0, dot))) {
-        templateReferenceSet.add(element.tag.slice(0, dot))
+      if (dot > 0) {
+        const root = element.tag.slice(0, dot)
+        for (const name of new Set([root, camel(root), pascal(root)])) {
+          if (!aliases.has(name)) {
+            templateReferenceSet.add(name)
+          }
+        }
       }
     }
 

@@ -238,6 +238,15 @@ import Child from './Child.vue'
         namespace
       )
     ).toEqual(['no-unused-imports@2:13'])
+    // The root resolves like a tag: itself, camelCase or PascalCase.
+    const parts = (name: string) =>
+      `<script setup lang="ts">\nimport * as ${name} from './form-components'\n</script>\n`
+    expect(check(`<form-parts.Input />`, parts('FormParts'))).toEqual([])
+    expect(check(`<form-parts.Input />`, parts('formParts'))).toEqual([])
+    expect(check(`<formParts.Input />`, parts('FormParts'))).toEqual([])
+    expect(check(`<other-parts.Input />`, parts('FormParts'))).toEqual([
+      'no-unused-imports@2:13'
+    ])
 
     const scriptOnly = (body: string) =>
       check(
