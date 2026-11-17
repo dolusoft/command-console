@@ -226,6 +226,29 @@ import Child from './Child.vue'
         `<script setup lang="ts">\nimport { helper } from './helper'\n</script>\n`
       )
     ).toEqual([])
+    // The same-name shorthand `:value` reads the binding `value`.
+    const named = (name: string) =>
+      `<script setup lang="ts">\nimport { ${name} } from './state'\n</script>\n`
+    expect(check(`<input :value />`, named('value'))).toEqual([])
+    expect(check(`<p :aria-label />`, named('ariaLabel'))).toEqual([])
+    expect(check(`<input :title />`, named('value'))).toEqual([
+      'no-unused-imports@2:10'
+    ])
+    expect(
+      check(
+        `<p v-for="value in list" :key="value"><input :value /></p>`,
+        named('value')
+      )
+    ).toEqual(['no-unused-imports@2:10'])
+    // `<style>` reads script bindings through v-bind().
+    const styled = (css: string) =>
+      checkSfc(
+        'x.vue',
+        `${named('brandColor')}<template><p></p></template>\n<style scoped>\np { color: ${css}; }\n</style>\n`
+      ).map(finding => finding.gate)
+    expect(styled('v-bind(brandColor)')).toEqual([])
+    expect(styled(`v-bind('brandColor')`)).toEqual([])
+    expect(styled('red')).toEqual(['no-unused-imports'])
     // A dotted tag uses its root binding: `<Form.Input>` uses `Form`.
     const namespace = `<script setup lang="ts">\nimport * as Form from './form-components'\n</script>\n`
     expect(check(`<Form.Input />`, namespace)).toEqual([])

@@ -559,6 +559,18 @@ export const checkSfc = (file, source, gates = GATES) => {
           inner,
           prop.name === 'on'
         )
+      } else if (
+        prop.name === 'bind' &&
+        !prop.exp &&
+        prop.arg?.type === NodeTypes.SIMPLE_EXPRESSION &&
+        prop.arg.isStatic
+      ) {
+        // The shorthand `:value` (Vue 3.4) reads the binding `value`;
+        // `:aria-label` reads `ariaLabel`.
+        const name = camel(prop.arg.content)
+        if (!inner.has(name)) {
+          templateReferenceSet.add(name)
+        }
       }
       if (
         prop.arg?.type === NodeTypes.SIMPLE_EXPRESSION &&
@@ -628,6 +640,10 @@ export const checkSfc = (file, source, gates = GATES) => {
 
   if (template) {
     visitChildren(template.children, new Set())
+  }
+  // `<style>` refers to script bindings through `v-bind(brandColor)`.
+  for (const expression of descriptor.cssVars ?? []) {
+    templateReferences(expression, templateReferenceSet, new Set())
   }
 
   if (enabled.has('no-unused-imports')) {
