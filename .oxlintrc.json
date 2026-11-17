@@ -16,8 +16,6 @@
   "ignorePatterns": ["dist", "coverage", "temp", ".vitest", "packages/*/dist"],
   "rules": {
     "curly": ["error", "all"],
-    "no-console": "error",
-    "no-debugger": "error",
     "eqeqeq": ["error", "always"],
     "for-direction": "error",
     "no-array-constructor": "error",
@@ -127,9 +125,10 @@
   },
   "overrides": [
     {
-      "files": ["scripts/**"],
+      "files": ["packages/*/src/**"],
       "rules": {
-        "no-console": "off"
+        "no-console": "error",
+        "no-debugger": "error"
       }
     },
     {
