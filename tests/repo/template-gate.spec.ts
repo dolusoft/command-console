@@ -240,6 +240,27 @@ import Child from './Child.vue'
         named('value')
       )
     ).toEqual(['no-unused-imports@2:10'])
+    // Slot props are in scope in the content only, not on the element:
+    // `:items` here reads the outer import.
+    expect(
+      check(
+        `<List :items v-slot="{ items }">{{ items }}</List>`,
+        named('items')
+      )
+    ).toEqual([])
+    expect(
+      check(
+        `<List :rows="items" v-slot="{ items }">{{ items }}</List>`,
+        named('items')
+      )
+    ).toEqual([])
+    expect(
+      check(`<List :rows v-slot="{ items }">{{ items }}</List>`, named('items'))
+    ).toEqual(['no-unused-imports@2:10'])
+    // A v-for alias is in scope on its own element.
+    expect(
+      check(`<Row v-for="items in list" :key="1" :items />`, named('items'))
+    ).toEqual(['no-unused-imports@2:10'])
     // `<style>` reads script bindings through v-bind().
     const styled = (css: string) =>
       checkSfc(

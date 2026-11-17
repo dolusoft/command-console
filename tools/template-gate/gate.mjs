@@ -530,11 +530,15 @@ export const checkSfc = (file, source, gates = GATES) => {
     for (const pattern of patterns) {
       templateReferences(`(${pattern}) => 0`, templateReferenceSet, aliases)
     }
-    const scoped = [
-      ...(forDirective ? aliasesOf(forDirective) : []),
-      ...(slot?.exp ? paramNames(slot.exp.content) : [])
-    ]
-    const inner = scoped.length ? new Set([...aliases, ...scoped]) : aliases
+    // v-for aliases are in scope on the element itself (`:key="item.id"`);
+    // slot props only in its content: `<List :items v-slot="{ items }">`
+    // binds the outer `items`.
+    const forAliases = forDirective ? aliasesOf(forDirective) : []
+    const slotProps = slot?.exp ? paramNames(slot.exp.content) : []
+    const own = forAliases.length
+      ? new Set([...aliases, ...forAliases])
+      : aliases
+    const inner = slotProps.length ? new Set([...own, ...slotProps]) : own
 
     for (const prop of element.props) {
       if (prop.type !== NodeTypes.DIRECTIVE) {
@@ -556,7 +560,7 @@ export const checkSfc = (file, source, gates = GATES) => {
         templateReferences(
           prop.exp.content,
           templateReferenceSet,
-          inner,
+          own,
           prop.name === 'on'
         )
       } else if (
@@ -568,7 +572,7 @@ export const checkSfc = (file, source, gates = GATES) => {
         // The shorthand `:value` (Vue 3.4) reads the binding `value`;
         // `:aria-label` reads `ariaLabel`.
         const name = camel(prop.arg.content)
-        if (!inner.has(name)) {
+        if (!own.has(name)) {
           templateReferenceSet.add(name)
         }
       }
@@ -576,7 +580,7 @@ export const checkSfc = (file, source, gates = GATES) => {
         prop.arg?.type === NodeTypes.SIMPLE_EXPRESSION &&
         !prop.arg.isStatic
       ) {
-        templateReferences(prop.arg.content, templateReferenceSet, aliases)
+        templateReferences(prop.arg.content, templateReferenceSet, own)
       }
     }
 
@@ -626,7 +630,7 @@ export const checkSfc = (file, source, gates = GATES) => {
       if (!problem && !expression) {
         problem = 'v-model needs a value'
       } else if (!problem) {
-        problem = modelTargetProblem(expression, inner)
+        problem = modelTargetProblem(expression, own)
       }
       if (problem) {
         report('valid-v-model', model.loc, `${problem}.`)
