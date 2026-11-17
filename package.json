@@ -29,7 +29,7 @@
     "lint": "pnpm lint:oxlint && pnpm lint:template && pnpm format:check",
     "lint:oxlint": "oxlint --deny-warnings --report-unused-disable-directives",
     "lint:template": "node tools/template-gate/cli.mjs",
-    "format:check": "prettier --check \"**/*.{js,mjs,ts,vue}\"",
+    "format:check": "prettier --check --ignore-path .prettierignore \"**/*.{js,mjs,ts,vue}\"",
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run --project unit",
     "test:coverage": "vitest run --project unit --coverage",

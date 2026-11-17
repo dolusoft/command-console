@@ -48,6 +48,20 @@ try {
 } catch (error) {
   fail(`cannot read the config ${configFile}: ${error.message}`)
 }
+// Every field is checked before use: a bad config exits 2, never with a crash.
+const isStringList = value =>
+  Array.isArray(value) && value.every(item => typeof item === 'string')
+if (!config || typeof config !== 'object' || Array.isArray(config)) {
+  fail(`the config ${configFile} is not a JSON object`)
+}
+if (!isStringList(config.paths)) {
+  fail(`the config ${configFile} needs "paths": a list of strings`)
+}
+for (const field of ['gates', 'ignoreSegments', 'ignorePaths']) {
+  if (config[field] !== undefined && !isStringList(config[field])) {
+    fail(`the config ${configFile} field "${field}" must be a list of strings`)
+  }
+}
 const root = resolve(import.meta.dirname, '..', '..')
 const gates = values.gates ? values.gates.split(',') : config.gates
 if (!Array.isArray(gates) || gates.length === 0) {

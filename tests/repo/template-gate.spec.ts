@@ -53,6 +53,12 @@ describe('template gate', () => {
         `<!-- template-gate-disable-next-line no-v-html -->\n<div v-html="html"></div>`
       )
     ).toEqual(['no-v-html@3:6'])
+    // The exemption covers the next element only, not a sibling on its line.
+    expect(
+      check(
+        `<!-- template-gate-disable-next-line no-v-html: trusted markup -->\n<b v-html="a"></b><i v-html="b"></i>`
+      )
+    ).toEqual(['no-v-html@3:22'])
     expect(check(`<div v-text="text"></div>`)).toEqual([])
   })
 
@@ -72,6 +78,10 @@ describe('template gate', () => {
     expect(
       check(`<template v-for="i in list"><b>{{ i }}</b></template>`)
     ).toEqual(['require-v-for-key@2:1'])
+    // A static key is the same on every element: it does not count.
+    expect(
+      check(`<ul><li v-for="i in list" key="static">{{ i }}</li></ul>`)
+    ).toEqual(['require-v-for-key@2:5'])
   })
 
   it('refuses v-if and v-for on one element', () => {
@@ -106,6 +116,15 @@ describe('template gate', () => {
         `<div v-for="item in list" :key="item.id"><input v-model="item.name" /></div>`
       )
     ).toEqual([])
+    // A native element takes no argument and only lazy, number and trim.
+    expect(check(`<input v-model:foo="value" />`)).toEqual([
+      'valid-v-model@2:8'
+    ])
+    expect(check(`<select v-model.capitalize="value"></select>`)).toEqual([
+      'valid-v-model@2:9'
+    ])
+    expect(check(`<input v-model.lazy.trim.number="value" />`)).toEqual([])
+    expect(check(`<MyField v-model:title.capitalize="value" />`)).toEqual([])
   })
 
   it('reports an import the script and the template never use', () => {
@@ -128,6 +147,53 @@ const list = ref<Item[]>([])
       'no-unused-imports@5:10',
       'no-unused-imports@6:10'
     ])
+  })
+
+  it('counts only real references, not strings, property names or shadowing locals', () => {
+    const script = `<script setup lang="ts">
+import Child from './Child.vue'
+</script>
+`
+    const unused = ['no-unused-imports@2:8']
+    expect(check(`<p>{{ 'Child' }}</p>`, script)).toEqual(unused)
+    expect(check(`<p>{{ row.Child }}</p>`, script)).toEqual(unused)
+    expect(check(`<p :title="{ Child: 1 }.Child"></p>`, script)).toEqual(unused)
+    expect(
+      check(`<p v-for="Child in list" :key="Child">{{ Child }}</p>`, script)
+    ).toEqual(unused)
+    expect(
+      check(`<List v-slot="{ Child }">{{ Child }}</List>`, script)
+    ).toEqual(unused)
+    expect(check(`<p @click="row.Child = 1"></p>`, script)).toEqual(unused)
+    // Still used: a reference in an expression, a handler or a v-for source.
+    expect(check(`<p>{{ pick(Child) }}</p>`, script)).toEqual([])
+    expect(check(`<p @click="show = true; open(Child)"></p>`, script)).toEqual(
+      []
+    )
+    expect(
+      check(`<p v-for="c in Child.items" :key="c">{{ c }}</p>`, script)
+    ).toEqual([])
+    expect(check(`<component :is="Child" />`, script)).toEqual([])
+
+    const scriptOnly = (body: string) =>
+      check(
+        `<p></p>`,
+        `<script setup lang="ts">\nimport Child from './Child.vue'\n${body}\n</script>\n`
+      )
+    expect(scriptOnly(`const row = { Child: 1 }; row.Child`)).toEqual(unused)
+    expect(scriptOnly(`const label = 'Child'`)).toEqual(unused)
+    expect(scriptOnly(`const f = (Child: number) => Child`)).toEqual(unused)
+    expect(
+      scriptOnly(`function g() { const Child = 1; return Child }`)
+    ).toEqual(unused)
+    expect(scriptOnly(`type T = { Child: string }`)).toEqual(unused)
+    expect(scriptOnly(`const views = { Child }`)).toEqual([])
+    expect(scriptOnly(`const f = () => Child`)).toEqual([])
+    expect(scriptOnly(`let v: typeof Child`)).toEqual([])
+    expect(
+      scriptOnly(`const f = (c: InstanceType<typeof Child>) => c`)
+    ).toEqual([])
+    expect(scriptOnly(`const views = { [Child.name]: 1 }`)).toEqual([])
   })
 
   it('runs only the selected gates', () => {
@@ -220,6 +286,22 @@ describe('template gate CLI', () => {
     expect(broken.stderr).toMatch(/Broken\.vue:1:11: the SFC does not parse/)
     expect(run('--gates', 'no-such-gate', 'Clean.vue').status).toBe(2)
     expect(run('Missing.vue').status).toBe(2)
+  })
+
+  it('exits 2, not 1, on a config with a missing or malformed field', () => {
+    const configs = {
+      'no-paths.json': { gates: ['no-v-html'] },
+      'bad-paths.json': { paths: 'packages' },
+      'bad-gates.json': { paths: ['.'], gates: 'no-v-html' },
+      'bad-ignore.json': { paths: ['.'], ignoreSegments: [1] },
+      'not-object.json': ['packages']
+    }
+    for (const [name, config] of Object.entries(configs)) {
+      writeFileSync(join(dir, name), JSON.stringify(config))
+      const result = run('--config', name)
+      expect(result.status, name).toBe(2)
+      expect(result.stderr, name).toMatch(/^template-gate: the config /)
+    }
   })
 
   it('passes on the repository with its own configuration', () => {

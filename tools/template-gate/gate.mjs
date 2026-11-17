@@ -7,7 +7,7 @@
 //   require-v-for-key    an element repeated with v-for has a :key
 //   no-v-if-with-v-for   v-if and v-for on the same element
 //   valid-v-model        v-model on a form element or a component, bound to an assignable value
-//   no-unused-imports    an import of a .vue file used neither by the script nor the template
+//   no-unused-imports    an import neither the script nor the template refers to
 //
 // A finding is silenced for one element by a comment right before it:
 //   <!-- template-gate-disable-next-line no-v-html: <reason> -->
@@ -32,19 +32,23 @@ const DISABLE = /^\s*template-gate-disable-next-line\s+([\w-]+)\s*:\s*\S/
 
 const FORM_ELEMENTS = new Set(['input', 'select', 'textarea'])
 
+/** The modifiers v-model knows on a native form element. */
+const NATIVE_MODEL_MODIFIERS = new Set(['lazy', 'number', 'trim'])
+
 const directive = (element, name) =>
   element.props.find(
     prop => prop.type === NodeTypes.DIRECTIVE && prop.name === name
   )
 
+// A static `key="row"` gives every repeated element the same key, so only a
+// bound `:key` counts.
 const hasKey = element =>
   element.props.some(
     prop =>
-      (prop.type === NodeTypes.ATTRIBUTE && prop.name === 'key') ||
-      (prop.type === NodeTypes.DIRECTIVE &&
-        prop.name === 'bind' &&
-        prop.arg?.type === NodeTypes.SIMPLE_EXPRESSION &&
-        prop.arg.content === 'key')
+      prop.type === NodeTypes.DIRECTIVE &&
+      prop.name === 'bind' &&
+      prop.arg?.type === NodeTypes.SIMPLE_EXPRESSION &&
+      prop.arg.content === 'key'
   )
 
 const staticAttribute = (element, name) =>
@@ -52,16 +56,237 @@ const staticAttribute = (element, name) =>
     prop => prop.type === NodeTypes.ATTRIBUTE && prop.name === name
   )?.value?.content
 
-const IDENTIFIER = /[A-Za-z_$][\w$]*/g
+// ---------------------------------------------------------------------------
+// References. An import counts as used only where a name really refers to it:
+// not a property name (`row.Child`, `{ Child: 1 }`), not text in a string
+// (`{{ 'Child' }}`), and not a local binding of the same name (a parameter,
+// a declaration in a nested scope, a v-for alias or a slot prop).
 
-/** Every identifier-like word of an expression (a superset of its references). */
-const wordsOf = text => text.match(IDENTIFIER) ?? []
+const FUNCTIONS = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+  'ObjectMethod',
+  'ClassMethod',
+  'ClassPrivateMethod'
+])
+
+/** The names a binding pattern declares: `{ a, b: [c], ...d }`. */
+const patternNames = (node, out = []) => {
+  if (!node) {
+    return out
+  }
+  switch (node.type) {
+    case 'Identifier':
+      out.push(node.name)
+      break
+    case 'ObjectPattern':
+      for (const property of node.properties) {
+        patternNames(
+          property.type === 'RestElement' ? property.argument : property.value,
+          out
+        )
+      }
+      break
+    case 'ArrayPattern':
+      node.elements.forEach(element => patternNames(element, out))
+      break
+    case 'AssignmentPattern':
+      patternNames(node.left, out)
+      break
+    case 'RestElement':
+      patternNames(node.argument, out)
+      break
+    case 'TSParameterProperty':
+      patternNames(node.parameter, out)
+      break
+  }
+  return out
+}
+
+/** The names a statement list declares in its own scope. */
+const declaredIn = statements => {
+  const names = []
+  for (const statement of statements) {
+    const declaration =
+      statement.type === 'ExportNamedDeclaration' && statement.declaration
+        ? statement.declaration
+        : statement
+    if (declaration.type === 'VariableDeclaration') {
+      declaration.declarations.forEach(item => patternNames(item.id, names))
+    } else if (
+      (declaration.type === 'FunctionDeclaration' ||
+        declaration.type === 'ClassDeclaration') &&
+      declaration.id
+    ) {
+      names.push(declaration.id.name)
+    }
+  }
+  return names
+}
+
+/** The names a node binds for its own subtree, or `null`. */
+const scopeOf = node => {
+  if (FUNCTIONS.has(node.type)) {
+    const names = node.params.flatMap(param => patternNames(param))
+    if (node.type === 'FunctionExpression' && node.id) {
+      names.push(node.id.name)
+    }
+    return names
+  }
+  switch (node.type) {
+    case 'BlockStatement':
+    case 'StaticBlock':
+      return declaredIn(node.body)
+    case 'SwitchStatement':
+      return declaredIn(node.cases.flatMap(item => item.consequent))
+    case 'CatchClause':
+      return patternNames(node.param)
+    case 'ForStatement':
+      return node.init?.type === 'VariableDeclaration'
+        ? declaredIn([node.init])
+        : null
+    case 'ForInStatement':
+    case 'ForOfStatement':
+      return node.left.type === 'VariableDeclaration'
+        ? declaredIn([node.left])
+        : null
+    case 'ClassExpression':
+      return node.id ? [node.id.name] : null
+    default:
+      return null
+  }
+}
+
+const NAME_KEYS = new Set([
+  'ObjectProperty',
+  'ObjectMethod',
+  'ClassProperty',
+  'ClassAccessorProperty',
+  'ClassMethod',
+  'ClassPrivateProperty',
+  'TSPropertySignature',
+  'TSMethodSignature'
+])
+
+/** Whether an identifier, by its position, is a name and not a reference. */
+const isName = (parent, key) =>
+  ((parent.type === 'MemberExpression' ||
+    parent.type === 'OptionalMemberExpression') &&
+    key === 'property' &&
+    !parent.computed) ||
+  (NAME_KEYS.has(parent.type) && key === 'key' && !parent.computed) ||
+  (parent.type === 'TSQualifiedName' && key === 'right') ||
+  (parent.type === 'TSEnumMember' && key === 'id') ||
+  key === 'label' ||
+  parent.type === 'MetaProperty'
+
+const SKIPPED_FIELDS = new Set([
+  'loc',
+  'start',
+  'end',
+  'extra',
+  'leadingComments',
+  'trailingComments',
+  'innerComments'
+])
+
+/**
+ * Adds to `out` the names `node` refers to that no local binding shadows.
+ * `locals` holds the names bound around `node` (v-for aliases, slot props).
+ */
+const collectReferences = (node, out, locals = new Set()) => {
+  const walk = (current, parent, key, scope) => {
+    if (
+      !current ||
+      typeof current.type !== 'string' ||
+      current.type === 'ImportDeclaration'
+    ) {
+      return
+    }
+    if (current.type === 'Identifier') {
+      if (!(parent && isName(parent, key)) && !scope.has(current.name)) {
+        out.add(current.name)
+      }
+      // `const x: Props` and `(u: Updater<T>) =>`: the annotation refers.
+      walk(current.typeAnnotation, current, 'typeAnnotation', scope)
+      return
+    }
+    const own = scopeOf(current)
+    const inner = own?.length ? new Set([...scope, ...own]) : scope
+    for (const [field, value] of Object.entries(current)) {
+      if (SKIPPED_FIELDS.has(field)) {
+        continue
+      }
+      if (Array.isArray(value)) {
+        value.forEach(item => walk(item, current, field, inner))
+      } else if (value && typeof value === 'object') {
+        walk(value, current, field, inner)
+      }
+    }
+  }
+  walk(node, null, null, locals)
+  return out
+}
+
+const TS = { plugins: ['typescript'] }
+
+/** A template expression as an AST; `null` when it does not parse. */
+const parseTemplateExpression = (text, statements = false) => {
+  try {
+    return parseExpression(text, TS)
+  } catch {
+    if (!statements) {
+      return null
+    }
+  }
+  try {
+    // A v-on handler may be statements: `count++; save()`.
+    return parseScript(text, TS).program
+  } catch {
+    return null
+  }
+}
+
+/** The names a parameter list binds: `{ item }` of a slot, `item, i` of a v-for. */
+const paramNames = text => {
+  const ast = parseTemplateExpression(`(${text}) => 0`)
+  return ast?.type === 'ArrowFunctionExpression'
+    ? ast.params.flatMap(param => patternNames(param))
+    : []
+}
 
 /** `v-for="(item, index) in list"`: the alias names. */
 const aliasesOf = forDirective => {
+  const result = forDirective.forParseResult
+  if (result) {
+    return [result.value, result.key, result.index]
+      .filter(Boolean)
+      .flatMap(item => paramNames(item.content))
+  }
   const source = forDirective.exp?.content ?? ''
-  const match = /^\s*([\s\S]*?)\s+(?:in|of)\s+[\s\S]*$/.exec(source)
-  return match ? wordsOf(match[1]) : []
+  const match = /^\s*\(?([\s\S]*?)\)?\s+(?:in|of)\s+[\s\S]*$/.exec(source)
+  return match ? paramNames(match[1]) : []
+}
+
+const IDENTIFIER = /[A-Za-z_$][\w$]*/g
+
+/**
+ * The references of a template expression. An expression that does not
+ * parse (the SFC compiler and the type check refuse it anyway) falls back to
+ * its identifier-like words, so it never reports a used import as unused.
+ */
+const templateReferences = (text, out, locals, statements = false) => {
+  const ast = parseTemplateExpression(text, statements)
+  if (ast) {
+    collectReferences(ast, out, locals)
+  } else {
+    for (const word of text.match(IDENTIFIER) ?? []) {
+      if (!locals.has(word)) {
+        out.add(word)
+      }
+    }
+  }
 }
 
 const pascal = tag =>
@@ -74,7 +299,7 @@ const camel = name =>
 const modelTargetProblem = (expression, aliases) => {
   let node
   try {
-    node = parseExpression(expression, { plugins: ['typescript'] })
+    node = parseExpression(expression, TS)
   } catch {
     return `"${expression}" is not an expression`
   }
@@ -100,10 +325,30 @@ const modelTargetProblem = (expression, aliases) => {
   return `"${expression}" cannot be assigned`
 }
 
+/** The problem of a v-model on a native form element, other than its value. */
+const nativeModelProblem = (element, model) => {
+  if (model.arg) {
+    const arg =
+      model.arg.type === NodeTypes.SIMPLE_EXPRESSION ? model.arg.content : '…'
+    return `v-model on <${element.tag}> takes no argument, got "${arg}"`
+  }
+  const modifiers = (model.modifiers ?? []).map(item =>
+    typeof item === 'string' ? item : item.content
+  )
+  const unknown = modifiers.filter(item => !NATIVE_MODEL_MODIFIERS.has(item))
+  if (unknown.length > 0) {
+    return `v-model on <${element.tag}> knows the modifiers lazy, number and trim, not "${unknown.join('", "')}"`
+  }
+  if (element.tag === 'input' && staticAttribute(element, 'type') === 'file') {
+    return 'v-model cannot bind <input type="file">: read the change event'
+  }
+  return null
+}
+
 /** The local names a script imports, with the location of each import. */
 const importsOf = (block, file) => {
   if (!block) {
-    return { imports: [], words: new Set() }
+    return { imports: [], references: new Set() }
   }
   let ast
   try {
@@ -132,31 +377,7 @@ const importsOf = (block, file) => {
       })
     }
   }
-  const words = new Set()
-  const walk = node => {
-    if (
-      !node ||
-      typeof node.type !== 'string' ||
-      node.type === 'ImportDeclaration'
-    ) {
-      return
-    }
-    if (node.type === 'Identifier') {
-      words.add(node.name)
-    }
-    for (const [key, value] of Object.entries(node)) {
-      if (key === 'loc' || key === 'start' || key === 'end') {
-        continue
-      }
-      if (Array.isArray(value)) {
-        value.forEach(walk)
-      } else if (value && typeof value === 'object') {
-        walk(value)
-      }
-    }
-  }
-  walk(ast.program)
-  return { imports, words }
+  return { imports, references: collectReferences(ast.program, new Set()) }
 }
 
 /**
@@ -188,7 +409,7 @@ export const checkSfc = (file, source, gates = GATES) => {
     }
   }
 
-  const templateWords = new Set()
+  const templateReferenceSet = new Set()
   const template = descriptor.template?.ast
 
   const visitChildren = (children, aliases) => {
@@ -221,36 +442,59 @@ export const checkSfc = (file, source, gates = GATES) => {
 
   const visit = (node, aliases) => {
     if (node.type === NodeTypes.INTERPOLATION) {
-      wordsOf(node.content.content).forEach(word => templateWords.add(word))
+      templateReferences(node.content.content, templateReferenceSet, aliases)
       return findings.length
     }
     if (node.type !== NodeTypes.ELEMENT) {
       return findings.length
     }
     const element = node
-    templateWords.add(element.tag)
-    templateWords.add(pascal(element.tag))
+    if (element.tagType === ElementTypes.COMPONENT) {
+      // Vue resolves `<child-view>` to `ChildView`, `childView` or itself.
+      templateReferenceSet.add(element.tag)
+      templateReferenceSet.add(camel(element.tag))
+      templateReferenceSet.add(pascal(element.tag))
+    }
+
+    const forDirective = directive(element, 'for')
+    const slot = directive(element, 'slot')
+    const scoped = [
+      ...(forDirective ? aliasesOf(forDirective) : []),
+      ...(slot?.exp ? paramNames(slot.exp.content) : [])
+    ]
+    const inner = scoped.length ? new Set([...aliases, ...scoped]) : aliases
+
     for (const prop of element.props) {
       if (prop.type !== NodeTypes.DIRECTIVE) {
         continue
       }
-      templateWords.add(`v${pascal(prop.name)}`)
-      templateWords.add(camel(`v-${prop.name}`))
-      if (prop.exp?.type === NodeTypes.SIMPLE_EXPRESSION) {
-        wordsOf(prop.exp.content).forEach(word => templateWords.add(word))
+      // A custom directive `v-focus` resolves to `vFocus`.
+      templateReferenceSet.add(`v${pascal(prop.name)}`)
+      if (prop === forDirective) {
+        const sourceText = prop.forParseResult?.source?.content
+        if (sourceText) {
+          templateReferences(sourceText, templateReferenceSet, aliases)
+        } else if (prop.exp?.content) {
+          templateReferences(prop.exp.content, templateReferenceSet, aliases)
+        }
+      } else if (
+        prop !== slot &&
+        prop.exp?.type === NodeTypes.SIMPLE_EXPRESSION
+      ) {
+        templateReferences(
+          prop.exp.content,
+          templateReferenceSet,
+          inner,
+          prop.name === 'on'
+        )
       }
       if (
         prop.arg?.type === NodeTypes.SIMPLE_EXPRESSION &&
         !prop.arg.isStatic
       ) {
-        wordsOf(prop.arg.content).forEach(word => templateWords.add(word))
+        templateReferences(prop.arg.content, templateReferenceSet, aliases)
       }
     }
-
-    const forDirective = directive(element, 'for')
-    const inner = forDirective
-      ? new Set([...aliases, ...aliasesOf(forDirective)])
-      : aliases
 
     const html = directive(element, 'html')
     if (html) {
@@ -292,16 +536,12 @@ export const checkSfc = (file, source, gates = GATES) => {
       let problem = null
       if (!isComponent && !FORM_ELEMENTS.has(element.tag)) {
         problem = `v-model works on <input>, <select>, <textarea> and components, not on <${element.tag}>`
-      } else if (
-        !isComponent &&
-        element.tag === 'input' &&
-        staticAttribute(element, 'type') === 'file'
-      ) {
-        problem =
-          'v-model cannot bind <input type="file">: read the change event'
-      } else if (!expression) {
+      } else if (!isComponent) {
+        problem = nativeModelProblem(element, model)
+      }
+      if (!problem && !expression) {
         problem = 'v-model needs a value'
-      } else {
+      } else if (!problem) {
         problem = modelTargetProblem(expression, inner)
       }
       if (problem) {
@@ -321,7 +561,11 @@ export const checkSfc = (file, source, gates = GATES) => {
   if (enabled.has('no-unused-imports')) {
     const script = importsOf(descriptor.script, file)
     const setup = importsOf(descriptor.scriptSetup, file)
-    const used = new Set([...script.words, ...setup.words, ...templateWords])
+    const used = new Set([
+      ...script.references,
+      ...setup.references,
+      ...templateReferenceSet
+    ])
     for (const item of [...script.imports, ...setup.imports]) {
       if (!used.has(item.name)) {
         report(

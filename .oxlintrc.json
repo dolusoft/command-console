@@ -16,6 +16,8 @@
   "ignorePatterns": ["dist", "coverage", "temp", ".vitest", "packages/*/dist"],
   "rules": {
     "curly": ["error", "all"],
+    "no-console": "error",
+    "no-debugger": "error",
     "eqeqeq": ["error", "always"],
     "for-direction": "error",
     "no-array-constructor": "error",
@@ -124,6 +126,12 @@
     "vue/valid-next-tick": "error"
   },
   "overrides": [
+    {
+      "files": ["scripts/**"],
+      "rules": {
+        "no-console": "off"
+      }
+    },
     {
       "files": ["**/*.{js,mjs,vue}"],
       "rules": {

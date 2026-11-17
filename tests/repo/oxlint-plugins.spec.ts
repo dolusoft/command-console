@@ -61,14 +61,24 @@ describe('vue-script/no-ref-as-condition', () => {
         `const open = ref(false); if (open.value) {}`,
         `const n = computed(() => 1); const x = n.value ? 1 : 2`,
         `const plain = false; if (plain) {}`,
-        `const r = ref(0); const x = r ?? 1`
+        `const r = ref(0); const x = r ?? 1`,
+        `import { ref as makeRef } from 'vue'; const r = makeRef(false); if (r.value) {}`,
+        `import { makeRef } from './other'; const r = makeRef(false); if (r) {}`,
+        // A parameter or a nested binding of the same name is not the ref.
+        `const open = ref(false); function f(open: boolean) { if (open) {} }`,
+        `const open = ref(false); const g = () => { const open = true; return open ? 1 : 2 }`
       ],
       invalid: [
         `const open = ref(false); if (open) {}`,
         `const n = computed(() => 1); const x = n ? 1 : 2`,
         `const s = shallowRef(null); const y = !s`,
         `const t = toRef(o, 'a'); const z = t && 1`,
-        `const r = ref(0); while (r) {}`
+        `const r = ref(0); while (r) {}`,
+        // Through an alias or a namespace import of 'vue'.
+        `import { ref as makeRef } from 'vue'; const r = makeRef(false); if (r) {}`,
+        `import { computed as derive } from 'vue'; const c = derive(() => 1); const x = c ? 1 : 2`,
+        `import * as Vue from 'vue'; const r = Vue.ref(false); if (r) {}`,
+        `const open = ref(false); function f(other: boolean) { if (open) {} }`
       ].map(code => ({ code, errors: 1 }))
     })
   })
@@ -81,7 +91,10 @@ describe('vue-script/no-mutating-props', () => {
         `const props = defineProps<{ items: string[] }>(); const copy = [...props.items]; copy.push('x')`,
         `const props = defineProps<{ a: number }>(); const local = { a: props.a }; local.a = 2`,
         `const other = { items: [] as string[] }; other.items.push('x')`,
-        `const props = defineProps<{ items: string[] }>(); props.items.map(item => item)`
+        `const props = defineProps<{ items: string[] }>(); props.items.map(item => item)`,
+        `const { items } = defineProps<{ items: string[] }>(); const copy = [...items]; copy.push('x')`,
+        `const { items } = defineProps<{ items: string[] }>(); items.map(item => item)`,
+        `export default { props: { items: Array }, data: () => ({ local: [] }), methods: { add() { this.local.push(1); this.items.map(i => i) } } }`
       ],
       invalid: [
         `const props = defineProps<{ items: string[] }>(); props.items.push('x')`,
@@ -89,7 +102,19 @@ describe('vue-script/no-mutating-props', () => {
         `const props = withDefaults(defineProps<{ n: number }>(), { n: 1 }); props.n++`,
         `const props = defineProps<{ map: Map<string, number> }>(); props.map.clear()`,
         `const props = defineProps<{ o: Record<string, number> }>(); delete props.o.k`,
-        `export default defineComponent({ setup(props) { props.list.sort() } })`
+        `export default defineComponent({ setup(props) { props.list.sort() } })`,
+        // Destructured props: the nested values still belong to the parent.
+        `const { items } = defineProps<{ items: string[] }>(); items.push('x')`,
+        `const { items: list } = defineProps<{ items: string[] }>(); list.sort()`,
+        `const { deep } = defineProps<{ deep: { a: number } }>(); deep.a = 2`,
+        `const { o = {} } = defineProps<{ o?: Record<string, number> }>(); delete o.k`,
+        `const { n, ...rest } = defineProps<{ n: number; m: { a: number } }>(); rest.m.a++`,
+        `export default defineComponent({ setup({ list }) { list.reverse() } })`,
+        // Options API: a prop read through `this`.
+        `export default { props: { items: Array }, methods: { add() { this.items.push(1) } } }`,
+        `export default { methods: { add() { this.items.push(1) } }, props: ['items'] }`,
+        `export default defineComponent({ props: { n: Number }, methods: { inc() { this.n++ } } })`,
+        `export default { props: { deep: Object }, methods: { set() { this.deep.a = 1 } } }`
       ].map(code => ({ code, errors: 1 }))
     })
   })
@@ -103,14 +128,24 @@ describe('vue-script/valid-default-prop', () => {
         `defineProps({ label: { type: String, default: 'x' } })`,
         `defineProps({ size: { type: [String, Number], default: 2 } })`,
         `withDefaults(defineProps<{ items?: string[] }>(), { items: () => [] })`,
-        `defineComponent({ props: { o: { type: Object, default: () => ({}) } } })`
+        `defineComponent({ props: { o: { type: Object, default: () => ({}) } } })`,
+        `export default { props: { items: { type: Array, default: () => [] } } }`,
+        `const other = { props: { items: { type: Array, default: [] } } }`,
+        `defineProps({ o: { type: [Object, Array], default: () => [] } })`,
+        `defineProps({ fn: { type: Function, default: () => 1 } })`
       ],
       invalid: [
         `defineProps({ items: { type: Array, default: [] } })`,
         `defineProps({ label: { type: String, default: 1 } })`,
         `defineProps({ flag: { type: Boolean, default: 'yes' } })`,
         `withDefaults(defineProps<{ o?: object }>(), { o: {} })`,
-        `defineComponent({ props: { o: { type: Object, default: {} } } })`
+        `defineComponent({ props: { o: { type: Object, default: {} } } })`,
+        `export default { props: { items: { type: Array, default: [] } } }`,
+        `export default { props: { label: { type: String, default: 1 } } }`,
+        // A factory must return the declared type.
+        `defineProps({ items: { type: Array, default: () => ({}) } })`,
+        `defineProps({ o: { type: Object, default: () => [] } })`,
+        `defineProps({ o: { type: Object, default() { return 'x' } } })`
       ].map(code => ({ code, errors: 1 }))
     })
   })
