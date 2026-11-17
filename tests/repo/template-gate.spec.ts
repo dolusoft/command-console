@@ -213,6 +213,19 @@ import Child from './Child.vue'
     expect(
       check(`<List v-slot="{ label = other }">{{ label }}</List>`, script)
     ).toEqual(unused)
+    // A slot binding of the import's name declares a local, it does not use it.
+    expect(
+      check(
+        `<List v-slot="{ helper }">{{ helper }}</List>`,
+        `<script setup lang="ts">\nimport { helper } from './helper'\n</script>\n`
+      )
+    ).toEqual(['no-unused-imports@2:10'])
+    expect(
+      check(
+        `<List v-slot="{ item }">{{ helper(item) }}</List>`,
+        `<script setup lang="ts">\nimport { helper } from './helper'\n</script>\n`
+      )
+    ).toEqual([])
 
     const scriptOnly = (body: string) =>
       check(

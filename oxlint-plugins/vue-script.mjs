@@ -477,8 +477,17 @@ const valueKind = node => {
   return null
 }
 
-/** What a default factory returns, when it is one plain expression. */
-const factoryResult = node => {
+const isFunction = node =>
+  node?.type === 'ArrowFunctionExpression' ||
+  node?.type === 'FunctionExpression' ||
+  node?.type === 'FunctionDeclaration'
+
+/**
+ * Every value a default factory returns: the arrow body, or the argument of
+ * each `return` in its body, those of nested functions aside. `null` when
+ * the default is not a function.
+ */
+const factoryResults = node => {
   if (
     node?.type !== 'ArrowFunctionExpression' &&
     node?.type !== 'FunctionExpression'
@@ -486,12 +495,29 @@ const factoryResult = node => {
     return null
   }
   if (node.body.type !== 'BlockStatement') {
-    return node.body
+    return [node.body]
   }
-  const statement = node.body.body.at(-1)
-  return node.body.body.length === 1 && statement.type === 'ReturnStatement'
-    ? statement.argument
-    : null
+  const results = []
+  const walk = current => {
+    if (!current || typeof current.type !== 'string' || isFunction(current)) {
+      return
+    }
+    if (current.type === 'ReturnStatement') {
+      results.push(current.argument)
+    }
+    for (const [key, value] of Object.entries(current)) {
+      if (key === 'parent' || key === 'range' || key === 'loc') {
+        continue
+      }
+      if (Array.isArray(value)) {
+        value.forEach(walk)
+      } else if (value && typeof value === 'object') {
+        walk(value)
+      }
+    }
+  }
+  node.body.body.forEach(walk)
+  return results
 }
 
 const validDefaultProp = {
@@ -534,19 +560,20 @@ const validDefaultProp = {
         // A literal default, or the value a factory returns (`() => ({})`).
         // A type outside the table (`Function`, a class) accepts anything.
         const types = typeNames(field('type'))
-        const kind = valueKind(factoryResult(value) ?? value)
         const expected = types.map(type => KIND_OF_TYPE[type])
-        if (
-          kind &&
-          types.length > 0 &&
-          expected.every(Boolean) &&
-          !expected.includes(kind)
-        ) {
-          context.report({
-            node: value,
-            messageId: 'type',
-            data: { name, kind, types: types.join(' or ') }
-          })
+        if (types.length === 0 || !expected.every(Boolean)) {
+          continue
+        }
+        for (const result of factoryResults(value) ?? [value]) {
+          const kind = valueKind(result)
+          if (kind && !expected.includes(kind)) {
+            context.report({
+              node: result ?? value,
+              messageId: 'type',
+              data: { name, kind, types: types.join(' or ') }
+            })
+            break
+          }
         }
       }
     }

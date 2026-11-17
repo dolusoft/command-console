@@ -117,7 +117,10 @@ describe('vue-script/no-mutating-props', () => {
         `export default { props: ['items'], methods: { run() { const local = { items: [0], add() { this.items.push(1) } }; local.add() } } }`,
         `export default { props: ['items'], mounted() { const local = { items: [0], add() { this.items.push(1) } } } }`,
         // An option that is not a known function option does not bind \`this\`.
-        `export default { props: ['items'], custom: { add() { this.items.push(1) } } }`
+        `export default { props: ['items'], custom: { add() { this.items.push(1) } } }`,
+        // A \`setup\` method of an object that is not a component.
+        `export const service = { setup(state) { state.items.push('x') } }`,
+        `const service = { setup: ({ items }) => { items.push('x') } }`
       ],
       invalid: [
         `const props = defineProps<{ items: string[] }>(); props.items.push('x')`,
@@ -168,7 +171,11 @@ describe('vue-script/valid-default-prop', () => {
         `defineProps({ fn: { type: Function, default: () => 1 } })`,
         // A shadowing local function is not the Vue macro or helper.
         `function f(defineProps: (o: object) => void) { defineProps({ items: { type: Array, default: [] } }) }`,
-        `import { defineComponent } from './local'; defineComponent({ props: { o: { type: Object, default: {} } } })`
+        `import { defineComponent } from './local'; defineComponent({ props: { o: { type: Object, default: {} } } })`,
+        // Every return matches; a nested function's returns are its own.
+        `defineProps({ items: { type: Array, default(x) { if (x) { return [1] } return [] } } })`,
+        `defineProps({ items: { type: Array, default() { const f = () => ({}); return [f()] } } })`,
+        `defineProps({ items: { type: Array, default() { function g() { return 'x' } return [g()] } } })`
       ],
       invalid: [
         `defineProps({ items: { type: Array, default: [] } })`,
@@ -185,7 +192,10 @@ describe('vue-script/valid-default-prop', () => {
         // A literal default that is not an object or an array.
         `defineProps({ items: { type: Array, default: 1 } })`,
         `defineProps({ o: { type: Object, default: 'x' } })`,
-        `import { defineComponent as dc } from 'vue'; dc({ props: { o: { type: Object, default: {} } } })`
+        `import { defineComponent as dc } from 'vue'; dc({ props: { o: { type: Object, default: {} } } })`,
+        // Any return of the factory, not only the last one.
+        `defineProps({ items: { type: Array, default(x) { if (x) return {}; return [] } } })`,
+        `defineProps({ items: { type: Array, default(x) { for (const y of x) { if (y) return 'no' } return [] } } })`
       ].map(code => ({ code, errors: 1 }))
     })
   })
