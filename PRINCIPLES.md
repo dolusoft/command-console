@@ -8,7 +8,7 @@ The behavior rules (`C-nn`) are in [contract/rules.md](contract/rules.md); the g
 
 The library parses, dispatches and renders; what a command means, which data it reads and where it sends it is the consumer's. No `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `localStorage`, `sessionStorage`, `indexedDB` or `document.cookie` in any `src/`.
 
-Check: ESLint restricted globals/properties over every package's `src/`; C-50.
+Check: oxlint restricted globals/properties over every package's `src/` (`.oxlintrc.json`); C-50.
 
 ## P2 Lasting state can be controlled; internal state is short-lived
 
@@ -86,7 +86,7 @@ Check: review; C-46.
 
 protocol → core → vue. Inside core, an optional feature imports only `shared/`, the store and the protocol; never another feature.
 
-Check: the ESLint `layers/boundaries` rule (copied from Query Table, tested in `tests/repo/eslint-layers.spec.ts`), `pnpm check:deps`.
+Check: the `layers/boundaries` oxlint rule (copied from Query Table, tested in `tests/repo/lint-fences.spec.ts`), `pnpm check:deps`.
 
 ## P15 The core holds the console; there is no second copy
 

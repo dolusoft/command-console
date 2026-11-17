@@ -16,7 +16,7 @@ Recall, completion and a context stack are what make a console pleasant, but not
 ## Consequences
 
 - Features are constructed in a fixed order (console, entries, input, dispatch, recall, completion, context); that order and "no feature overwrites another's method" are internal invariants tested inside `src/`.
-- The ESLint `layers/boundaries` rule holds the fence (P14): a feature in `features/<name>/` imports only its own files, `shared/`, the store and the protocol; `shared/` imports only itself and the store; `core/` never imports a feature. A feature and `shared/` may import `core/` for types only, since the instance and state types a feature implements against live there and erase at build.
+- The `layers/boundaries` lint rule (`oxlint-plugins/layers.mjs`) holds the fence (P14): a feature in `features/<name>/` imports only its own files, `shared/`, the store and the protocol; `shared/` imports only itself and the store; `core/` never imports a feature. A feature and `shared/` may import `core/` for types only, since the instance and state types a feature implements against live there and erase at build.
 
 ## Trade-off
 

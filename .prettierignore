@@ -3,3 +3,9 @@ CONTRACT.md
 contract/rules.md
 PRINCIPLES.md
 packages/*/etc/
+# The folders ESLint ignored (globalIgnores) when it ran Prettier; the
+# format check reads this file only, not .gitignore.
+dist
+coverage
+temp
+.vitest

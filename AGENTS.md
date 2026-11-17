@@ -18,7 +18,7 @@ Read this before changing anything. It is short on purpose; the details live in 
 
 ## Layers (P14)
 
-protocol → core → vue. Imports point only that way (`scripts/eslint-layers.mjs`).
+protocol → core → vue. Imports point only that way (`oxlint-plugins/layers.mjs`).
 
 - `@dolusoft/command-protocol`: no dependency. JSON types and the tokenizer.
 - `@dolusoft/command-console-core`: the protocol only. No DOM, no clock, no timer: it sees `KeyInput`, never a DOM event.

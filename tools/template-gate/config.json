@@ -1,0 +1,19 @@
+{
+  "paths": ["."],
+  "ignoreSegments": [
+    ".git",
+    "node_modules",
+    "dist",
+    "coverage",
+    "temp",
+    ".vitest"
+  ],
+  "ignorePaths": [],
+  "gates": [
+    "no-v-html",
+    "require-v-for-key",
+    "no-v-if-with-v-for",
+    "valid-v-model",
+    "no-unused-imports"
+  ]
+}

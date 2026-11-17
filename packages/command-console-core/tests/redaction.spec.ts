@@ -196,7 +196,6 @@ describe('C-34 No error text', () => {
         command('async', () => pending.promise),
         command('value', () => {
           // A thrown non-Error value is not rendered either.
-          // eslint-disable-next-line @typescript-eslint/only-throw-error
           throw 'hunter2 string'
         })
       ],
