@@ -24,7 +24,7 @@ Tests import the packages by name, never `packages/*/src/` (except the internal 
 ## Commands
 
 - `pnpm build`: the `dist/` of the three packages.
-- `pnpm lint`, `pnpm typecheck`.
+- `pnpm lint`: oxlint (`.oxlintrc.json`, local rules in `oxlint-plugins/`), the template gate (`tools/template-gate/`, the `<template>` checks oxlint cannot make) and `prettier --check`. `pnpm typecheck`.
 - `pnpm test`: the `unit` project (happy-dom): internal specs in `packages/*/src`, package specs in `packages/*/tests`, `tests/contract/unit` and `tests/repo`. `pnpm test:coverage` adds coverage (below).
 - `pnpm test:browser`: the `browser` project (Vitest Browser Mode, Playwright Chromium), `*.browser.spec.ts` in `tests/contract/browser` and `packages/*/tests`. Headed by default; `pnpm test:browser:headless` (or `HEADLESS=1`, or `CI=true`) runs without a window. First run: `pnpm exec playwright install chromium`. The script runs Vitest under a time limit and retries once on an infrastructure failure. The server listens on `127.0.0.1:51325`; `VITEST_BROWSER_PORT` moves it so two clones can run at once. `pnpm test:browser:inspect` keeps the browser and the dev server up (CDP on `127.0.0.1:9333`).
 - `pnpm contract:gen` writes `CONTRACT.md`; `pnpm contract:check` fails when it is stale. It is generated from `contract/rules.md`, `contract/dom.ts`, `packages/command-console/src/contract.ts` and the component.

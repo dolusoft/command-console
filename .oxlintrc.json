@@ -1,0 +1,555 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "vue", "import"],
+  "jsPlugins": [
+    "./oxlint-plugins/layers.mjs",
+    "./oxlint-plugins/fences.mjs",
+    "./oxlint-plugins/vue-script.mjs"
+  ],
+  "categories": {
+    "correctness": "off"
+  },
+  "env": {
+    "browser": true,
+    "es2024": true
+  },
+  "ignorePatterns": ["dist", "coverage", "temp", ".vitest", "packages/*/dist"],
+  "rules": {
+    "curly": ["error", "all"],
+    "eqeqeq": ["error", "always"],
+    "for-direction": "error",
+    "no-array-constructor": "error",
+    "no-async-promise-executor": "error",
+    "no-case-declarations": "error",
+    "no-compare-neg-zero": "error",
+    "no-cond-assign": "error",
+    "no-constant-binary-expression": "error",
+    "no-constant-condition": "error",
+    "no-control-regex": "error",
+    "no-delete-var": "error",
+    "no-dupe-else-if": "error",
+    "no-duplicate-case": "error",
+    "no-empty": "error",
+    "no-empty-character-class": "error",
+    "no-empty-pattern": "error",
+    "no-empty-static-block": "error",
+    "no-ex-assign": "error",
+    "no-extra-boolean-cast": "error",
+    "no-fallthrough": "error",
+    "no-global-assign": "error",
+    "no-invalid-regexp": "error",
+    "no-irregular-whitespace": "error",
+    "no-loss-of-precision": "error",
+    "no-misleading-character-class": "error",
+    "no-nonoctal-decimal-escape": "error",
+    "no-prototype-builtins": "error",
+    "no-regex-spaces": "error",
+    "no-self-assign": "error",
+    "no-shadow": "error",
+    "no-shadow-restricted-names": "error",
+    "no-sparse-arrays": "error",
+    "no-unassigned-vars": "error",
+    "no-unsafe-finally": "error",
+    "no-unsafe-optional-chaining": "error",
+    "no-unused-expressions": "error",
+    "no-unused-labels": "error",
+    "no-unused-private-class-members": "error",
+    "no-unused-vars": "error",
+    "no-useless-backreference": "error",
+    "no-useless-catch": "error",
+    "no-useless-escape": "error",
+    "preserve-caught-error": "error",
+    "require-yield": "error",
+    "typescript/ban-ts-comment": "error",
+    "typescript/consistent-type-imports": [
+      "error",
+      {
+        "prefer": "type-imports",
+        "fixStyle": "inline-type-imports"
+      }
+    ],
+    "typescript/no-duplicate-enum-values": "error",
+    "typescript/no-empty-object-type": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-extra-non-null-assertion": "error",
+    "typescript/no-misused-new": "error",
+    "typescript/no-namespace": "error",
+    "typescript/no-non-null-asserted-optional-chain": "error",
+    "typescript/no-require-imports": "error",
+    "typescript/no-this-alias": "error",
+    "typescript/no-unnecessary-type-constraint": "error",
+    "typescript/no-unsafe-declaration-merging": "error",
+    "typescript/no-unsafe-function-type": "error",
+    "typescript/no-wrapper-object-types": "error",
+    "typescript/prefer-as-const": "error",
+    "typescript/prefer-namespace-keyword": "error",
+    "typescript/triple-slash-reference": "error",
+    "use-isnan": "error",
+    "valid-typeof": "error",
+    "vue/component-definition-name-casing": "error",
+    "vue/no-arrow-functions-in-watch": "error",
+    "vue/no-async-in-computed-properties": "error",
+    "vue/no-computed-properties-in-data": "error",
+    "vue/no-deprecated-data-object-declaration": "error",
+    "vue/no-deprecated-delete-set": "error",
+    "vue/no-deprecated-destroyed-lifecycle": "error",
+    "vue/no-deprecated-events-api": "error",
+    "vue/no-deprecated-model-definition": "error",
+    "vue/no-deprecated-props-default-this": "error",
+    "vue/no-deprecated-vue-config-keycodes": "error",
+    "vue/no-dupe-keys": "error",
+    "vue/no-export-in-script-setup": "error",
+    "vue/no-expose-after-await": "error",
+    "vue/no-lifecycle-after-await": "error",
+    "vue/no-multiple-slot-args": "error",
+    "vue/no-required-prop-with-default": "error",
+    "vue/no-reserved-component-names": "error",
+    "vue/no-reserved-keys": "error",
+    "vue/no-reserved-props": "error",
+    "vue/no-shared-component-data": "error",
+    "vue/no-side-effects-in-computed-properties": "error",
+    "vue/no-watch-after-await": "error",
+    "vue/prefer-import-from-vue": "error",
+    "vue/prop-name-casing": "error",
+    "vue/require-default-prop": "error",
+    "vue/require-prop-type-constructor": "error",
+    "vue/require-prop-types": "error",
+    "vue/require-render-return": "error",
+    "vue/require-slots-as-functions": "error",
+    "vue/return-in-computed-property": "error",
+    "vue/return-in-emits-validator": "error",
+    "vue/valid-define-emits": "error",
+    "vue/valid-define-options": "error",
+    "vue/valid-define-props": "error",
+    "vue/valid-next-tick": "error"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.{js,mjs,vue}"],
+      "rules": {
+        "constructor-super": "error",
+        "getter-return": "error",
+        "no-class-assign": "error",
+        "no-const-assign": "error",
+        "no-dupe-class-members": "error",
+        "no-dupe-keys": "error",
+        "no-func-assign": "error",
+        "no-import-assign": "error",
+        "no-new-native-nonconstructor": "error",
+        "no-obj-calls": "error",
+        "no-redeclare": "error",
+        "no-setter-return": "error",
+        "no-this-before-super": "error",
+        "no-unreachable": "error",
+        "no-unsafe-negation": "error",
+        "no-with": "error"
+      }
+    },
+    {
+      "files": ["**/*.ts"],
+      "rules": {
+        "no-var": "error",
+        "prefer-const": "error",
+        "prefer-rest-params": "error",
+        "prefer-spread": "error"
+      }
+    },
+    {
+      "files": ["**/*.{ts,vue}"],
+      "rules": {
+        "vue-script/no-ref-as-condition": "error",
+        "vue-script/no-mutating-props": "error",
+        "vue-script/valid-default-prop": "error"
+      }
+    },
+    {
+      "files": ["**/*.{js,mjs}", "*.config.ts", "packages/*/*.config.ts"],
+      "env": {
+        "node": true
+      }
+    },
+    {
+      "files": [
+        "tests/**",
+        "packages/*/src/**/*.spec.ts",
+        "packages/*/tests/**"
+      ],
+      "env": {
+        "browser": true,
+        "node": true
+      }
+    },
+    {
+      "files": ["packages/*/src/**/*.{ts,vue}"],
+      "rules": {
+        "layers/boundaries": "error",
+        "import/no-cycle": "error"
+      }
+    },
+    {
+      "files": ["packages/*/src/**", "contract/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/tests/**", "**/tests", "tests/**"],
+                "message": "Library code must not import from tests/."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/command-console/src/**", "contract/**"],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          {
+            "name": "fetch",
+            "message": "The console does not use the network; commands do (P1)."
+          },
+          {
+            "name": "XMLHttpRequest",
+            "message": "The console does not use the network; commands do (P1)."
+          },
+          {
+            "name": "WebSocket",
+            "message": "The console does not use the network; commands do (P1)."
+          },
+          {
+            "name": "EventSource",
+            "message": "The console does not use the network; commands do (P1)."
+          },
+          {
+            "name": "localStorage",
+            "message": "The console does not persist state; the consumer does (P1)."
+          },
+          {
+            "name": "sessionStorage",
+            "message": "The console does not persist state; the consumer does (P1)."
+          },
+          {
+            "name": "indexedDB",
+            "message": "The console does not persist state; the consumer does (P1)."
+          }
+        ],
+        "no-restricted-properties": [
+          "error",
+          {
+            "object": "window",
+            "property": "fetch",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "globalThis",
+            "property": "fetch",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "self",
+            "property": "fetch",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "window",
+            "property": "XMLHttpRequest",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "globalThis",
+            "property": "XMLHttpRequest",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "self",
+            "property": "XMLHttpRequest",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "window",
+            "property": "WebSocket",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "globalThis",
+            "property": "WebSocket",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "self",
+            "property": "WebSocket",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "window",
+            "property": "EventSource",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "globalThis",
+            "property": "EventSource",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "self",
+            "property": "EventSource",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "window",
+            "property": "localStorage",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "globalThis",
+            "property": "localStorage",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "self",
+            "property": "localStorage",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "window",
+            "property": "sessionStorage",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "globalThis",
+            "property": "sessionStorage",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "self",
+            "property": "sessionStorage",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "window",
+            "property": "indexedDB",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "globalThis",
+            "property": "indexedDB",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "self",
+            "property": "indexedDB",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "document",
+            "property": "cookie",
+            "message": "No storage access in the library (P1)."
+          }
+        ],
+        "fences/no-global-listeners": "error"
+      }
+    },
+    {
+      "files": [
+        "packages/command-protocol/src/**",
+        "packages/command-console-core/src/**"
+      ],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          {
+            "name": "fetch",
+            "message": "The console does not use the network; commands do (P1)."
+          },
+          {
+            "name": "XMLHttpRequest",
+            "message": "The console does not use the network; commands do (P1)."
+          },
+          {
+            "name": "WebSocket",
+            "message": "The console does not use the network; commands do (P1)."
+          },
+          {
+            "name": "EventSource",
+            "message": "The console does not use the network; commands do (P1)."
+          },
+          {
+            "name": "localStorage",
+            "message": "The console does not persist state; the consumer does (P1)."
+          },
+          {
+            "name": "sessionStorage",
+            "message": "The console does not persist state; the consumer does (P1)."
+          },
+          {
+            "name": "indexedDB",
+            "message": "The console does not persist state; the consumer does (P1)."
+          },
+          {
+            "name": "document",
+            "message": "The protocol and the core have no DOM, clock or timer; the Vue package reads them (P14)."
+          },
+          {
+            "name": "window",
+            "message": "The protocol and the core have no DOM, clock or timer; the Vue package reads them (P14)."
+          },
+          {
+            "name": "navigator",
+            "message": "The protocol and the core have no DOM, clock or timer; the Vue package reads them (P14)."
+          },
+          {
+            "name": "performance",
+            "message": "The protocol and the core have no DOM, clock or timer; the Vue package reads them (P14)."
+          },
+          {
+            "name": "setTimeout",
+            "message": "The protocol and the core have no DOM, clock or timer; the Vue package reads them (P14)."
+          },
+          {
+            "name": "setInterval",
+            "message": "The protocol and the core have no DOM, clock or timer; the Vue package reads them (P14)."
+          },
+          {
+            "name": "requestAnimationFrame",
+            "message": "The protocol and the core have no DOM, clock or timer; the Vue package reads them (P14)."
+          },
+          {
+            "name": "requestIdleCallback",
+            "message": "The protocol and the core have no DOM, clock or timer; the Vue package reads them (P14)."
+          },
+          {
+            "name": "queueMicrotask",
+            "message": "The protocol and the core have no DOM, clock or timer; the Vue package reads them (P14)."
+          }
+        ],
+        "no-restricted-properties": [
+          "error",
+          {
+            "object": "window",
+            "property": "fetch",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "globalThis",
+            "property": "fetch",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "self",
+            "property": "fetch",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "window",
+            "property": "XMLHttpRequest",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "globalThis",
+            "property": "XMLHttpRequest",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "self",
+            "property": "XMLHttpRequest",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "window",
+            "property": "WebSocket",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "globalThis",
+            "property": "WebSocket",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "self",
+            "property": "WebSocket",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "window",
+            "property": "EventSource",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "globalThis",
+            "property": "EventSource",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "self",
+            "property": "EventSource",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "window",
+            "property": "localStorage",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "globalThis",
+            "property": "localStorage",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "self",
+            "property": "localStorage",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "window",
+            "property": "sessionStorage",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "globalThis",
+            "property": "sessionStorage",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "self",
+            "property": "sessionStorage",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "window",
+            "property": "indexedDB",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "globalThis",
+            "property": "indexedDB",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "self",
+            "property": "indexedDB",
+            "message": "No network or storage access in the library (P1)."
+          },
+          {
+            "object": "document",
+            "property": "cookie",
+            "message": "No storage access in the library (P1)."
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/*/src/**/*.spec.ts"],
+      "rules": {
+        "layers/boundaries": "off",
+        "import/no-cycle": "off",
+        "no-restricted-imports": "off",
+        "no-restricted-globals": "off",
+        "no-restricted-properties": "off",
+        "fences/no-global-listeners": "off"
+      }
+    }
+  ]
+}

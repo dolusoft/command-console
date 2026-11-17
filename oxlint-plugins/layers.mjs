@@ -1,4 +1,4 @@
-// A local ESLint plugin for the layering of the three packages (ADR 0001,
+// A local oxlint JS plugin for the layering of the three packages (ADR 0001,
 // ADR 0002, PRINCIPLES P11, P14). `layers/boundaries` checks every module
 // specifier of a file in packages/*/src: imports, `export ... from`
 // re-exports, dynamic `import()`, `import('x')` types, `require()` and
@@ -217,4 +217,4 @@ const boundaries = {
   }
 }
 
-export default { rules: { boundaries } }
+export default { meta: { name: 'layers' }, rules: { boundaries } }

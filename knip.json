@@ -2,8 +2,19 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": ["contract/dom.ts", "scripts/*.mjs", "tests/fixtures/**/*.ts"],
-      "project": ["contract/**/*.ts", "scripts/*.mjs", "tests/**/*.ts"]
+      "entry": [
+        "contract/dom.ts",
+        "scripts/*.mjs",
+        "oxlint-plugins/*.mjs",
+        "tests/fixtures/**/*.ts"
+      ],
+      "project": [
+        "contract/**/*.ts",
+        "scripts/*.mjs",
+        "oxlint-plugins/*.mjs",
+        "tools/**/*.mjs",
+        "tests/**/*.ts"
+      ]
     },
     "packages/command-protocol": {
       "project": ["src/**/*.ts", "tests/**/*.ts"]

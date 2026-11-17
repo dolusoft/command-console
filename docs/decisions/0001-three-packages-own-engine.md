@@ -22,7 +22,7 @@ Layers point one way: protocol → core → vue (P14). The engine copies TanStac
 
 - A consumer without Vue (a test, a server that answers with console responses, another framework) can use the protocol or the core alone.
 - The core is DOM-free and timer-free: it sees `KeyInput`, never a DOM event; the Vue package maps DOM events to core actions (P15).
-- The dependency allow-list per package is checked by `pnpm check:deps`, and the layers by the ESLint `layers/boundaries` rule (`scripts/eslint-layers.mjs`).
+- The dependency allow-list per package is checked by `pnpm check:deps`, and the layers by the `layers/boundaries` rule (`oxlint-plugins/layers.mjs`, an oxlint JS plugin; ESLint until 1.10).
 
 ## Trade-off
 
