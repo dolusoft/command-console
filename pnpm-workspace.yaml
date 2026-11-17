@@ -9,4 +9,4 @@ allowBuilds:
   vue-demi: true
 
 patchedDependencies:
-  '@vitest/browser@5.0.3': patches/@vitest__browser@5.0.3.patch
+  '@vitest/browser@5.1.0': patches/@vitest__browser@5.1.0.patch

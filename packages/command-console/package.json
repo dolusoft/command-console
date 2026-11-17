@@ -47,7 +47,7 @@
     "@dolusoft/command-protocol": "workspace:*"
   },
   "devDependencies": {
-    "vue": "^3.5.43"
+    "vue": "^3.5.45"
   },
   "peerDependencies": {
     "vue": "^3.5.0"
