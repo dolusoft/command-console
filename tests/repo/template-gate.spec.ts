@@ -226,6 +226,18 @@ import Child from './Child.vue'
         `<script setup lang="ts">\nimport { helper } from './helper'\n</script>\n`
       )
     ).toEqual([])
+    // A dotted tag uses its root binding: `<Form.Input>` uses `Form`.
+    const namespace = `<script setup lang="ts">\nimport * as Form from './form-components'\n</script>\n`
+    expect(check(`<Form.Input />`, namespace)).toEqual([])
+    expect(check(`<Other.Input />`, namespace)).toEqual([
+      'no-unused-imports@2:13'
+    ])
+    expect(
+      check(
+        `<p v-for="Form in list" :key="Form.id"><Form.Input /></p>`,
+        namespace
+      )
+    ).toEqual(['no-unused-imports@2:13'])
 
     const scriptOnly = (body: string) =>
       check(

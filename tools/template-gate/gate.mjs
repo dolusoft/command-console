@@ -495,6 +495,12 @@ export const checkSfc = (file, source, gates = GATES) => {
       templateReferenceSet.add(element.tag)
       templateReferenceSet.add(camel(element.tag))
       templateReferenceSet.add(pascal(element.tag))
+      // `<Form.Input>` reads `Input` off the binding `Form` (a namespace
+      // import), unless a v-for alias or a slot prop of that name shadows it.
+      const dot = element.tag.indexOf('.')
+      if (dot > 0 && !aliases.has(element.tag.slice(0, dot))) {
+        templateReferenceSet.add(element.tag.slice(0, dot))
+      }
     }
 
     const forDirective = directive(element, 'for')
