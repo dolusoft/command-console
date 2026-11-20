@@ -215,7 +215,7 @@ export const domClasses: ClassEntry[] = [
     name: 'cc-approve',
     on: '.cc-approval > button',
     description:
-      '`labels.remote.approve`; calls `approve()`, which refuses in the window’s first second (C-99, C-103).'
+      '`labels.remote.approve`; calls `approve()`, which refuses in the window’s first second (C-99, C-103); `disabled` for that second.'
   },
   {
     name: 'cc-reject',
@@ -288,6 +288,12 @@ export const domAttributes: AttributeEntry[] = [
     on: '.cc-attach-code',
     description:
       'Present once the line’s `expiresAt` has passed, for the skin to mark it (C-119).'
+  },
+  {
+    name: 'disabled',
+    on: '.cc-approve',
+    description:
+      'Present in the approval window’s first second, while `approve()` would refuse (C-103); a skin may dim the button with it.'
   },
   {
     name: 'name',

@@ -8,12 +8,18 @@ import type { RemoteLevel, RemoteState } from '@dolusoft/command-console-core'
 
 import type { AttachCode, ConsoleLabels, PairingRequest } from '../contract'
 
-const button = (className: string, text: string, onClick: () => void): VNode =>
+const button = (
+  className: string,
+  text: string,
+  onClick: () => void,
+  disabled = false
+): VNode =>
   h(
     'button',
     {
       class: className,
       type: 'button',
+      disabled,
       onClick: (event: MouseEvent) => {
         // The root's click would move the focus to the input (C-51).
         event.stopPropagation()
@@ -154,10 +160,14 @@ const renderCode = (
   )
 }
 
-/** `div.cc-approval` while a change from the CLI waits for the user. */
+/**
+ * `div.cc-approval` while a change from the CLI waits for the user.
+ * `cc-approve` is disabled until `accepting`: the plan's `acceptsAt` passed.
+ */
 export const renderApproval = (
   remote: RemoteState,
   labels: ConsoleLabels,
+  accepting: boolean,
   answer: (requestId: string, approved: boolean) => void
 ): VNode | null => {
   const plan = remote.approval
@@ -185,8 +195,11 @@ export const renderApproval = (
             labels.remote.targets(plan.targets)
           )
         : null,
-      button('cc-approve', labels.remote.approve, () =>
-        answer(plan.requestId, true)
+      button(
+        'cc-approve',
+        labels.remote.approve,
+        () => answer(plan.requestId, true),
+        !accepting
       ),
       button('cc-reject', labels.remote.reject, () =>
         answer(plan.requestId, false)

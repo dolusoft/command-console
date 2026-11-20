@@ -267,6 +267,38 @@ watch(
 )
 onBeforeUnmount(stopTicking)
 
+// C-103: Approve opens once the plan's first second passed (`acceptsAt`).
+// The wait is counted on the page's clock from when the window shows, so the
+// button never opens before the console would accept the click.
+const accepting = ref<string | null>(null)
+let holding: ReturnType<typeof setTimeout> | undefined
+const stopHolding = () => {
+  if (holding !== undefined) {
+    clearTimeout(holding)
+    holding = undefined
+  }
+}
+watch(
+  () => state.value.remote?.approval?.requestId,
+  requestId => {
+    stopHolding()
+    accepting.value = null
+    const plan = state.value.remote?.approval
+    if (requestId === undefined || !plan) {
+      return
+    }
+    holding = setTimeout(
+      () => {
+        holding = undefined
+        accepting.value = requestId
+      },
+      Math.max(0, plan.acceptsAt - plan.openedAt)
+    )
+  },
+  { immediate: true }
+)
+onBeforeUnmount(stopHolding)
+
 /**
  * Copies the line; where the clipboard is out of reach (an insecure page, a
  * refused permission) the line is selected for the user to copy.
@@ -323,13 +355,18 @@ const remoteView: FunctionalComponent = () => {
       ? renderRemote(remote, labels.value, () => emit('detach-remote'))
       : null,
     remote
-      ? renderApproval(remote, labels.value, (requestId, approved) => {
-          if (approved) {
-            instance.approve(requestId)
-          } else {
-            instance.reject(requestId)
+      ? renderApproval(
+          remote,
+          labels.value,
+          accepting.value === remote.approval?.requestId,
+          (requestId, approved) => {
+            if (approved) {
+              instance.approve(requestId)
+            } else {
+              instance.reject(requestId)
+            }
           }
-        })
+        )
       : null
   ]
 }

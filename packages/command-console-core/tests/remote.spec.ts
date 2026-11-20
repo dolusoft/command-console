@@ -1561,6 +1561,18 @@ describe('C-111 Remote suggestions', () => {
       class: 'denied',
       message: 'The approval expired; nothing changed.'
     })
+    expect(t.console.getState().entries.at(-1)).toMatchObject({
+      blocks: [
+        {
+          code: 'operation-failed',
+          params: { code: 'not-allowed' }
+        }
+      ]
+    })
+    expect(
+      (t.console.getState().entries.at(-1) as { blocks: { params: object }[] })
+        .blocks[0]!.params
+    ).not.toHaveProperty('reason')
     expect(end.suggest).toEqual(['tasks.stop', '--id', '3'])
     expect(end).not.toHaveProperty('approval')
   })
@@ -1577,6 +1589,17 @@ describe('C-111 Remote suggestions', () => {
       message: 'The user rejected the change in the browser; nothing changed.'
     })
     expect(end).not.toHaveProperty('suggest')
+    // The tab's entry tells the rejection apart from a plain not-allowed.
+    expect(t.console.getState().entries.at(-1)).toMatchObject({
+      kind: 'output',
+      blocks: [
+        {
+          type: 'message',
+          code: 'operation-failed',
+          params: { code: 'not-allowed', reason: 'rejected' }
+        }
+      ]
+    })
   })
 
   it('a sensitive request’s reply has no message, suggest, next or help', () => {

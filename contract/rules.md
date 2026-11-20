@@ -653,7 +653,8 @@ minutes is set through `(cliGate ?? gate).schedule` (C-120). `approve(id)` retur
 `acceptsAt`; after `expiresAt` it ends the request. Otherwise it clears the plan, cancels its timer and calls the
 command's `run` once with the plan's input; the line is not read again. `reject(id)`, the timer, `suspendRemote()`,
 `detachRemote()`, `cancel()`, Ctrl+C and a CLI `cancel` drop the plan: the request ends `not-allowed` (with a
-`message` that says why) or `cancelled`, and nothing runs. A schedule that throws ends it `connection-lost`.
+`message` that says why) or `cancelled`, and nothing runs. The `operation-failed` entry of `reject(id)` carries
+`reason: 'rejected'` with `not-allowed`; no other end carries it. A schedule that throws ends it `connection-lost`.
 `suspendRemote()` keeps the binding and its CLI subscription: when the connection returns with the same
 `bindingId`, requests are received without calling `attachRemote` again (C-120).
 
@@ -685,8 +686,9 @@ ends the binding at the hub and calls `detachRemote()`.
 
 While `state.remote.approval` is set, `div.cc-approval` (a `role="alertdialog"` named by `labels.remote.approval`)
 shows `labels.remote.fromCli` with the approval time of the binding, the plan's `preview` (else its line), its
-targets when it has any, and the buttons `cc-approve` and `cc-reject`, which call `approve()` and `reject()`. It never
-shows a computer name.
+targets when it has any, and the buttons `cc-approve` and `cc-reject`, which call `approve()` and `reject()`. `cc-approve`
+is `disabled` until the plan's first second (`acceptsAt` after `openedAt`) passed on the page's clock, counted from
+when the window shows; a new plan starts its own second. It never shows a computer name.
 
 ### C-104 Pairing question (Vue)
 

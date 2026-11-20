@@ -641,8 +641,11 @@ export interface MessageParams {
   interrupted: Record<string, never>
   /** `path` is `null` when the line is sensitive; `''` names the root. */
   'invalid-args': { path: string | null; reason: InputErrorCode }
-  /** The code the operation ended with. */
-  'operation-failed': { code: ErrorCode }
+  /**
+   * The code the operation ended with. `reason: 'rejected'` comes only with
+   * `not-allowed`: the user rejected the change in its approval window.
+   */
+  'operation-failed': { code: ErrorCode; reason?: 'rejected' }
 }
 
 // packages/command-protocol/src/command.ts
@@ -1860,7 +1863,8 @@ minutes is set through `(cliGate ?? gate).schedule` (C-120). `approve(id)` retur
 `acceptsAt`; after `expiresAt` it ends the request. Otherwise it clears the plan, cancels its timer and calls the
 command's `run` once with the plan's input; the line is not read again. `reject(id)`, the timer, `suspendRemote()`,
 `detachRemote()`, `cancel()`, Ctrl+C and a CLI `cancel` drop the plan: the request ends `not-allowed` (with a
-`message` that says why) or `cancelled`, and nothing runs. A schedule that throws ends it `connection-lost`.
+`message` that says why) or `cancelled`, and nothing runs. The `operation-failed` entry of `reject(id)` carries
+`reason: 'rejected'` with `not-allowed`; no other end carries it. A schedule that throws ends it `connection-lost`.
 `suspendRemote()` keeps the binding and its CLI subscription: when the connection returns with the same
 `bindingId`, requests are received without calling `attachRemote` again (C-120).
 
@@ -1892,8 +1896,9 @@ ends the binding at the hub and calls `detachRemote()`.
 
 While `state.remote.approval` is set, `div.cc-approval` (a `role="alertdialog"` named by `labels.remote.approval`)
 shows `labels.remote.fromCli` with the approval time of the binding, the plan's `preview` (else its line), its
-targets when it has any, and the buttons `cc-approve` and `cc-reject`, which call `approve()` and `reject()`. It never
-shows a computer name.
+targets when it has any, and the buttons `cc-approve` and `cc-reject`, which call `approve()` and `reject()`. `cc-approve`
+is `disabled` until the plan's first second (`acceptsAt` after `openedAt`) passed on the page's clock, counted from
+when the window shows; a new plan starts its own second. It never shows a computer name.
 
 #### C-104 Pairing question (Vue)
 
@@ -2129,7 +2134,7 @@ The classes and attributes below are the only hooks a skin can select (P6). The 
 | `cc-approval-source` | `.cc-approval > span` | `labels.remote.fromCli` and when the binding was approved; never a computer name (C-103). |
 | `cc-approval-preview` | `.cc-approval > span` | The plan’s preview, else its canonical line (C-103). |
 | `cc-approval-targets` | `.cc-approval > span` | The plan’s target ids, when it has any (C-103). |
-| `cc-approve` | `.cc-approval > button` | `labels.remote.approve`; calls `approve()`, which refuses in the window’s first second (C-99, C-103). |
+| `cc-approve` | `.cc-approval > button` | `labels.remote.approve`; calls `approve()`, which refuses in the window’s first second (C-99, C-103); `disabled` for that second. |
 | `cc-reject` | `.cc-approval > button` | `labels.remote.reject`; calls `reject()` (C-103). |
 | `cc-pairing` | `.cc-console > div` | A named `role="alertdialog"` while the `pairing` prop is set: "connect this tab to the CLI?" (C-104). |
 | `cc-pairing-text` | `.cc-pairing > span` | The question and the server’s facts of the grant: when it was created and its environment (C-104). |
@@ -2147,6 +2152,7 @@ The classes and attributes below are the only hooks a skin can select (P6). The 
 | `role` | `.cc-log, .cc-status, .cc-completions, .cc-completion, .cc-input, .cc-approval, .cc-pairing, .cc-attach-code` | `log` on the log, `status` on the status element, `listbox` on the list, `option` on a candidate, `combobox` on the input (C-48), `alertdialog` on the approval window and the pairing question (C-103, C-104), `group` on the line of the CLI row (C-119). |
 | `aria-label` | `.cc-log, .cc-completions, .cc-input, .cc-approval, .cc-pairing, .cc-attach-code` | From `labels.log`, `labels.completions`, `labels.input`, `labels.remote.approval`, `labels.remote.pairing` and `labels.remote.attachCode` (C-47). |
 | `data-expired` | `.cc-attach-code` | Present once the line’s `expiresAt` has passed, for the skin to mark it (C-119). |
+| `disabled` | `.cc-approve` | Present in the approval window’s first second, while `approve()` would refuse (C-103); a skin may dim the button with it. |
 | `name` | `.cc-attach-radio` | From Vue’s `useId()`: the group of the two level buttons, unique per console (C-119). |
 | `value` | `.cc-attach-radio` | `ask-server` or `never-ask` (C-119). |
 | `checked` | `.cc-attach-radio` | On the level chosen (C-119). |

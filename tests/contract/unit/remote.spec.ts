@@ -14,7 +14,10 @@ import type { CliReply, InputEntry } from '@dolusoft/command-protocol'
 
 import { mountConsole, unmountAll } from '../../support/mount-console'
 
-afterEach(unmountAll)
+afterEach(() => {
+  unmountAll()
+  vi.useRealTimers()
+})
 
 /** A console bound to a fake CLI, with a hand-moved clock. */
 const bound = () => {
@@ -150,7 +153,8 @@ describe('C-103 Approval window (Vue)', () => {
     )
   })
 
-  it('Approve runs the plan only after the first second; Reject ends it', async () => {
+  it('Approve is disabled and runs nothing in the first second; then it runs the plan; Reject ends it', async () => {
+    vi.useFakeTimers()
     const t = bound()
     const view = mountConsole({
       props: { console: t.console, commands: undefined }
@@ -158,11 +162,20 @@ describe('C-103 Approval window (Vue)', () => {
     t.console.attachRemote(t.binding)
     t.request('r1', 'tasks.stop --id 8812 --yes')
     await nextTick()
-    const approve = () =>
-      view.root.querySelector<HTMLButtonElement>('.cc-approve')!.click()
+    const button = () =>
+      view.root.querySelector<HTMLButtonElement>('.cc-approve')!
+    const approve = () => button().click()
+    expect(button().disabled).toBe(true)
     approve()
     expect(t.run).not.toHaveBeenCalled()
-    t.clock.now += 1000
+    t.clock.now += 999
+    vi.advanceTimersByTime(999)
+    await nextTick()
+    expect(button().disabled).toBe(true)
+    t.clock.now += 1
+    vi.advanceTimersByTime(1)
+    await nextTick()
+    expect(button().disabled).toBe(false)
     approve()
     expect(t.run).toHaveBeenCalledTimes(1)
     await nextTick()
@@ -170,6 +183,8 @@ describe('C-103 Approval window (Vue)', () => {
 
     t.request('r2', 'tasks.stop --id 1 --yes')
     await nextTick()
+    // A new window starts its own first second.
+    expect(button().disabled).toBe(true)
     view.root.querySelector<HTMLButtonElement>('.cc-reject')!.click()
     await nextTick()
     expect(view.root.querySelector('.cc-approval')).toBeNull()
@@ -178,6 +193,11 @@ describe('C-103 Approval window (Vue)', () => {
     expect(last?.kind === 'finished' && last.outcome).toMatchObject({
       code: 'not-allowed'
     })
+    // The tab tells a rejection apart from a command not allowed here.
+    const entries = view.root.querySelectorAll('.cc-entry')
+    expect(entries[entries.length - 1]?.textContent).toBe(
+      'You rejected the change; nothing changed.'
+    )
   })
 
   it('a preview shows its canonical line when the plan has no preview', async () => {

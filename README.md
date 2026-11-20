@@ -341,7 +341,7 @@ div.cc-console [data-busy] data-context-depth=<frames>
 │  ├─ button.cc-attach-start                  emits attach-remote with the level
 │  └─ div.cc-attach-code role="group" [data-expired]   with the attachCode prop: code.cc-attach-line, button.cc-attach-copy, span.cc-attach-warning, span.cc-attach-expires
 ├─ div.cc-remote                               while a CLI is bound: span.cc-remote-text, span.cc-remote-level, button.cc-remote-detach
-├─ div.cc-approval role="alertdialog"         while a change from the CLI waits: span.cc-approval-source, span.cc-approval-preview, span.cc-approval-targets, button.cc-approve, button.cc-reject
+├─ div.cc-approval role="alertdialog"         while a change from the CLI waits: span.cc-approval-source, span.cc-approval-preview, span.cc-approval-targets, button.cc-approve (disabled for the first second), button.cc-reject
 ├─ ul.cc-completions role="listbox"            only while a list is open
 │  └─ li.cc-completion role="option" aria-selected
 └─ div.cc-input-line                           never a form
@@ -393,23 +393,23 @@ The library writes no `style` attribute, sets no size and no `overflow`. Give `.
 
 Every text the component shows comes from the `labels` prop, over English defaults. `messages` and `actors` merge one level deep, so overriding one message keeps the others. A message is a string or a function of its parameters.
 
-| Label                            | Default                                                                                                            |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `input`                          | `Command` (the input's accessible name)                                                                            |
-| `inputDescription`               | `Enter runs the command. Tab completes; on an empty line it leaves the console.`                                   |
-| `log`                            | `Console output`                                                                                                   |
-| `redacted`                       | `(input hidden)`                                                                                                   |
-| `cancelledMarker`                | `^C`                                                                                                               |
-| `completions`                    | `Suggestions` (the list's accessible name)                                                                         |
-| `busy`                           | `Running…`                                                                                                         |
-| `actors.assistant`               | `AI` (before the prompt of a line from the application's assistant)                                                |
-| `actors['external-agent']`       | `Agent` (before the prompt of a line from an agent outside the application)                                        |
-| `messages['command-not-found']`  | `` p => p.name === null ? 'command not found' : `${p.name}: command not found` ``                                  |
-| `messages['command-failed']`     | `The command failed.`                                                                                              |
-| `messages['unterminated-quote']` | `Unterminated quote.`                                                                                              |
-| `messages.interrupted`           | `Interrupted.`                                                                                                     |
-| `messages['invalid-args']`       | `Missing option: ip.`, `Unknown option: x.`, `Invalid option ip: wrong format.`; `Invalid options.` without a path |
-| `messages['operation-failed']`   | one English sentence per `p.code` (`timeout`: `No answer in time; the command did not run.`)                       |
+| Label                            | Default                                                                                                                                                           |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `input`                          | `Command` (the input's accessible name)                                                                                                                           |
+| `inputDescription`               | `Enter runs the command. Tab completes; on an empty line it leaves the console.`                                                                                  |
+| `log`                            | `Console output`                                                                                                                                                  |
+| `redacted`                       | `(input hidden)`                                                                                                                                                  |
+| `cancelledMarker`                | `^C`                                                                                                                                                              |
+| `completions`                    | `Suggestions` (the list's accessible name)                                                                                                                        |
+| `busy`                           | `Running…`                                                                                                                                                        |
+| `actors.assistant`               | `AI` (before the prompt of a line from the application's assistant)                                                                                               |
+| `actors['external-agent']`       | `Agent` (before the prompt of a line from an agent outside the application)                                                                                       |
+| `messages['command-not-found']`  | `` p => p.name === null ? 'command not found' : `${p.name}: command not found` ``                                                                                 |
+| `messages['command-failed']`     | `The command failed.`                                                                                                                                             |
+| `messages['unterminated-quote']` | `Unterminated quote.`                                                                                                                                             |
+| `messages.interrupted`           | `Interrupted.`                                                                                                                                                    |
+| `messages['invalid-args']`       | `Missing option: ip.`, `Unknown option: x.`, `Invalid option ip: wrong format.`; `Invalid options.` without a path                                                |
+| `messages['operation-failed']`   | one English sentence per `p.code` (`timeout`: `No answer in time; the command did not run.`); `p.reason: 'rejected'`: `You rejected the change; nothing changed.` |
 
 ```vue
 <CommandConsole
