@@ -200,6 +200,26 @@ describe('C-103 Approval window (Vue)', () => {
     )
   })
 
+  it('a component mounted on a waiting plan keeps Approve disabled for its first second', async () => {
+    vi.useFakeTimers()
+    const t = bound()
+    t.console.attachRemote(t.binding)
+    t.request('r1', 'tasks.stop --id 8812 --yes')
+    const view = mountConsole({
+      props: { console: t.console, commands: undefined }
+    })
+    await nextTick()
+    const button = () =>
+      view.root.querySelector<HTMLButtonElement>('.cc-approve')!
+    expect(button().disabled).toBe(true)
+    t.clock.now += 1000
+    vi.advanceTimersByTime(1000)
+    await nextTick()
+    expect(button().disabled).toBe(false)
+    view.unmount()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('a preview shows its canonical line when the plan has no preview', async () => {
     const t = bound()
     t.console.setOptions(options => ({

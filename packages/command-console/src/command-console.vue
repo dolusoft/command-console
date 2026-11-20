@@ -11,6 +11,7 @@ import {
   onBeforeUnmount,
   onMounted,
   ref,
+  shallowRef,
   toRef,
   useId,
   useTemplateRef,
@@ -25,6 +26,7 @@ import {
   recallFeature,
   type OptionalFeatures,
   type RemoteLevel,
+  type RemoteState,
   type Updater
 } from '@dolusoft/command-console-core'
 import type { ConsoleEntry, ContextFrame } from '@dolusoft/command-protocol'
@@ -269,35 +271,42 @@ onBeforeUnmount(stopTicking)
 
 // C-103: Approve opens once the plan's first second passed (`acceptsAt`).
 // The wait is counted on the page's clock from when the window shows, so the
-// button never opens before the console would accept the click.
-const accepting = ref<string | null>(null)
+// button never opens before the console would accept the click. The plan
+// object is the key, not its request id, so a plan that replaces another
+// starts its own second. The timer starts only once mounted (no SSR timer).
+type Plan = NonNullable<RemoteState['approval']>
+const accepting = shallowRef<Plan | null>(null)
 let holding: ReturnType<typeof setTimeout> | undefined
+let holdMounted = false
 const stopHolding = () => {
   if (holding !== undefined) {
     clearTimeout(holding)
     holding = undefined
   }
 }
-watch(
-  () => state.value.remote?.approval?.requestId,
-  requestId => {
-    stopHolding()
-    accepting.value = null
-    const plan = state.value.remote?.approval
-    if (requestId === undefined || !plan) {
-      return
-    }
-    holding = setTimeout(
-      () => {
-        holding = undefined
-        accepting.value = requestId
-      },
-      Math.max(0, plan.acceptsAt - plan.openedAt)
-    )
-  },
-  { immediate: true }
-)
-onBeforeUnmount(stopHolding)
+const hold = (plan: Plan | null | undefined) => {
+  stopHolding()
+  accepting.value = null
+  if (!plan || !holdMounted) {
+    return
+  }
+  holding = setTimeout(
+    () => {
+      holding = undefined
+      accepting.value = plan
+    },
+    Math.max(0, plan.acceptsAt - plan.openedAt)
+  )
+}
+watch(() => state.value.remote?.approval, hold)
+onMounted(() => {
+  holdMounted = true
+  hold(state.value.remote?.approval)
+})
+onBeforeUnmount(() => {
+  holdMounted = false
+  stopHolding()
+})
 
 /**
  * Copies the line; where the clipboard is out of reach (an insecure page, a
@@ -358,7 +367,7 @@ const remoteView: FunctionalComponent = () => {
       ? renderApproval(
           remote,
           labels.value,
-          accepting.value === remote.approval?.requestId,
+          accepting.value !== null && accepting.value === remote.approval,
           (requestId, approved) => {
             if (approved) {
               instance.approve(requestId)
