@@ -461,7 +461,8 @@ const close = (
   run: Run,
   code: ErrorCode,
   error?: Error,
-  text?: string
+  text?: string,
+  reason?: 'rejected'
 ) => {
   run.current = false
   run.outcome = failure(code, text)
@@ -474,7 +475,11 @@ const close = (
     }
     addEntry(
       console,
-      output('error', [message('operation-failed', { code })], run.inputId)
+      output(
+        'error',
+        [message('operation-failed', reason ? { code, reason } : { code })],
+        run.inputId
+      )
     )
   } finally {
     cleanup(console, run)
@@ -1759,7 +1764,10 @@ const approve = (console: object, requestId: string): boolean => {
   return true
 }
 
-/** `reject()` (C-99): the run ends `not-allowed`, nothing changed. */
+/**
+ * `reject()` (C-99): the run ends `not-allowed`, nothing changed; its entry
+ * says the user rejected it.
+ */
 const reject = (console: object, requestId: string): boolean => {
   const run = stateOf(console).run
   if (!run?.current || run.remote?.approval?.requestId !== requestId) {
@@ -1771,7 +1779,8 @@ const reject = (console: object, requestId: string): boolean => {
     run,
     'not-allowed',
     undefined,
-    'The user rejected the change in the browser; nothing changed.'
+    'The user rejected the change in the browser; nothing changed.',
+    'rejected'
   )
   return true
 }

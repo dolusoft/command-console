@@ -85,7 +85,10 @@ const defaultLabels: ConsoleLabels = {
     'unterminated-quote': 'Unterminated quote.',
     interrupted: 'Interrupted.',
     'invalid-args': invalidArgsText,
-    'operation-failed': params => operationTexts[params.code]
+    'operation-failed': params =>
+      params.reason === 'rejected'
+        ? 'You rejected the change; nothing changed.'
+        : operationTexts[params.code]
   },
   actors: {
     assistant: 'AI',

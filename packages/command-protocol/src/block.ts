@@ -87,6 +87,9 @@ export interface MessageParams {
   interrupted: Record<string, never>
   /** `path` is `null` when the line is sensitive; `''` names the root. */
   'invalid-args': { path: string | null; reason: InputErrorCode }
-  /** The code the operation ended with. */
-  'operation-failed': { code: ErrorCode }
+  /**
+   * The code the operation ended with. `reason: 'rejected'` comes only with
+   * `not-allowed`: the user rejected the change in its approval window.
+   */
+  'operation-failed': { code: ErrorCode; reason?: 'rejected' }
 }

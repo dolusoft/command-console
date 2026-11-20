@@ -11,6 +11,7 @@ import {
   onBeforeUnmount,
   onMounted,
   ref,
+  shallowRef,
   toRef,
   useId,
   useTemplateRef,
@@ -25,6 +26,7 @@ import {
   recallFeature,
   type OptionalFeatures,
   type RemoteLevel,
+  type RemoteState,
   type Updater
 } from '@dolusoft/command-console-core'
 import type { ConsoleEntry, ContextFrame } from '@dolusoft/command-protocol'
@@ -267,6 +269,45 @@ watch(
 )
 onBeforeUnmount(stopTicking)
 
+// C-103: Approve opens once the plan's first second passed (`acceptsAt`).
+// The wait is counted on the page's clock from when the window shows, so the
+// button never opens before the console would accept the click. The plan
+// object is the key, not its request id, so a plan that replaces another
+// starts its own second. The timer starts only once mounted (no SSR timer).
+type Plan = NonNullable<RemoteState['approval']>
+const accepting = shallowRef<Plan | null>(null)
+let holding: ReturnType<typeof setTimeout> | undefined
+let holdMounted = false
+const stopHolding = () => {
+  if (holding !== undefined) {
+    clearTimeout(holding)
+    holding = undefined
+  }
+}
+const hold = (plan: Plan | null | undefined) => {
+  stopHolding()
+  accepting.value = null
+  if (!plan || !holdMounted) {
+    return
+  }
+  holding = setTimeout(
+    () => {
+      holding = undefined
+      accepting.value = plan
+    },
+    Math.max(0, plan.acceptsAt - plan.openedAt)
+  )
+}
+watch(() => state.value.remote?.approval, hold)
+onMounted(() => {
+  holdMounted = true
+  hold(state.value.remote?.approval)
+})
+onBeforeUnmount(() => {
+  holdMounted = false
+  stopHolding()
+})
+
 /**
  * Copies the line; where the clipboard is out of reach (an insecure page, a
  * refused permission) the line is selected for the user to copy.
@@ -323,13 +364,18 @@ const remoteView: FunctionalComponent = () => {
       ? renderRemote(remote, labels.value, () => emit('detach-remote'))
       : null,
     remote
-      ? renderApproval(remote, labels.value, (requestId, approved) => {
-          if (approved) {
-            instance.approve(requestId)
-          } else {
-            instance.reject(requestId)
+      ? renderApproval(
+          remote,
+          labels.value,
+          accepting.value !== null && accepting.value === remote.approval,
+          (requestId, approved) => {
+            if (approved) {
+              instance.approve(requestId)
+            } else {
+              instance.reject(requestId)
+            }
           }
-        })
+        )
       : null
   ]
 }

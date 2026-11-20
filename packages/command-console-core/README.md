@@ -73,7 +73,7 @@ no optional method, in its type and at run time. The feature set is fixed for th
 | `recallLimit`                                          | recall: the most lines kept; default 100 (`Infinity` keeps all, a fraction is rounded down)                |
 | `shouldRecord(line)`                                   | recall: whether a submitted line is recorded; default every line                                           |
 | `gate`                                                 | sends described commands as envelopes and runs them from their echo (below); fixed for the console's life  |
-| `cliGate`                                              | receives CLI messages and schedules approval windows; defaults to `gate`; fixed for the console's life |
+| `cliGate`                                              | receives CLI messages and schedules approval windows; defaults to `gate`; fixed for the console's life     |
 | `activeView()`                                         | the view a typed line (or a `{ line }` request) targets, read when the line ends                           |
 | `echoTimeoutMs`                                        | how long an envelope waits for its echo, a finite number above 0 (else a `TypeError`); default 5000        |
 | `createEnvelopeId()`                                   | makes envelope ids; default `crypto.randomUUID()`, else a v4 UUID from `crypto.getRandomValues` (below)    |
@@ -343,7 +343,7 @@ console.detachRemote()
 - **Approval.** A change that asks the user waits in `phase: 'approving'`. The command's optional `plan(input, signal)`
   gives `targets` and a `preview`; `state.remote.approval` holds the plan for two minutes. `approve(id)` is refused in
   the first second and runs the plan's input once; `reject(id)`, the timer, `suspendRemote()`, `detachRemote()` and a
-  cancel drop it.
+  cancel drop it. A rejection's `operation-failed` entry carries `reason: 'rejected'`.
 - **Cancel.** A `cancel` from the CLI answers `cancelled-before-start` or `cancel-requested` and interrupts the run.
 - **Help.** A `help-request` (`gecko help …`) is answered by the console with one `help-result`, also while a
   command runs, with no `received` and no approval; the shell needs no help code of its own. The tab reads its argv:

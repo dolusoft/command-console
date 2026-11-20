@@ -438,6 +438,7 @@ export interface MessageParams {
     };
     'operation-failed': {
         code: ErrorCode;
+        reason?: 'rejected';
     };
     // (undocumented)
     'unterminated-quote': {

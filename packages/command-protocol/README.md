@@ -35,8 +35,8 @@ check it. Functions (a command's `run` and `complete`, callbacks) live in the co
 - **Messages** (`MessageCode`, `MessageParams`): the library writes no text, only codes. `command-not-found`
   (`{ name }`), `command-failed` (no params: the error's text is never shown), `unterminated-quote` (`{ index }`),
   `interrupted`, `invalid-args` (`{ path, reason }`: the first error of a command's options, `reason` an
-  `InputErrorCode`) and `operation-failed` (`{ code }`: an `ErrorCode`, for an operation that ended without running its
-  command). For a sensitive line `name`, `index` and `path` are `null`.
+  `InputErrorCode`) and `operation-failed` (`{ code, reason? }`: an `ErrorCode`, for an operation that ended without running its
+  command; `reason: 'rejected'` with `not-allowed` when the user rejected the change). For a sensitive line `name`, `index` and `path` are `null`.
 - **Commands**: `CommandSpec` is the JSON part of a command (`name`, `aliases`, `summary`, `usage`, `hidden`,
   `sensitive: boolean | { fromArg }`, `input` (its input schema, below), `danger: 'read' | 'change' | 'irreversible'`).
   `CommandResponse` is what a command may return (`output`, `tone`, `quiet`, `effects`, `summary`, a short result
